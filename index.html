@@ -159,25 +159,6 @@
         }
 
         /* Circle/Special */
-
-        #start-fullscreen {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px 40px;
-            background: rgba(0, 255, 255, 0.2);
-            border: 2px solid cyan;
-            color: cyan;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 24px;
-            cursor: pointer;
-            z-index: 200;
-            border-radius: 10px;
-            backdrop-filter: blur(5px);
-            text-transform: uppercase;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
-        }
     </style>
 </head>
 
@@ -186,7 +167,6 @@
         <!-- V2.0 Canvas holds the entire render pipeline -->
         <canvas id="gameCanvas"></canvas>
 
-        <button id="start-fullscreen">PLAY (FULLSCREEN)</button>
 
         <!-- Modern Touch Overlay (Hidden by default, enabled via JS on touch/mobile) -->
         <div id="mobile-ui" class="hidden">

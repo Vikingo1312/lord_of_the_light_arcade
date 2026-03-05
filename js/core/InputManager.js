@@ -22,23 +22,10 @@ export default class InputManager {
             this.keys[e.code] = false;
         });
 
-        // --- Mobile Fullscreen & Touch ---
-        const startBtn = document.getElementById('start-fullscreen');
+        // --- Mobile Touch Auto-Detect ---
         const mobileUI = document.getElementById('mobile-ui');
-
-        if (startBtn) {
-            startBtn.addEventListener('click', () => {
-                startBtn.classList.add('hidden');
-                // Request fullscreen
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(e => console.log(e));
-                }
-
-                // If it's a touch device, show the mobile UI
-                if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-                    if (mobileUI) mobileUI.classList.remove('hidden');
-                }
-            });
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+            if (mobileUI) mobileUI.classList.remove('hidden');
         }
 
         // Bind touch buttons to this.touch state
