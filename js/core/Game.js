@@ -28,7 +28,7 @@ export default class Game {
             sfxVolume: 0.5,
 
             // Effect Bypass Flags — set to false to disable
-            chromaKeyEnabled: true,   // Background removal on sprites
+            chromaKeyEnabled: false,  // Sprites are already transparent — DO NOT process!
             hitFlashEnabled: true,    // White flash on hit
             bgmFilterEnabled: true,   // Low-pass filter on BGM during voiceover
             autoFacingEnabled: true,  // Auto-mirror sprites based on position
