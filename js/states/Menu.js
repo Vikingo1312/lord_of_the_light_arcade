@@ -61,7 +61,7 @@ export default class MenuState {
         } catch (e) { this.storyCompleted = false; }
 
         // Play main theme — start quiet and fade in gently after the calm splash screen
-        this.game.audioManager.playBGM('assets/audio/music/Main_soundtrack.wav', true, false, 0.02);
+        this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.02);
         // Gradually ramp volume up over ~2 seconds
         this._fadeInTimer = 0;
         this._fadeInTarget = this.game.settings.musicVolume;
