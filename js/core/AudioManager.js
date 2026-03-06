@@ -44,27 +44,24 @@ export default class AudioManager {
         if (this.audioUnlocked) return;
 
         try {
-            // Unlock WebAudioContext if suspended
+            // Unlock WebAudioContext if suspended (Needed for BOTH Desktop and Mobile)
             if (this.audioCtx && this.audioCtx.state === 'suspended') {
                 this.audioCtx.resume();
             }
 
-            // Only force HTML5 Audio unlocking on Mobile devices
-            // This prevents a massive loading stutter on Desktop PCs
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            // A tiny, 0.1s silent MP3 buffer to immediately satisfy browser AutoPlay policies
+            const silentB64 = 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
 
-            if (isMobile) {
-                // Unlock all 8 HTML5 SFX Audio elements by forcing an empty load/play
-                this.sfxChannels.forEach(channel => {
-                    channel.volume = 0;
-                    channel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
-                    channel.play().catch(e => { });
-                });
+            // Unlock ONE SFX Channel (bypasses Mobile Safari's "must play an element" rule)
+            // No need to unlock all 8 as it causes a heavy CPU stutter on Desktop
+            this.sfxChannels[0].volume = 0;
+            this.sfxChannels[0].src = silentB64;
+            this.sfxChannels[0].play().catch(e => { });
 
-                this.voiceChannel.volume = 0;
-                this.voiceChannel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
-                this.voiceChannel.play().catch(e => { });
-            }
+            // Unlock Voice Channel
+            this.voiceChannel.volume = 0;
+            this.voiceChannel.src = silentB64;
+            this.voiceChannel.play().catch(e => { });
 
             this.audioUnlocked = true;
             console.log("Audio Engine Unlocked by User Interaction");
