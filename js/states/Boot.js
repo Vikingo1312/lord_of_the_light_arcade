@@ -3,17 +3,17 @@ export default class BootState {
         this.game = game;
         this.engineReady = false;
         this.loaded = false;
-
-        window.addEventListener('click', () => {
+        // Start engine on first interaction (click OR touch for iPhone/iPad)
+        const startEngine = () => {
             if (!this.engineReady) {
                 this.engineReady = true;
-
-                this.game.start(); // Starts the loop rendering
-
-                // Commence Asset Loading immediately so audio errors don't block it
+                this.game.start();
+                this.game.audioManager.unlockAudio(); // Prime audio on first touch
                 this.loadAssets();
             }
-        }, { once: true });
+        };
+        window.addEventListener('click', startEngine, { once: true });
+        window.addEventListener('touchstart', startEngine, { once: true });
     }
 
     async loadAssets() {

@@ -1,26 +1,31 @@
 /**
- * Mobile Virtual Touchpad
- * Renders a D-pad and attack buttons on touch screens.
- * Injects touch input into InputManager.
+ * Premium Mobile Virtual Controller
+ * Modern analog stick + action buttons with dark glass aesthetic.
+ * Renders on touch screens only. Injects input into InputManager.
  */
 export default class TouchPad {
     constructor(game) {
         this.game = game;
         this.canvas = game.canvas;
         this.active = false;
-        this.touches = {};
 
-        // D-Pad state
+        // D-Pad / Analog stick state
         this.dpad = { up: false, down: false, left: false, right: false };
-        // Attack buttons — current + previous frame for "just pressed" detection
+        this.stickAngle = 0;
+        this.stickDist = 0;
+        this.stickTouchId = null;
+
+        // Attack buttons — current + previous frame for "just pressed"
         this.buttons = { l: false, h: false, s: false };
         this.prevButtons = { l: false, h: false, s: false };
 
-        // Layout positions (set in resize)
-        this.dpadCenter = { x: 160, y: 0 };
-        this.dpadRadius = 90;
+        // Layout
+        this.stickCenter = { x: 0, y: 0 };
+        this.stickRadius = 70;
+        this.stickOuter = 100;
+        this.stickPos = { x: 0, y: 0 }; // Current thumb position
+        this.btnRadius = 40;
         this.btnPositions = [];
-        this.btnRadius = 55;
 
         // Detect touch device
         this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -35,39 +40,53 @@ export default class TouchPad {
     resize() {
         const w = this.canvas.width;
         const h = this.canvas.height;
-        this.dpadCenter = { x: 140, y: h - 180 };
 
-        // Three attack buttons on the right side — bigger and more spaced
-        const rightX = w - 110;
-        const btnY = h - 180;
+        // Analog stick — bottom-left
+        this.stickCenter = { x: 150, y: h - 170 };
+        this.stickPos = { ...this.stickCenter };
+
+        // Action buttons — bottom-right, diamond layout like PlayStation
+        const rx = w - 130;
+        const ry = h - 170;
+        const spacing = 65;
         this.btnPositions = [
-            { id: 'l', x: rightX - 150, y: btnY + 30, label: '👊', color: '#00ccff' },
-            { id: 'h', x: rightX - 40, y: btnY - 30, label: '🦶', color: '#ff4400' },
-            { id: 's', x: rightX - 40, y: btnY + 80, label: '⚡', color: '#fdbf00' },
+            { id: 'l', x: rx - spacing, y: ry, label: 'P', sub: 'PUNCH', color: '#00ccff' },
+            { id: 'h', x: rx, y: ry - spacing, label: 'K', sub: 'KICK', color: '#ff4444' },
+            { id: 's', x: rx + spacing, y: ry, label: 'S', sub: 'SPEC', color: '#ffcc00' },
         ];
     }
 
     setupTouchListeners() {
-        const handle = (e) => {
+        this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.processTouches(e.touches);
-        };
+            this.handleTouches(e.touches);
+        }, { passive: false });
 
-        this.canvas.addEventListener('touchstart', handle, { passive: false });
-        this.canvas.addEventListener('touchmove', handle, { passive: false });
-        this.canvas.addEventListener('touchend', handle, { passive: false });
-        this.canvas.addEventListener('touchcancel', handle, { passive: false });
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            this.handleTouches(e.touches);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            this.handleTouches(e.touches);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            this.handleTouches(e.touches);
+        }, { passive: false });
     }
 
-    processTouches(touchList) {
-        // Save previous state for "just pressed" detection
-        this.prevButtons.l = this.buttons.l;
-        this.prevButtons.h = this.buttons.h;
-        this.prevButtons.s = this.buttons.s;
+    handleTouches(touchList) {
+        // Save previous button state
+        this.prevButtons = { ...this.buttons };
 
-        // Reset all
+        // Reset
         this.dpad = { up: false, down: false, left: false, right: false };
         this.buttons = { l: false, h: false, s: false };
+        this.stickDist = 0;
+        this.stickPos = { ...this.stickCenter };
 
         const scaleX = this.canvas.width / this.canvas.clientWidth;
         const scaleY = this.canvas.height / this.canvas.clientHeight;
@@ -78,26 +97,37 @@ export default class TouchPad {
             const tx = (t.clientX - rect.left) * scaleX;
             const ty = (t.clientY - rect.top) * scaleY;
 
-            // Check D-Pad
-            const dx = tx - this.dpadCenter.x;
-            const dy = ty - this.dpadCenter.y;
+            // Check analog stick zone (generous area)
+            const dx = tx - this.stickCenter.x;
+            const dy = ty - this.stickCenter.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < this.dpadRadius * 2.5) {
+            if (dist < this.stickOuter * 2.5) {
+                // Clamp stick position to outer ring
+                const clampedDist = Math.min(dist, this.stickOuter);
                 const angle = Math.atan2(dy, dx);
-                const deg = angle * (180 / Math.PI);
+                this.stickPos = {
+                    x: this.stickCenter.x + Math.cos(angle) * clampedDist,
+                    y: this.stickCenter.y + Math.sin(angle) * clampedDist,
+                };
+                this.stickAngle = angle;
+                this.stickDist = clampedDist / this.stickOuter;
 
-                if (deg > -60 && deg < 60) this.dpad.right = true;
-                if (deg > 120 || deg < -120) this.dpad.left = true;
-                if (deg > -150 && deg < -30) this.dpad.up = true;
-                if (deg > 30 && deg < 150) this.dpad.down = true;
+                // Convert to D-pad with deadzone
+                if (this.stickDist > 0.3) {
+                    const deg = angle * (180 / Math.PI);
+                    if (deg > -60 && deg < 60) this.dpad.right = true;
+                    if (deg > 120 || deg < -120) this.dpad.left = true;
+                    if (deg > -150 && deg < -30) this.dpad.up = true;
+                    if (deg > 30 && deg < 150) this.dpad.down = true;
+                }
             }
 
             // Check buttons
             for (const btn of this.btnPositions) {
                 const bdx = tx - btn.x;
                 const bdy = ty - btn.y;
-                if (Math.sqrt(bdx * bdx + bdy * bdy) < this.btnRadius * 1.5) {
+                if (Math.sqrt(bdx * bdx + bdy * bdy) < this.btnRadius * 1.8) {
                     this.buttons[btn.id] = true;
                 }
             }
@@ -119,7 +149,7 @@ export default class TouchPad {
         p1.h = p1.h || this.buttons.h;
         p1.s = p1.s || this.buttons.s;
 
-        // "Just pressed" — true on the frame the button goes from false to true
+        // "Just pressed" — true only on the frame it goes from false to true
         if (this.buttons.l && !this.prevButtons.l) p1.lJust = true;
         if (this.buttons.h && !this.prevButtons.h) p1.hJust = true;
         if (this.buttons.s && !this.prevButtons.s) p1.sJust = true;
@@ -128,64 +158,110 @@ export default class TouchPad {
     draw(ctx) {
         if (!this.active) return;
         ctx.save();
-        ctx.globalAlpha = 0.7;
 
-        // D-Pad base circle with border
-        ctx.fillStyle = 'rgba(20, 20, 30, 0.8)';
-        ctx.strokeStyle = '#00d4ff';
-        ctx.lineWidth = 3;
+        // ─── ANALOG STICK ───
+        // Outer ring (dark glass)
+        ctx.globalAlpha = 0.6;
+        const grad = ctx.createRadialGradient(
+            this.stickCenter.x, this.stickCenter.y, 20,
+            this.stickCenter.x, this.stickCenter.y, this.stickOuter + 15
+        );
+        grad.addColorStop(0, 'rgba(30, 35, 50, 0.9)');
+        grad.addColorStop(1, 'rgba(10, 12, 20, 0.7)');
+        ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(this.dpadCenter.x, this.dpadCenter.y, this.dpadRadius + 25, 0, Math.PI * 2);
+        ctx.arc(this.stickCenter.x, this.stickCenter.y, this.stickOuter + 15, 0, Math.PI * 2);
         ctx.fill();
+
+        // Outer ring border
+        ctx.strokeStyle = 'rgba(0, 212, 255, 0.4)';
+        ctx.lineWidth = 2;
         ctx.stroke();
 
-        // D-Pad directional arrows
-        const dirs = [
-            { dx: 0, dy: -1, active: this.dpad.up, label: '▲' },
-            { dx: 0, dy: 1, active: this.dpad.down, label: '▼' },
-            { dx: -1, dy: 0, active: this.dpad.left, label: '◀' },
-            { dx: 1, dy: 0, active: this.dpad.right, label: '▶' },
+        // Direction indicators (subtle ticks)
+        ctx.globalAlpha = 0.3;
+        const tickDirs = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
         ];
-        for (const d of dirs) {
-            const ax = this.dpadCenter.x + d.dx * 55;
-            const ay = this.dpadCenter.y + d.dy * 55;
-            ctx.fillStyle = d.active ? '#00ffff' : 'rgba(100, 100, 120, 0.8)';
+        for (const d of tickDirs) {
+            const isActive = (d.dx === 1 && this.dpad.right) || (d.dx === -1 && this.dpad.left) ||
+                (d.dy === -1 && this.dpad.up) || (d.dy === 1 && this.dpad.down);
+            ctx.globalAlpha = isActive ? 0.8 : 0.25;
+            ctx.fillStyle = isActive ? '#00d4ff' : '#445';
+            const tickX = this.stickCenter.x + d.dx * (this.stickOuter + 5);
+            const tickY = this.stickCenter.y + d.dy * (this.stickOuter + 5);
             ctx.beginPath();
-            ctx.arc(ax, ay, 28, 0, Math.PI * 2);
+            ctx.arc(tickX, tickY, 6, 0, Math.PI * 2);
             ctx.fill();
-
-            // Arrow label
-            ctx.fillStyle = d.active ? '#000' : '#ccc';
-            ctx.font = 'bold 18px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(d.label, ax, ay + 7);
         }
 
-        // Attack buttons — large, visible, with glow when pressed
+        // Thumb stick (inner circle that moves)
+        ctx.globalAlpha = 0.85;
+        const thumbGrad = ctx.createRadialGradient(
+            this.stickPos.x - 5, this.stickPos.y - 5, 5,
+            this.stickPos.x, this.stickPos.y, this.stickRadius
+        );
+        thumbGrad.addColorStop(0, 'rgba(60, 70, 90, 0.95)');
+        thumbGrad.addColorStop(0.7, 'rgba(35, 40, 55, 0.9)');
+        thumbGrad.addColorStop(1, 'rgba(20, 25, 35, 0.85)');
+        ctx.fillStyle = thumbGrad;
+        ctx.beginPath();
+        ctx.arc(this.stickPos.x, this.stickPos.y, this.stickRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Thumb stick edge highlight
+        ctx.strokeStyle = this.stickDist > 0.3 ? 'rgba(0, 212, 255, 0.6)' : 'rgba(100, 110, 130, 0.5)';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+
+        // Center dot
+        ctx.fillStyle = this.stickDist > 0.3 ? '#00d4ff' : '#556';
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(this.stickPos.x, this.stickPos.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ─── ACTION BUTTONS ───
         for (const btn of this.btnPositions) {
             const isPressed = this.buttons[btn.id];
 
-            // Glow ring when pressed
+            // Button shadow/glow
             if (isPressed) {
                 ctx.shadowColor = btn.color;
-                ctx.shadowBlur = 20;
+                ctx.shadowBlur = 25;
             }
 
-            // Button background
-            ctx.fillStyle = isPressed ? btn.color : 'rgba(40, 40, 50, 0.85)';
-            ctx.strokeStyle = btn.color;
-            ctx.lineWidth = 3;
+            // Button background (dark glass)
+            ctx.globalAlpha = isPressed ? 0.9 : 0.65;
+            const btnGrad = ctx.createRadialGradient(
+                btn.x - 5, btn.y - 5, 5,
+                btn.x, btn.y, this.btnRadius
+            );
+            if (isPressed) {
+                btnGrad.addColorStop(0, btn.color);
+                btnGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+            } else {
+                btnGrad.addColorStop(0, 'rgba(45, 50, 65, 0.9)');
+                btnGrad.addColorStop(1, 'rgba(20, 25, 35, 0.85)');
+            }
+            ctx.fillStyle = btnGrad;
             ctx.beginPath();
             ctx.arc(btn.x, btn.y, this.btnRadius, 0, Math.PI * 2);
             ctx.fill();
+
+            // Button border
+            ctx.strokeStyle = isPressed ? btn.color : 'rgba(100, 110, 130, 0.4)';
+            ctx.lineWidth = 2.5;
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // Button emoji label
-            ctx.fillStyle = isPressed ? '#000' : '#fff';
-            ctx.font = 'bold 28px sans-serif';
+            // Button label
+            ctx.globalAlpha = isPressed ? 1 : 0.8;
+            ctx.fillStyle = isPressed ? '#000' : '#ddd';
+            ctx.font = 'bold 22px "Press Start 2P"';
             ctx.textAlign = 'center';
-            ctx.fillText(btn.label, btn.x, btn.y + 10);
+            ctx.fillText(btn.label, btn.x, btn.y + 8);
         }
 
         ctx.restore();
