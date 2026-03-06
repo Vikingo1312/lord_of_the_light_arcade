@@ -55,21 +55,19 @@ export default class AssetManager {
                     img.src = item.path + '?v=' + Date.now(); // Cache buster
                 } else if (item.type === 'audio') {
                     const aud = new Audio();
-                    // iOS Safari often won't fire oncanplaythrough without a direct user gesture.
-                    // Instead of blocking the whole game's loading screen, we just initialize the Audio object.
-                    // The browser will fetch it in the background to the extent allowed by its policies.
-                    this.audioBuffer[item.key] = aud;
-
+                    aud.oncanplaythrough = () => {
+                        this.audioBuffer[item.key] = aud;
+                        this.loadedCount++;
+                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                        resolve();
+                        aud.oncanplaythrough = null;
+                    };
                     aud.onerror = () => {
                         console.warn(`Failed to pre-load audio: ${item.path}`);
+                        resolve();
                     };
                     aud.src = item.path;
                     aud.load();
-
-                    // Immediately resolve so we don't hang the visual game load
-                    this.loadedCount++;
-                    if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
-                    resolve();
                 }
             });
         });
@@ -118,10 +116,9 @@ export default class AssetManager {
         let imgData;
         try {
             imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            // console.log(`🎨 ChromaKey getImageData SUCCESS: ${key}`);
+            console.log(`🎨 ChromaKey getImageData SUCCESS: ${key}`);
         } catch (e) {
             console.warn(`🔴 CORS BLOCKED getImageData: ${key}`, e.message);
-            // Safari/iOS strict mode fallback: Use the RAW image so they aren't invisible!
             this.images[key] = img;
             callback();
             return;
@@ -246,13 +243,13 @@ export default class AssetManager {
 
         const newImg = new Image();
         newImg.onload = () => {
-            // if (key.includes('Cutin')) console.log(`✅ ChromaKey DONE for Projectile: ${key} (Size: ${newImg.width}x${newImg.height})`);
+            if (key.includes('Cutin')) console.log(`✅ ChromaKey DONE for Projectile: ${key} (Size: ${newImg.width}x${newImg.height})`);
             this.images[key] = newImg;
             callback();
         };
         newImg.onerror = () => {
             console.error("❌ Failed to re-encode processed pixel data for:", key);
-            this.images[key] = img; // Fallback to raw image so they aren't invisible
+            this.images[key] = img;
             callback();
         };
         newImg.src = canvas.toDataURL();
