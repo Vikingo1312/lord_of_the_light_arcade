@@ -14,7 +14,7 @@ export default class Game {
 
         this.stateManager = new StateManager(this);
         this.inputManager = new InputManager();
-        this.assetManager = new AssetManager();
+        this.assetManager = new AssetManager(this);
         this.audioManager = new AudioManager();
         this.touchPad = new TouchPad(this);
 
@@ -26,6 +26,12 @@ export default class Game {
             musicVolume: 0.5,
             voiceVolume: 0.9,
             sfxVolume: 0.5,
+
+            // Effect Bypass Flags — set to false to disable
+            chromaKeyEnabled: true,   // Background removal on sprites
+            hitFlashEnabled: true,    // White flash on hit
+            bgmFilterEnabled: true,   // Low-pass filter on BGM during voiceover
+            autoFacingEnabled: true,  // Auto-mirror sprites based on position
         };
 
         this.lastTime = 0;
@@ -69,7 +75,8 @@ export default class Game {
                 this.accumulator -= this.timestep;
             }
 
-            this.ctx.clearRect(0, 0, this.width, this.height);
+            this.ctx.fillStyle = '#000000';
+            this.ctx.fillRect(0, 0, this.width, this.height);
             this.stateManager.draw(this.ctx);
             this.touchPad.draw(this.ctx);
             this._lastError = null;

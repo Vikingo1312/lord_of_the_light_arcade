@@ -1,5 +1,6 @@
 import Game from './core/Game.js';
 import BootState from './states/Boot.js';
+import CaesarSplash from './states/CaesarSplash.js';
 import MenuState from './states/Menu.js';
 import CharacterSelectState from './states/CharacterSelect.js';
 import CombatState from './states/Combat.js';
@@ -18,6 +19,7 @@ window.onload = () => {
 
     // Register states
     game.stateManager.addState('Boot', new BootState(game));
+    game.stateManager.addState('CaesarSplash', new CaesarSplash(game));
     game.stateManager.addState('Menu', new MenuState(game));
     game.stateManager.addState('CharSelect', new CharacterSelectState(game));
     game.stateManager.addState('Combat', new CombatState(game));

@@ -8,85 +8,85 @@
 // Map stage to themed objects with real image assets
 const STAGE_OBJECTS = {
     'Cosmic': [
-        { x: 300, y: 0.82, w: 120, h: 150, img: 'crystal' },
-        { x: 1620, y: 0.82, w: 120, h: 150, img: 'crystal' },
-        { x: 450, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.82, w: 120, h: 150, img: 'crystal' },
+        { x: 1830, y: 0.82, w: 120, h: 150, img: 'crystal' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Japan': [
-        { x: 280, y: 0.78, w: 100, h: 160, img: 'lantern' },
-        { x: 1640, y: 0.78, w: 100, h: 160, img: 'lantern' },
-        { x: 420, y: 0.85, w: 120, h: 100, img: 'barrel' },
+        { x: 90, y: 0.78, w: 100, h: 160, img: 'lantern' },
+        { x: 1830, y: 0.78, w: 100, h: 160, img: 'lantern' },
+        { x: 300, y: 0.85, w: 120, h: 100, img: 'barrel' },
     ],
     'India': [
-        { x: 300, y: 0.82, w: 100, h: 140, img: 'incense' },
-        { x: 1620, y: 0.82, w: 100, h: 140, img: 'incense' },
-        { x: 450, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.82, w: 100, h: 140, img: 'incense' },
+        { x: 1830, y: 0.82, w: 100, h: 140, img: 'incense' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Brazil': [
-        { x: 280, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1640, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 430, y: 0.85, w: 130, h: 100, img: 'crate' },
-        { x: 1490, y: 0.85, w: 120, h: 100, img: 'speaker' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 1620, y: 0.85, w: 120, h: 100, img: 'speaker' },
     ],
     'China': [
-        { x: 290, y: 0.78, w: 100, h: 160, img: 'pagoda' },
-        { x: 1630, y: 0.78, w: 100, h: 160, img: 'pagoda' },
-        { x: 440, y: 0.83, w: 100, h: 120, img: 'shrine' },
+        { x: 90, y: 0.78, w: 100, h: 160, img: 'pagoda' },
+        { x: 1830, y: 0.78, w: 100, h: 160, img: 'pagoda' },
+        { x: 300, y: 0.83, w: 100, h: 120, img: 'shrine' },
     ],
     'Italy': [
-        { x: 300, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1620, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 450, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Germany': [
-        { x: 280, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1640, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 430, y: 0.85, w: 110, h: 100, img: 'server' },
-        { x: 1490, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 110, h: 100, img: 'server' },
+        { x: 1620, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Jamaica': [
-        { x: 300, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1620, y: 0.83, w: 120, h: 100, img: 'speaker' },
-        { x: 450, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'speaker' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Poland': [
-        { x: 280, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1640, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 440, y: 0.85, w: 130, h: 120, img: 'barricade' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 130, h: 120, img: 'barricade' },
     ],
     'Mexico': [
-        { x: 300, y: 0.82, w: 100, h: 120, img: 'barrel' },
-        { x: 1620, y: 0.82, w: 100, h: 120, img: 'barrel' },
-        { x: 440, y: 0.85, w: 130, h: 110, img: 'chair' },
-        { x: 1480, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.82, w: 100, h: 120, img: 'barrel' },
+        { x: 1830, y: 0.82, w: 100, h: 120, img: 'barrel' },
+        { x: 300, y: 0.85, w: 130, h: 110, img: 'chair' },
+        { x: 1620, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Spain': [
-        { x: 290, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1630, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 450, y: 0.85, w: 130, h: 120, img: 'brazier' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 130, h: 120, img: 'brazier' },
     ],
     'JapanNight': [
-        { x: 280, y: 0.78, w: 100, h: 160, img: 'lantern' },
-        { x: 1640, y: 0.78, w: 100, h: 160, img: 'lantern' },
-        { x: 440, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.78, w: 100, h: 160, img: 'lantern' },
+        { x: 1830, y: 0.78, w: 100, h: 160, img: 'lantern' },
+        { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Dojo': [
-        { x: 300, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1620, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 440, y: 0.84, w: 100, h: 130, img: 'shrine' },
-        { x: 1480, y: 0.84, w: 100, h: 130, img: 'shrine' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.84, w: 100, h: 130, img: 'shrine' },
+        { x: 1620, y: 0.84, w: 100, h: 130, img: 'shrine' },
     ],
     'Russia': [
-        { x: 280, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 1640, y: 0.83, w: 120, h: 100, img: 'barrel' },
-        { x: 440, y: 0.85, w: 110, h: 100, img: 'ice' },
-        { x: 1480, y: 0.85, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
+        { x: 300, y: 0.85, w: 110, h: 100, img: 'ice' },
+        { x: 1620, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
     'Valhalla': [
-        { x: 300, y: 0.82, w: 120, h: 140, img: 'brazier' },
-        { x: 1620, y: 0.82, w: 120, h: 140, img: 'brazier' },
-        { x: 440, y: 0.84, w: 120, h: 100, img: 'barrel' },
-        { x: 1480, y: 0.84, w: 130, h: 100, img: 'crate' },
+        { x: 90, y: 0.82, w: 120, h: 140, img: 'brazier' },
+        { x: 1830, y: 0.82, w: 120, h: 140, img: 'brazier' },
+        { x: 300, y: 0.84, w: 120, h: 100, img: 'barrel' },
+        { x: 1620, y: 0.84, w: 130, h: 100, img: 'crate' },
     ],
 };
 
@@ -126,7 +126,9 @@ export default class StageObjectManager {
 
         this.objects = defs.map(def => ({
             ...def,
-            yAbs: h * def.y,       // Convert relative Y to absolute
+            // Add a +45 pixel offset so objects sit lower on the 2.5D plane,
+            // appearing closer to the foreground instead of deep in the background.
+            yAbs: (h * def.y) + 45,
             broken: false,
             breakTimer: 0,          // Time since broken (for broken image display)
             shakeTime: 0,
@@ -145,13 +147,15 @@ export default class StageObjectManager {
 
                 const fx = f.x;
                 const fy = f.y;
-                const objLeft = obj.x - obj.w / 1.5; // Wider horizontal catch area
-                const objRight = obj.x + obj.w / 1.5;
-                const objTop = obj.yAbs - obj.h - 50; // Taller vertical catch area
-                const objBottom = obj.yAbs + 50;
+                const objLeft = obj.x - obj.w / 2;
+                const objRight = obj.x + obj.w / 2;
+                const objTop = obj.yAbs - obj.h;
+                const objBottom = obj.yAbs;
 
-                // Simple AABB overlap with fighter center
-                if (fx > objLeft && fx < objRight && fy > objTop && fy < objBottom) {
+                // The game uses a 2.5D perspective, so the fighter's feet (Y) 
+                // might not perfectly align with the object's base Y.
+                // It's safer to just check X-axis overlap when they are in HIT/KO state.
+                if (fx > objLeft - 40 && fx < objRight + 40) {
                     this.breakObject(obj);
                 }
             }
@@ -160,23 +164,30 @@ export default class StageObjectManager {
 
     /** Shatter an object into debris particles */
     breakObject(obj) {
+        if (obj.broken) return;
+
         obj.broken = true;
         obj.breakTimer = 0;
 
+        // Try playing a generic break sound if available, otherwise just break visually
+        if (this.game.audioManager) {
+            this.game.audioManager.playSFX('assets/audio/keano_hit.mp3', true);
+        }
+
         // Spawn debris particles
-        const count = 12 + Math.floor(Math.random() * 8);
+        const count = 15 + Math.floor(Math.random() * 10);
         for (let i = 0; i < count; i++) {
             this.debris.push({
                 x: obj.x + (Math.random() - 0.5) * obj.w,
                 y: obj.yAbs - Math.random() * obj.h,
-                vx: (Math.random() - 0.5) * 400,
-                vy: -100 - Math.random() * 300,
-                size: 4 + Math.random() * 10,
+                vx: (Math.random() - 0.5) * 600, // wider spread
+                vy: -200 - Math.random() * 400, // more upward explosion
+                size: 6 + Math.random() * 12,
                 rotation: Math.random() * Math.PI * 2,
-                rotSpeed: (Math.random() - 0.5) * 10,
-                life: 1.5 + Math.random(),
-                color: ['#8B4513', '#A0522D', '#654321', '#DAA520', '#CD853F'][Math.floor(Math.random() * 5)],
-                gravity: 600 + Math.random() * 200,
+                rotSpeed: (Math.random() - 0.5) * 15,
+                life: 1.0 + Math.random() * 1.5,
+                color: ['#8B4513', '#A0522D', '#D2691E', '#CD853F', '#F4A460'][Math.floor(Math.random() * 5)],
+                gravity: 800 + Math.random() * 200,
             });
         }
     }
@@ -200,28 +211,35 @@ export default class StageObjectManager {
         }
     }
 
-    /** Draw all objects (intact or broken images) and debris */
+    /** Draw all objects (intact or broken image) and debris */
     draw(ctx) {
-        // Draw objects (intact or broken image)
+        // Draw objects (intact or fading broken)
         for (const obj of this.objects) {
+            // Fully broken objects disappear after 3 seconds
+            if (obj.broken && obj.breakTimer > 3) continue;
+
             const imgKey = obj.broken ? `${obj.img}_broken` : obj.img;
             const image = this.images[imgKey];
 
             if (image && image.complete && image.naturalWidth > 0) {
                 ctx.save();
-                // Draw image centered at obj.x, with bottom at obj.yAbs
-                ctx.drawImage(image, obj.x - obj.w / 2, obj.yAbs - obj.h, obj.w, obj.h);
 
-                // Fade out broken objects after 2 seconds
-                if (obj.broken && obj.breakTimer > 2) {
-                    const fadeAlpha = Math.min(1, (obj.breakTimer - 2) / 1);
+                // Fade out broken objects gracefully
+                if (obj.broken) {
+                    const fadeAlpha = Math.max(0, 1 - (obj.breakTimer / 2.5));
                     ctx.globalAlpha = fadeAlpha;
-                    ctx.fillStyle = '#000';
-                    ctx.fillRect(obj.x - obj.w / 2, obj.yAbs - obj.h, obj.w, obj.h);
-                    ctx.globalAlpha = 1;
                 }
+
+                ctx.drawImage(image, obj.x - obj.w / 2, obj.yAbs - obj.h, obj.w, obj.h);
+                ctx.restore();
+            } else if (!obj.broken) {
+                // Fallback: draw a simple colored box for missing prop images
+                ctx.save();
+                ctx.fillStyle = 'rgba(80, 60, 40, 0.6)';
+                ctx.fillRect(obj.x - obj.w / 2, obj.yAbs - obj.h, obj.w, obj.h);
                 ctx.restore();
             }
+            // Don't draw anything for broken objects with missing images
         }
 
         // Draw debris particles

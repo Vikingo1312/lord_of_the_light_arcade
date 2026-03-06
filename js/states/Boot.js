@@ -7,16 +7,11 @@ export default class BootState {
         window.addEventListener('click', () => {
             if (!this.engineReady) {
                 this.engineReady = true;
+
                 this.game.start(); // Starts the loop rendering
 
                 // Commence Asset Loading immediately so audio errors don't block it
                 this.loadAssets();
-
-                try {
-                    this.playCapcomChord();
-                } catch (e) {
-                    console.warn("Audio block: ", e);
-                }
             }
         }, { once: true });
     }
@@ -26,6 +21,9 @@ export default class BootState {
 
         // Shared Background for Menu / Boot screen
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');
+
+        // Premium Intro Logo
+        this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png');
 
         // Dynamically load ALL fighter portraits for the Character Select grid
         const { ALL_FIGHTERS, STAGES } = await import('../data.js');
@@ -50,35 +48,10 @@ export default class BootState {
 
         this.loaded = true;
 
-        // Transition to Main Menu
+        // Transition to the Premium Caesar Engine Splash Screen securely
         setTimeout(() => {
-            this.game.stateManager.switchState('Menu');
-        }, 1000);
-    }
-
-    playCapcomChord() {
-        // Synthesize the famous "coin drop" A-Dur Chord
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const freqs = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
-        const dur = 1.5;
-
-        freqs.forEach((freq, idx) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc.type = 'sawtooth';
-            osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-            gain.gain.setValueAtTime(0, ctx.currentTime);
-            gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05); // quick attack
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur); // long decay
-
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-
-            setTimeout(() => osc.start(ctx.currentTime), idx * 20); // Arpeggiate slightly
-            osc.stop(ctx.currentTime + dur);
-        });
+            this.game.stateManager.switchState('CaesarSplash');
+        }, 800);
     }
 
     update(dt) {
@@ -115,8 +88,8 @@ export default class BootState {
             let pct = Math.floor((this.loadProgress || 0) * 100);
             ctx.fillText(`LOADING ASSETS... ${pct}%`, this.game.width / 2, this.game.height / 2);
         } else {
-            // Flash white when done
-            ctx.fillStyle = '#ffffff';
+            // Clean black before Caesar Splash
+            ctx.fillStyle = '#000000';
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
     }

@@ -22,15 +22,28 @@ export default class MenuState {
         this.inOptions = false;
         this.optionIndex = 0;
 
-        // Game settings (shared via game object)
-        this.game.settings = {
-            timer: 99,
-            speed: 1.0,
-            difficulty: 'NORMAL', // EASY, NORMAL, HARD
-            musicVolume: 0.3,
-            voiceVolume: 0.9,
-            sfxVolume: 0.5,
-        };
+        // Game settings (merge with existing — Game.js may have already set bgmFilterEnabled etc.)
+        Object.assign(this.game.settings, {
+            timer: this.game.settings.timer || 99,
+            speed: this.game.settings.speed || 1.0,
+            difficulty: this.game.settings.difficulty || 'NORMAL',
+            musicVolume: this.game.settings.musicVolume ?? 0.3,
+            voiceVolume: this.game.settings.voiceVolume ?? 0.9,
+            sfxVolume: this.game.settings.sfxVolume ?? 0.5,
+        });
+
+        // Ambient Background Particles
+        this.particles = [];
+        for (let i = 0; i < 60; i++) {
+            this.particles.push({
+                x: Math.random(),
+                y: Math.random(),
+                speed: 0.02 + Math.random() * 0.05,
+                size: 2 + Math.random() * 5,
+                alpha: Math.random(),
+                wobble: Math.random() * Math.PI * 2
+            });
+        }
     }
 
     enter(data) {
@@ -44,8 +57,11 @@ export default class MenuState {
             this.storyCompleted = localStorage.getItem('lotl_story_complete') === 'true';
         } catch (e) { this.storyCompleted = false; }
 
-        // Play main theme with Low-Pass filter
-        this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, true, this.game.settings.musicVolume);
+        // Play main theme — start quiet and fade in gently after the calm splash screen
+        this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.02);
+        // Gradually ramp volume up over ~2 seconds
+        this._fadeInTimer = 0;
+        this._fadeInTarget = this.game.settings.musicVolume;
     }
 
     exit() {
@@ -57,11 +73,40 @@ export default class MenuState {
         this.time += dt;
         this.coinAngle += dt * 3; // Spinning coins
 
-        if (this.inputCooldown > 0) {
-            this.inputCooldown--;
+        // Update ambient particles
+        for (const p of this.particles) {
+            p.y -= p.speed * dt;
+            p.wobble += dt;
+            p.x += Math.sin(p.wobble) * 0.0005; // horizontal drift
+            if (p.y < 0) {
+                p.y = 1;
+                p.x = Math.random();
+            }
+        }
+
+        // Smooth BGM fade-in over 2 seconds
+        if (this._fadeInTimer !== undefined && this._fadeInTimer < 2.0) {
+            this._fadeInTimer += dt;
+            const vol = Math.min(this._fadeInTarget, (this._fadeInTimer / 2.0) * this._fadeInTarget);
+            if (this.game.audioManager.gainNode && this.game.audioManager.audioCtx) {
+                this.game.audioManager.gainNode.gain.setTargetAtTime(vol, this.game.audioManager.audioCtx.currentTime, 0.1);
+            } else if (this.game.audioManager.bgm) {
+                this.game.audioManager.bgm.volume = vol;
+            }
         }
 
         const p1 = this.game.inputManager.p1;
+
+        // Unlock hidden channels on first user interaction
+        if (p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down || p1.left || p1.right) {
+            if (this.game.audioManager.unlockAudio) {
+                this.game.audioManager.unlockAudio();
+            }
+        }
+
+        if (this.inputCooldown > 0) {
+            this.inputCooldown--;
+        }
 
         if (this.inOptions) {
             this.updateOptions(p1);
@@ -92,28 +137,22 @@ export default class MenuState {
                 this.credits--;
                 this.startStoryMode();
             } else if (this.selectedIndex === 1) {
-                // ARCADE MODE (locked)
-                if (!this.storyCompleted) {
-                    this.playBuzzer();
-                    return;
-                }
+                // ARCADE MODE
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
+                this.game.audioManager.stopBGM();
                 setTimeout(() => {
-                    this.game.stateManager.switchState('CharSelect');
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true });
                 }, 500);
             } else if (this.selectedIndex === 2) {
-                // VERSUS MODE (locked)
-                if (!this.storyCompleted) {
-                    this.playBuzzer();
-                    return;
-                }
+                // VERSUS MODE
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
+                this.game.audioManager.stopBGM();
                 setTimeout(() => {
-                    this.game.stateManager.switchState('CharSelect');
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
                 }, 500);
             } else if (this.selectedIndex === 3) {
                 // OPTIONS
@@ -126,7 +165,7 @@ export default class MenuState {
     }
 
     updateOptions(p1) {
-        const optCount = 6; // timer, speed, difficulty, music, voice, sfx
+        const optCount = 8; // timer, speed, difficulty, music, voice, sfx, eq, fullscreen
         if (this.inputCooldown <= 0) {
             if (p1.up) {
                 this.optionIndex = (this.optionIndex - 1 + optCount) % optCount;
@@ -174,6 +213,16 @@ export default class MenuState {
             case 5: // SFX Vol
                 s.sfxVolume = Math.max(0, Math.min(1, s.sfxVolume + dir * 0.1));
                 break;
+            case 6: // EQ (BGM Filter)
+                s.bgmFilterEnabled = !s.bgmFilterEnabled;
+                break;
+            case 7: // Fullscreen
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => { });
+                } else {
+                    document.exitFullscreen().catch(() => { });
+                }
+                break;
         }
     }
 
@@ -183,15 +232,11 @@ export default class MenuState {
         const stageId = opponent.stageId;
         const stage = STAGES[stageId];
 
-        // Preload combat sprites for both fighters
-        const suffixes = ['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'];
-        for (const char of [keano, opponent]) {
-            for (const suf of suffixes) {
-                const key = `${char.id}${suf}.png`;
-                if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png`);
-                }
-            }
+        // Preload robust combat sprites for both fighters using Combat's centralized logic
+        const combatState = this.game.stateManager.states['Combat'];
+        if (combatState && typeof combatState.preloadFighterSprites === 'function') {
+            combatState.preloadFighterSprites(keano);
+            combatState.preloadFighterSprites(opponent);
         }
         const stageKey = `Stage_${stageId}`;
         if (stage && !this.game.assetManager.images[stageKey]) {
@@ -204,10 +249,12 @@ export default class MenuState {
             p2: { ...opponent, rosterIndex: 1 },
             stageId: stageId,
             arcadeMode: true,
+            storyMode: true, // Special flag to denote true story run vs. pure arcade mode
             arcadeIndex: 1,
             arcadeWins: 0,
         };
 
+        this.game.audioManager.stopBGM();
         this.game.stateManager.switchState('Story', {
             ...STORY_PROLOGUE,
             nextState: 'VersusIntro',
@@ -215,13 +262,149 @@ export default class MenuState {
         });
     }
 
+    async startEndgameTest() {
+        const keano = ROSTER[0];
+        const pushIndex = ROSTER.length - 2; // Index 13: Putin
+        const opponent = ROSTER[pushIndex];
+        const stageId = opponent.stageId;
+        const stage = STAGES[stageId];
+
+        const combatState = this.game.stateManager.states['Combat'];
+        if (combatState && typeof combatState.preloadFighterSprites === 'function') {
+            combatState.preloadFighterSprites(keano);
+            combatState.preloadFighterSprites(opponent);
+        }
+        const stageKey = `Stage_${stageId}`;
+        if (stage && !this.game.assetManager.images[stageKey]) {
+            this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
+        }
+        await this.game.assetManager.loadAll();
+
+        const combatData = {
+            p1: keano,
+            p2: { ...opponent, rosterIndex: pushIndex },
+            stageId: stageId,
+            arcadeMode: true,
+            storyMode: true, // Run as story so we get the Epilogue sequence afterwards
+            arcadeIndex: pushIndex,
+            arcadeWins: pushIndex, // Ensure it registers as the final boss victory
+        };
+
+        this.game.audioManager.stopBGM();
+        this.game.stateManager.switchState('VersusIntro', combatData);
+    }
+
     // Sound stubs — removed synthesized oscillator sounds
-    playBlip() { }
-    playConfirm() { }
-    playBuzzer() { }
+    playBlip() {
+        const ctx = this.game.audioManager.audioCtx;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.05);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+    }
+
+    playConfirm() {
+        const ctx = this.game.audioManager.audioCtx;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        [600, 800].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, now + (idx * 0.1));
+            gain.gain.setValueAtTime(0, now + (idx * 0.1));
+            gain.gain.linearRampToValueAtTime(0.1, now + (idx * 0.1) + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + (idx * 0.1) + 0.2);
+            // Lowpass filter for smooth 16-bit sound
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 2000;
+            osc.connect(gain);
+            gain.connect(lp);
+            lp.connect(ctx.destination);
+            osc.start(now + (idx * 0.1));
+            osc.stop(now + (idx * 0.1) + 0.2);
+        });
+    }
+
+    playBuzzer() {
+        const ctx = this.game.audioManager.audioCtx;
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.3);
+    }
+
+    // Draw random lightning from top to bottom
+    _drawLightning(ctx) {
+        if (!this.lightningActive) {
+            // Random chance to strike
+            if (Math.random() < 0.005) { // 0.5% chance per frame (~once every few seconds typical)
+                this.lightningActive = true;
+                this.lightningTimer = 0.5; // lasts half a second
+                this.lightningPoints = [];
+
+                let startX = Math.random() * this.game.width;
+                let currentX = startX;
+                let currentY = 0;
+                this.lightningPoints.push({ x: currentX, y: currentY });
+
+                while (currentY < this.game.height) {
+                    currentX += (Math.random() - 0.5) * 100;
+                    currentY += Math.random() * 50 + 20;
+                    this.lightningPoints.push({ x: currentX, y: currentY });
+                }
+            }
+        } else {
+            this.lightningTimer -= 1 / 60; // Approx 60fps decrement
+            if (this.lightningTimer <= 0) {
+                this.lightningActive = false;
+            } else {
+                // Draw lightning
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(this.lightningPoints[0].x, this.lightningPoints[0].y);
+                for (let i = 1; i < this.lightningPoints.length; i++) {
+                    ctx.lineTo(this.lightningPoints[i].x, this.lightningPoints[i].y);
+                }
+
+                // Opacity flickers
+                let alpha = (Math.random() * 0.5 + 0.5) * (this.lightningTimer / 0.5);
+
+                ctx.strokeStyle = `rgba(200, 230, 255, ${alpha})`;
+                ctx.lineWidth = 3;
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+
+
+                ctx.restore();
+            }
+        }
+    }
 
     draw(ctx) {
-        // Cosmic Shimmer background
+        // Draw original background image first
         const bg = this.game.assetManager.images['menuBg'];
         if (bg) {
             ctx.drawImage(bg, 0, 0, this.game.width, this.game.height);
@@ -230,38 +413,86 @@ export default class MenuState {
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
 
+        // Modern animated gradient background as an overlay
+        ctx.save();
+        ctx.globalAlpha = 0.5; // Let the background image show through clearly
+        const t = this.time * 0.3;
+        const grad = ctx.createLinearGradient(0, 0, this.game.width, this.game.height);
+
+        // Deep modern synthwave/cyberpunk colors
+        const color1 = `hsl(${190 + Math.sin(t) * 20}, 90%, 12%)`; // Deep Cyan/Blue
+        const color2 = `hsl(${280 + Math.cos(t) * 20}, 90%, 8%)`;  // Deep Purple
+
+        grad.addColorStop(0, color1);
+        grad.addColorStop(1, color2);
+
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, this.game.width, this.game.height);
+        ctx.restore();
+
+        // Draw ambient particles (slightly softer flicker)
+        ctx.save();
+        ctx.fillStyle = '#00ffff';
+        for (const p of this.particles) {
+            ctx.globalAlpha = p.alpha * (0.2 + Math.sin(this.time * 2 + p.wobble) * 0.15);
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(p.x * this.game.width, p.y * this.game.height, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        this._drawLightning(ctx);
+
         if (this.inOptions) {
             this.drawOptions(ctx);
             return;
         }
 
-        // ─── KEANO ROMEO ─── Neon Cyan + 3D Shadow + Slow Dimmer
+        // ─── KEANO ROMEO ─── Neon Cyan + Deep 3D Shadow + Slow Dimmer
         const pulse = (Math.sin(this.time * 0.8) + 1) / 2;
         const glowSize = 20 + pulse * 50;
         const cx = this.game.width / 2;
-        const titleY = this.game.height * 0.18;
+
+        // Push everything down
+        const titleY = this.game.height * 0.30;
 
         ctx.textAlign = 'center';
         ctx.font = 'bold 160px "Press Start 2P"';
 
+        ctx.save();
+
+        // Stretch width by 1.2
+        ctx.translate(cx, titleY);
+        ctx.scale(1.2, 1);
+        ctx.translate(-cx, -titleY);
+
+        // Deep 3D Shadow
         ctx.shadowBlur = 0;
-        ctx.fillStyle = '#001122';
-        ctx.fillText("KEANO", cx + 7, titleY + 9);
-        ctx.fillText("ROMEO", cx + 7, titleY + 139);
+        ctx.fillStyle = '#000810';
+        for (let i = 25; i >= 1; i--) {
+            ctx.fillText("KEANO", cx, titleY + 10 + i * 2);
+            ctx.fillText("ROMEO", cx, titleY + 140 + i * 2);
+        }
 
+        // Inner shadow edge
         ctx.fillStyle = '#003355';
-        ctx.fillText("KEANO", cx + 4, titleY + 5);
-        ctx.fillText("ROMEO", cx + 4, titleY + 135);
+        ctx.fillText("KEANO", cx, titleY + 15);
+        ctx.fillText("ROMEO", cx, titleY + 145);
 
-        ctx.fillStyle = '#00ffff';
-        ctx.shadowColor = `rgba(0, 255, 255, ${0.2 + pulse * 0.8})`;
-        ctx.shadowBlur = glowSize;
+        // Core text - Enhanced contrast glow, but keep base bright enough to hide overlaps
+        ctx.fillStyle = `rgba(0, 255, 255, ${0.7 + pulse * 0.3})`;
+        ctx.shadowColor = `rgba(0, 255, 255, ${0.1 + pulse * 0.8})`; // Dynamic shadow alpha 
+        ctx.shadowBlur = glowSize * 0.8;
         ctx.fillText("KEANO", cx, titleY);
         ctx.fillText("ROMEO", cx, titleY + 130);
 
-        ctx.shadowBlur = glowSize + 20;
+        ctx.shadowBlur = (glowSize + 25) * 0.8; // Second layer of glow
         ctx.fillText("KEANO", cx, titleY);
         ctx.fillText("ROMEO", cx, titleY + 130);
+
+        ctx.restore();
         ctx.shadowBlur = 0;
 
         // ─── LORD OF THE LIGHT I ───
@@ -269,15 +500,15 @@ export default class MenuState {
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
         ctx.shadowBlur = 8;
-        ctx.fillText("LORD OF THE LIGHT I", cx, titleY + 215);
+        ctx.fillText("LORD OF THE LIGHT I", cx, titleY + 235);
         ctx.shadowBlur = 0;
 
         // ─── Menu Options ───
         ctx.font = 'bold 36px "Press Start 2P"';
-        const menuStartY = this.game.height * 0.56;
+        const menuStartY = this.game.height * 0.65; // Pushed down
         for (let i = 0; i < this.options.length; i++) {
             const y = menuStartY + (i * 65);
-            const isLocked = (i === 1 || i === 2) && !this.storyCompleted;
+            const isLocked = false; // (i === 1 || i === 2) && !this.storyCompleted; // Temporarily unlocked
 
             if (i === this.selectedIndex) {
                 ctx.fillStyle = isLocked ? '#663333' : '#00ffff';
@@ -298,11 +529,14 @@ export default class MenuState {
         const cx = this.game.width / 2;
         const y = this.game.height - 80;
 
-        // Credits display
-        ctx.font = 'bold 24px "Press Start 2P"';
+        // Credits display - Bottom right in Cyan
+        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText(`CREDITS: ${this.credits}`, this.game.width - 30, this.game.height - 30);
+
+        // Reset textAlign for the rest of the text
         ctx.textAlign = 'center';
-        ctx.fillStyle = this.credits > 0 ? '#fdbf00' : '#ff0033';
-        ctx.fillText(`CREDITS: ${this.credits}`, cx, y + 40);
 
         // INSERT COIN text (blinks when no credits)
         if (this.credits <= 0) {
@@ -393,6 +627,8 @@ export default class MenuState {
             { label: 'MUSIC', value: `${(s.musicVolume * 100).toFixed(0)}%` },
             { label: 'VOICE', value: `${(s.voiceVolume * 100).toFixed(0)}%` },
             { label: 'SFX', value: `${(s.sfxVolume * 100).toFixed(0)}%` },
+            { label: 'EQ FILTER', value: s.bgmFilterEnabled ? 'ON' : 'OFF' },
+            { label: 'FULLSCREEN', value: document.fullscreenElement ? 'ON' : 'OFF' },
         ];
 
         ctx.font = 'bold 28px "Press Start 2P"';
@@ -419,6 +655,6 @@ export default class MenuState {
         ctx.font = '18px "Press Start 2P"';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#666';
-        ctx.fillText('PRESS KICK (L) TO GO BACK', cx, this.game.height - 60);
+        ctx.fillText('PRESS PUNCH (J) OR KICK (K) TO GO BACK', cx, this.game.height - 60);
     }
 }

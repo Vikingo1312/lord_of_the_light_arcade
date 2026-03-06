@@ -56,109 +56,6 @@
         .neon-text {
             text-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
         }
-
-        /* --- MOBILE TOUCH UIT --- */
-        #mobile-ui {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 100;
-            pointer-events: none;
-            /* Let canvas get clicks where there are no buttons */
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            padding: 30px;
-        }
-
-        .touch-btn {
-            pointer-events: auto;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: rgba(255, 255, 255, 0.5);
-            font-size: 20px;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.1) inset;
-            transition: background 0.1s, transform 0.1s;
-        }
-
-        .touch-btn:active {
-            background: rgba(0, 255, 255, 0.4);
-            transform: scale(0.95);
-        }
-
-        /* DPAD Area */
-        #dpad-container {
-            position: relative;
-            width: 160px;
-            height: 160px;
-        }
-
-        .dpad-btn {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-        }
-
-        #btn-up {
-            top: 0;
-            left: 55px;
-        }
-
-        #btn-down {
-            bottom: 0;
-            left: 55px;
-        }
-
-        #btn-left {
-            top: 55px;
-            left: 0;
-        }
-
-        #btn-right {
-            top: 55px;
-            right: 0;
-        }
-
-        /* Action Buttons Area */
-        #action-container {
-            position: relative;
-            width: 180px;
-            height: 160px;
-        }
-
-        .action-btn {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-        }
-
-        /* PS Layout */
-        #btn-l {
-            top: 50px;
-            left: 0;
-        }
-
-        /* Square/Light */
-        #btn-h {
-            top: 0;
-            left: 60px;
-        }
-
-        /* Triangle/Heavy */
-        #btn-s {
-            top: 50px;
-            right: 0;
-        }
-
-        /* Circle/Special */
     </style>
 </head>
 
@@ -166,24 +63,10 @@
     <div id="game-container">
         <!-- V2.0 Canvas holds the entire render pipeline -->
         <canvas id="gameCanvas"></canvas>
-
-
-        <!-- Modern Touch Overlay (Hidden by default, enabled via JS on touch/mobile) -->
-        <div id="mobile-ui" class="hidden">
-            <div id="dpad-container">
-                <div class="touch-btn dpad-btn" id="btn-up">▲</div>
-                <div class="touch-btn dpad-btn" id="btn-left">◀</div>
-                <div class="touch-btn dpad-btn" id="btn-right">▶</div>
-                <div class="touch-btn dpad-btn" id="btn-down">▼</div>
-            </div>
-            <div id="action-container">
-                <div class="touch-btn action-btn neon-text" id="btn-l" style="color: #ff88ff">◼</div> <!-- Square -->
-                <div class="touch-btn action-btn neon-text" id="btn-h" style="color: #88ff88">▲</div> <!-- Triangle -->
-                <div class="touch-btn action-btn neon-text" id="btn-s" style="color: #ff4444">●</div> <!-- Circle -->
-            </div>
-        </div>
     </div>
-    <script type="module" src="js/main.js"></script>
+
+    <!-- ES6 Modules Entry Point -->
+    <script type="module" src="js/main.js?v=2.01"></script>
 </body>
 
 </html>

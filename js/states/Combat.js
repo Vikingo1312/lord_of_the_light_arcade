@@ -2,8 +2,8 @@ import Fighter from '../entities/Fighter.js';
 import Projectile from '../entities/Projectile.js';
 import Hitbox from '../entities/Hitbox.js';
 import StageObjectManager from '../entities/StageObjects.js';
-import { STAGES, ROSTER } from '../data.js';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO } from '../story_data.js';
+import { STAGES, ROSTER, unlockFighter } from '../data.js';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js';
 
 export default class CombatState {
     constructor(game) {
@@ -59,9 +59,14 @@ export default class CombatState {
         this.inputCooldown = 45;
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
+        this.shakeIntensity = 0;
         this.particles = [];
         this.projectiles = [];
         this._transitioning = false;
+
+        // Pause State
+        this.paused = false;
+        this.pauseSelection = 0; // 0 = Resume, 1 = Quit
 
         // Preload sprites (fire-and-forget, Fighter.draw has fallback rendering)
         if (data && data.p1) this.preloadFighterSprites(data.p1);
@@ -78,33 +83,81 @@ export default class CombatState {
         // Delayed "FIGHT!" after 1s
         this._fightAnnouncerTimeout = setTimeout(() => this.playAnnouncer('fight'), 1000);
         this._koAnnounced = false;
+
+        // Add pause click listener
+        this.game.canvas.addEventListener('mousedown', this._onMouseClick);
     }
 
     playStageMusic() {
         const stage = STAGES[this.stageId];
-        if (stage && stage.music) {
-            // Valhalla uses main_soundtrack.mp3 but without a filter.
-            // Other stages use their respective tracks. We'll disable the low-pass filter
-            // for all standard combat scenarios.
-            const useFilter = false;
-            const volume = 0.4;
-            const path = `assets/audio/music/${stage.music}`;
+        // Combat always plays clean music. The muffled/low-pass effect is ONLY meant 
+        // for narrative sequences (Prologue/Epilogue), not the actual fight.
+        const useFilter = false;
+        const volume = 0.4;
+        const path = `assets/audio/music/${stage.music}`;
 
-            this.game.audioManager.playBGM(path, true, useFilter, volume);
-        }
+        // Kill any leftover audio from previous state before starting fresh
+        this.game.audioManager.stopBGM();
+        this.game.audioManager.playBGM(path, true, useFilter, volume);
     }
 
     exit() {
-        // If this is the Boss fight (Valhalla), DO NOT stop the music!
-        // It needs to persist smoothly into the Epilogue and Outro story sequences.
-        if (this.stageId !== 'Valhalla') {
+        // Only persist boss music if they won the FINAL stage of the Arcade/Story ladder
+        // so that it flows seamlessly into the Epilogue and Outro sequences.
+        const isFinalBoss = (this.arcadeIndex === ROSTER.length - 1);
+        const wonBossFight = (isFinalBoss && this.winner === 'p1');
+
+        if (!wonBossFight) {
             this.game.audioManager.stopBGM();
         }
+        this.game.canvas.removeEventListener('mousedown', this._onMouseClick);
     }
 
+
+    _onMouseClick = (e) => {
+        if (!this.game || !this.game.canvas) return;
+        const rect = this.game.canvas.getBoundingClientRect();
+        const scaleX = this.game.width / rect.width;
+        const scaleY = this.game.height / rect.height;
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        // If already paused
+        if (this.paused) {
+            this.paused = false;
+            return;
+        }
+
+        // Check top right corner for Menu button (approx x > width - 200, y < 80)
+        if (x > this.game.width - 200 && y < 80) {
+            this.paused = true;
+            this.pauseSelection = 0;
+        }
+    };
+
     update(dt) {
-        if (this.inputCooldown > 0) this.inputCooldown--;
         const p1 = this.game.inputManager.p1;
+
+        if (p1.menuJust) {
+            this.paused = !this.paused;
+            this.pauseSelection = 0;
+            return;
+        }
+
+        if (this.paused) {
+            if (p1.down && !this.game.inputManager.p1Prev.down) this.pauseSelection = 1;
+            if (p1.up && !this.game.inputManager.p1Prev.up) this.pauseSelection = 0;
+            if (p1.lJust || p1.hJust || p1.sJust) {
+                if (this.pauseSelection === 0) {
+                    this.paused = false; // Resume
+                } else {
+                    this.game.stateManager.switchState('Menu'); // Quit
+                }
+            }
+            return; // Skip all combat updates while paused
+        }
+
+        if (this.inputCooldown > 0) this.inputCooldown--;
 
         // ─── FIGHT INTRO ("ROUND 1 — FIGHT!" banner) ───
         if (this.matchPhase === 'FIGHT_INTRO') {
@@ -118,34 +171,69 @@ export default class CombatState {
 
         // ─── POST MATCH ───
         if (this.matchPhase === 'POST_MATCH') {
+            this.postMatchTimer = (this.postMatchTimer || 0) + dt;
             if (this.inputCooldown <= 0 && !this._transitioning) {
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
-                        if (p1.lJust || p1.hJust || p1.sJust) {
+                        // AUTO ADVANCE TO NEXT STAGE (No button press required)
+                        if (this.postMatchTimer > 2.0) {
                             const nextIdx = this.arcadeIndex + 1;
-                            if (nextIdx >= ROSTER.length) {
-                                // BEAT THE GAME! → Save completion + Epilogue
-                                try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
+
+                            // STORY MODE MIDPOINT CHECK
+                            if (nextIdx === 7 && this.combatData && this.combatData.storyMode) {
                                 this._transitioning = true;
                                 this.game.stateManager.switchState('Story', {
-                                    ...STORY_EPILOGUE,
-                                    nextState: 'Story',
+                                    ...STORY_REFLEXION,
+                                    nextState: 'VersusIntro',
                                     nextData: {
-                                        ...STORY_OUTRO,
-                                        nextState: 'Menu',
-                                        nextData: null,
-                                    },
+                                        p1: this.p1.data,
+                                        p2: { ...ROSTER[7], rosterIndex: 7 },
+                                        stageId: ROSTER[7].stageId,
+                                        arcadeMode: true,
+                                        storyMode: true,
+                                        arcadeIndex: 7,
+                                        arcadeWins: this.arcadeWins + 1,
+                                    }
                                 });
                                 return;
                             }
-                            // After fight 7 → Reflexion, then continue
-                            if (this.arcadeIndex === 7) {
-                                this._transitioning = true;
-                                this.startArcadeFightViaStory(nextIdx, this.arcadeWins + 1, STORY_REFLEXION);
-                            } else {
-                                this._transitioning = true;
-                                this.startArcadeFight(nextIdx, this.arcadeWins + 1);
+                            if (nextIdx >= ROSTER.length) {
+                                // BEAT THE GAME!
+                                try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
+
+                                const newlyUnlocked = unlockFighter(this.p1.data.id);
+                                if (newlyUnlocked) {
+                                    console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px; font-weight: bold;');
+                                }
+
+                                if (this.combatData && this.combatData.storyMode) {
+                                    // STORY MODE: Play full voiceover sequences ending with Credits
+                                    this._transitioning = true;
+                                    this.game.stateManager.switchState('Story', {
+                                        ...STORY_EPILOGUE,
+                                        nextState: 'Story',
+                                        nextData: {
+                                            ...STORY_OUTRO,
+                                            nextState: 'Story',
+                                            nextData: {
+                                                ...STORY_BIRTHDAY,
+                                                nextState: 'Menu',
+                                                nextData: null,
+                                            },
+                                        },
+                                    });
+                                } else {
+                                    // ARCADE MODE: Skip voiceovers, go straight to Victory / Stats screen
+                                    this._newlyUnlocked = newlyUnlocked;
+                                    this.matchPhase = 'VICTORY';
+                                    this.inputCooldown = 60; // Wait 1 second before allowing exit
+                                    this.game.audioManager.stopBGM(); // Stop battle music
+                                }
+                                return;
                             }
+                            // Just continue straight to the next fight!
+                            this._transitioning = true;
+                            this.startArcadeFight(nextIdx, this.arcadeWins + 1);
                         }
                     } else {
                         // Player lost — Continue or Quit
@@ -188,50 +276,59 @@ export default class CombatState {
         if (this.matchPhase === 'VICTORY') {
             if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust)) {
                 this._transitioning = true;
-                this.game.stateManager.switchState('Menu');
+                // In true Arcade without story sequences, just show Birthday reward
+                this.game.stateManager.switchState('Story', {
+                    ...STORY_BIRTHDAY,
+                    nextState: 'Menu',
+                    nextData: null,
+                });
             }
             return;
         }
 
-        // ─── KO FREEZE (SF2 slow-motion knockback) ───
+        // ─── KO FREEZE (Slow-motion cinematic KO with flyback) ───
         if (this.matchPhase === 'KO_FREEZE') {
-            this.koFreezeTimer += dt;
-
-            // Only shake for the first 0.4 seconds of the KO, then stop shaking
-            if (this.koFreezeTimer < 0.4) {
-                this.triggerShake(5, 0.1);
-            } else {
-                this.shakeTimer = 0;
-            }
-
-            // Slow-motion physics for the KO'd fighter (0.25x speed)
-            const slowDt = dt * 0.25;
+            // Slow-motion: run physics at 30% speed for dramatic effect
+            const slowDt = dt * 0.3;
+            this.koFreezeTimer += dt; // Real-time timer for phase transition
             const loser = this.winner === 'p1' ? this.p2 : this.p1;
 
-            // Apply massive knockback velocity if they just got KO'd
-            if (this.koFreezeTimer < 0.1) {
-                const knockbackDirection = loser === this.p2 ? 1 : -1;
-                loser.vx = 800 * knockbackDirection;
-                loser.vy = -600; // Launch them up
+            if (!this._koKnockbackApplied) {
+                this._koKnockbackApplied = true;
+                // Wide, arcing flyback — loser sails across the screen slowly
+                loser.vx = loser.facing === 1 ? -350 : 350;
+                loser.vy = -450;
+                // 1-second screen shake, then stop instantly
+                this.triggerShake(6, 1.0);
             }
 
+            // Physics in slow-motion
             loser.vy += loser.gravity * slowDt;
             loser.y += loser.vy * slowDt;
             loser.x += loser.vx * slowDt;
+            loser.vx *= 0.995; // Very gentle air friction for long flight
 
-            // Less friction in the air so they fly further
-            if (loser.vy < 0) {
-                loser.vx *= 0.99;
-            } else {
-                loser.vx *= 0.95; // Ground friction
-            }
+            if (loser.x < 50) { loser.x = 50; loser.vx *= -0.3; }
+            if (loser.x > this.game.width - 50) { loser.x = this.game.width - 50; loser.vx *= -0.3; }
 
             const floorY = this.game.height * 0.9;
-            if (loser.y > floorY) { loser.y = floorY; loser.vy = 0; }
+            if (loser.y > floorY) { loser.y = floorY; loser.vy = 0; loser.vx *= 0.3; }
 
-            if (this.koFreezeTimer >= 3.0) { // Keep them on the ground slightly longer before post-match
+            // After 1 second, kill the shake (hard cut)
+            if (this.koFreezeTimer >= 1.0 && this.shakeTimer > 0) {
+                this.shakeTimer = 0;
+                this.shakeIntensity = 0;
+            }
+
+            // After 2 seconds of slow-mo, transition to POST_MATCH
+            if (this.koFreezeTimer >= 2.0) {
                 this.matchPhase = 'POST_MATCH';
                 this.inputCooldown = 60;
+                this.shakeTimer = 0;
+                this.shakeIntensity = 0;
+                // Set winner to victory pose
+                const winner = this.winner === 'p1' ? this.p1 : this.p2;
+                winner.state = 'WIN';
                 // Play winner sound
                 const winnerId = this.winner === 'p1' ? this.p1.data.id : this.p2.data.id;
                 this.playFighterSound(winnerId, 'win');
@@ -249,29 +346,92 @@ export default class CombatState {
             return;
         }
 
-        // QCF + Attack = Hadouken (P1)
-        if (this.p1.state === 'IDLE' && (p1.lJust || p1.hJust) &&
-            this.game.inputManager.hasQCF(this.p1.facing)) {
-            this.projectiles.push(new Projectile(
-                this.p1.x + this.p1.facing * 80,
-                this.p1.y - 150,
-                this.p1.facing,
-                'p1'
-            ));
-            this.game.inputManager.clearMotionHistory();
-            this.playCombatSound('special', this.p1.data.id);
-            this.triggerShake(2, 0.08);
-            this.p1.state = 'ATTACK';
-            this.p1.stateTimer = 0;
-            this.p1.currentAttack = { startup: 0.1, active: 0.05, recovery: 0.3, damage: 0, pushback: 0, hitstop: 0, box: null, type: 'SPECIAL' };
+        // --- Input Processing ---
+        // Create a copy of the input for P1 to prevent Fighter.js from reading modified keys
+        const p1InputCopy = { ...p1 };
+
+        // ALWAYS consume the raw Special intent from the Fighter 
+        // We handle Specials entirely within Combat.js now (Projectiles)
+        p1InputCopy.sJust = false;
+        p1InputCopy.s = false;
+
+
+
+        // Projectile (QCF + Light/Heavy OR dedicated 'Special' button)
+        const isSpecialInput = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
+
+        if (isSpecialInput) {
+            if (this.p1.state === 'IDLE' || this.p1.state === 'WALK') {
+                // Ensure player has enough Special Energy and no active projectiles
+                if (this.p1.specialEnergy >= 100 && !this.projectiles.some(p => p.owner === 'p1' && p.alive)) {
+
+                    // Consume Energy
+                    this.p1.specialEnergy -= 100;
+
+                    const imgKey = `${this.p1.data.id}_Cutin`;
+                    const img = this.game.assetManager.images[imgKey];
+
+                    if (!img) console.error("MISSING PROJECTILE IMAGE FOR:", imgKey);
+
+                    this.projectiles.push(new Projectile(
+                        this.p1.x + this.p1.facing * 80,
+                        this.p1.y - 180,
+                        this.p1.facing,
+                        'p1',
+                        img,
+                        this.game
+                    ));
+                    this.game.inputManager.clearMotionHistory();
+                    this.playCombatSound('special', this.p1.data.id);
+                    this.triggerShake(2, 0.08);
+                    this.p1.state = 'ATTACK';
+                    this.p1.stateTimer = 0;
+                    this.p1.currentAttack = { startup: 0.1, active: 0.05, recovery: 0.3, damage: 0, pushback: 0, hitstop: 0, box: null, type: 'SPECIAL' };
+
+                    // Since a special was successfully cast, swallow the Light/Heavy inputs from Fighter.js 
+                    // so we don't accidentally do a normal attack on the same frame.
+                    p1InputCopy.lJust = false;
+                    p1InputCopy.hJust = false;
+                }
+            }
         }
 
         const p2Input = this.processAI(dt);
-        this.p1.update(dt, p1);
+        this.p1.update(dt, p1InputCopy);
         this.p2.update(dt, p2Input);
-        this.checkCombatCollisions();
+
+        // --- Prevent Screen Boundaries ---
         this.enforceBoundaries(this.p1);
         this.enforceBoundaries(this.p2);
+
+        // --- Prevent Overlapping (Pushing) ---
+        // If fighters are alive, GROUNDED, and walking into each other, push them apart
+        // This allows them to jump OVER each other (cross-ups)
+        if (this.p1.state !== 'KO' && this.p2.state !== 'KO' && this.p1.isGrounded && this.p2.isGrounded) {
+            const minDistance = 110; // Reduced from 140 to allow closer combat range
+            const dx = this.p2.x - this.p1.x;
+            const dist = Math.abs(dx);
+
+            if (dist < minDistance) {
+                // They are too close! Push them apart evenly
+                const overlap = (minDistance - dist) / 2;
+                if (dx > 0) {
+                    // P2 is on the right
+                    this.p1.x -= overlap;
+                    this.p2.x += overlap;
+                } else {
+                    // P1 is on the right
+                    this.p1.x += overlap;
+                    this.p2.x -= overlap;
+                }
+            }
+        }
+
+        // Re-enforce boundaries just in case pushing knocked them off-screen
+        this.enforceBoundaries(this.p1);
+        this.enforceBoundaries(this.p2);
+
+        this.checkCombatCollisions();
 
         // Update projectiles
         for (const proj of this.projectiles) {
@@ -286,26 +446,34 @@ export default class CombatState {
         this.stageObjects.checkCollisions(this.p1, this.p2);
         if (this.shakeTimer > 0) this.shakeTimer -= dt;
 
-        // Auto-facing
-        if (this.p1.isGrounded && this.p2.isGrounded && this.p1.state !== 'ATTACK' && this.p2.state !== 'ATTACK') {
-            if (this.p1.x > this.p2.x) {
-                this.p1.facing = -1;
-                this.p2.facing = 1;
-            } else {
-                this.p1.facing = 1;
-                this.p2.facing = -1;
+        // Auto-facing (Immer den Gegner fixieren, auch beim Springen!)
+        if (!this.game.settings || this.game.settings.autoFacingEnabled !== false) {
+            // We only lock facing mid-attack so the animation doesn't flip halfway through a punch. 
+            // We also add a small buffer (hysteresis) so they don't glitch if they stand exactly inside each other.
+            const dist = this.p1.x - this.p2.x;
+            if (Math.abs(dist) > 15) {
+                if (this.p1.state !== 'ATTACK') {
+                    this.p1.facing = (dist > 0) ? -1 : 1;
+                }
+                if (this.p2.state !== 'ATTACK') {
+                    this.p2.facing = (dist > 0) ? 1 : -1;
+                }
             }
         }
 
         // Check K.O.
-        if (this.p1.state === 'KO') {
-            this.winner = 'p2';
-            this.matchPhase = 'KO_FREEZE';
-            this.koFreezeTimer = 0;
-        } else if (this.p2.state === 'KO') {
-            this.winner = 'p1';
-            this.matchPhase = 'KO_FREEZE';
-            this.koFreezeTimer = 0;
+        if (this.matchPhase !== 'KO_FREEZE' && this.matchPhase !== 'POST_MATCH' && this.matchPhase !== 'VICTORY') {
+            if (this.p1.state === 'KO') {
+                this.winner = 'p2';
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+            } else if (this.p2.state === 'KO') {
+                this.winner = 'p1';
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+            }
         }
     }
 
@@ -317,20 +485,28 @@ export default class CombatState {
 
             if (Hitbox.checkCollision(hitR, hurtR)) {
                 const result = this.p2.takeDamage(this.p1.currentAttack, this.p1.facing);
+                this.p1.attackHasHit = true; // Prevent multi-hit
                 this.p1.hitStop = this.p1.currentAttack.hitstop;
                 this.p1.activeHitbox = null;
+
+                // Award Special Energy (Attacker gets 15 on hit, 5 on block / Defender gets 10)
+                this.p1.specialEnergy = Math.min(this.p1.maxSpecialEnergy, this.p1.specialEnergy + (result === 'BLOCKED' ? 5 : 15));
+                this.p2.specialEnergy = Math.min(this.p2.maxSpecialEnergy, this.p2.specialEnergy + 10);
 
                 // Visual feedback
                 const impactX = (this.p1.x + this.p2.x) / 2;
                 const impactY = this.p2.y - 150;
                 if (result === 'BLOCKED') {
                     this.spawnSparks(impactX, impactY, '#00ccff', '#ffffff', 6);
-                    this.playCombatSound('block', this.p1.data.id);
+                    this.playCombatSound('block', this.p2.data.id);
                 } else {
                     this.spawnSparks(impactX, impactY, '#ffaa00', '#ff4400', 10);
-                    this.playCombatSound('hit', this.p1.data.id);
+                    this.playCombatSound('hit', this.p2.data.id);
                     if (this.p1.currentAttack.damage >= 12) this.triggerShake(3, 0.12);
-                    if (this.p2.state === 'KO') this.playCombatSound('ko', this.p2.data.id);
+                    if (this.p2.hp <= 0 && !this._koAnnounced) {
+                        this._koAnnounced = true;
+                        this.playCombatSound('ko', this.p2.data.id);
+                    }
                 }
             }
         }
@@ -342,19 +518,27 @@ export default class CombatState {
 
             if (Hitbox.checkCollision(hitR, hurtR)) {
                 const result = this.p1.takeDamage(this.p2.currentAttack, this.p2.facing);
+                this.p2.attackHasHit = true; // Prevent multi-hit
                 this.p2.hitStop = this.p2.currentAttack.hitstop;
                 this.p2.activeHitbox = null;
+
+                // Award Special Energy (Attacker gets 15 on hit, 5 on block / Defender gets 10)
+                this.p2.specialEnergy = Math.min(this.p2.maxSpecialEnergy, this.p2.specialEnergy + (result === 'BLOCKED' ? 5 : 15));
+                this.p1.specialEnergy = Math.min(this.p1.maxSpecialEnergy, this.p1.specialEnergy + 10);
 
                 const impactX = (this.p1.x + this.p2.x) / 2;
                 const impactY = this.p1.y - 150;
                 if (result === 'BLOCKED') {
                     this.spawnSparks(impactX, impactY, '#00ccff', '#ffffff', 6);
-                    this.playCombatSound('block', this.p2.data.id);
+                    this.playCombatSound('block', this.p1.data.id);
                 } else {
                     this.spawnSparks(impactX, impactY, '#ffaa00', '#ff4400', 10);
-                    this.playCombatSound('hit', this.p2.data.id);
+                    this.playCombatSound('hit', this.p1.data.id);
                     if (this.p2.currentAttack.damage >= 12) this.triggerShake(3, 0.12);
-                    if (this.p1.state === 'KO') this.playCombatSound('ko', this.p1.data.id);
+                    if (this.p1.hp <= 0 && !this._koAnnounced) {
+                        this._koAnnounced = true;
+                        this.playCombatSound('ko', this.p1.data.id);
+                    }
                 }
             }
         }
@@ -387,24 +571,32 @@ export default class CombatState {
             // P1's projectile hits P2
             if (proj.owner === 'p1' && this.p2.state !== 'KO') {
                 const hurtR = this.p2.hurtbox.getWorldRect(this.p2.x, this.p2.y, this.p2.facing);
-                if (pRect.x < hurtR.x + hurtR.w && pRect.x + pRect.w > hurtR.x &&
-                    pRect.y < hurtR.y + hurtR.h && pRect.y + pRect.h > hurtR.y) {
+                if (pRect.x < hurtR.x + hurtR.width && pRect.x + pRect.width > hurtR.x &&
+                    pRect.y < hurtR.y + hurtR.height && pRect.y + pRect.height > hurtR.y) {
                     const result = this.p2.takeDamage(proj.getAttackDef(), proj.facing);
                     proj.alive = false;
                     this.spawnSparks(proj.x, proj.y, result === 'BLOCKED' ? '#00ccff' : '#ffaa00', '#fff', 8);
                     if (result !== 'BLOCKED') this.triggerShake(2, 0.08);
+                    if (this.p2.hp <= 0 && !this._koAnnounced) {
+                        this._koAnnounced = true;
+                        this.playCombatSound('ko', this.p2.data.id);
+                    }
                 }
             }
 
             // P2's projectile hits P1
             if (proj.owner === 'p2' && this.p1.state !== 'KO') {
                 const hurtR = this.p1.hurtbox.getWorldRect(this.p1.x, this.p1.y, this.p1.facing);
-                if (pRect.x < hurtR.x + hurtR.w && pRect.x + pRect.w > hurtR.x &&
-                    pRect.y < hurtR.y + hurtR.h && pRect.y + pRect.h > hurtR.y) {
+                if (pRect.x < hurtR.x + hurtR.width && pRect.x + pRect.width > hurtR.x &&
+                    pRect.y < hurtR.y + hurtR.height && pRect.y + pRect.height > hurtR.y) {
                     const result = this.p1.takeDamage(proj.getAttackDef(), proj.facing);
                     proj.alive = false;
                     this.spawnSparks(proj.x, proj.y, result === 'BLOCKED' ? '#00ccff' : '#ff4400', '#fff', 8);
                     if (result !== 'BLOCKED') this.triggerShake(2, 0.08);
+                    if (this.p1.hp <= 0 && !this._koAnnounced) {
+                        this._koAnnounced = true;
+                        this.playCombatSound('ko', this.p1.data.id);
+                    }
                 }
             }
         }
@@ -440,6 +632,7 @@ export default class CombatState {
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
+            storyMode: this.combatData ? this.combatData.storyMode : false,
             arcadeIndex: nextIdx,
             arcadeWins: wins,
         });
@@ -476,12 +669,54 @@ export default class CombatState {
     }
 
     preloadFighterSprites(char) {
+        // Fallback names for the actual sprite files in the directories
+        // If a character uses specific prefixes (e.g., 'pablo_right.png' instead of just '_right.png')
+        const prefixMap = {
+            'Keano': 'keano', 'Hattori': 'hattori', 'Raheel': 'raheel',
+            'Pablo': 'pablo', 'Tzubaza': 'tzubaza', 'AlCapone': 'capone',
+            'Gargamel': 'gargamel', 'Marley': 'marley', 'Kowalski': 'kowalski',
+            'Paco': 'paco', 'Juan': 'juan', 'Lee': 'lee',
+            'JJDark': 'jayden', 'Putin': 'putin',
+            'VikingoRaw': 'vikingo_shirtless', 'Vikingo': 'vikingo_coat',
+            'SupremeKeano': 'keano', 'HyperKeano': 'keano',
+            'JayX': 'jay_x', 'GargamelHoodie': 'gargamel'
+        };
+        const pfx = prefixMap[char.id] || char.id.toLowerCase();
+
+        // The keys MUST MATCH what Fighter.js asks for: `${this.data.id}_right.png`
+        // But the SOURCE FILE might be named `${pfx}_right.png` or just `_right.png`. 
+        // We will queue the source using the standardized key.
         const suffixes = ['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'];
+
         for (const suf of suffixes) {
             const key = `${char.id}${suf}.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png`);
+                // AssetManager check both prefixed and un-prefixed versions
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
+                this.game.assetManager.queueImage(key + '_fallback', `assets/CHARACTERS/${char.folder}/${suf}.png`);
             }
+        }
+
+        // Preload Special Cut-in portrait
+        // Manual mapping for inconsistencies in the `fx/char_projectiles` folder
+        const idMap = {
+            'AlCapone': 'proj_al_capone.png',
+            'JJDark': 'proj_jayden.png',
+            'VikingoRaw': 'proj_dark_vikingo.png',
+            'Vikingo': 'proj_vikingo_coat.png',
+            'SupremeKeano': 'proj_supreme_keano.png',
+            'HyperKeano': 'proj_0.2.Hyper_Keano.png',
+            'JayX': 'proj_jay_x.png',
+            'GargamelHoodie': 'proj_gargamel.png', // Fallback to base gargamel
+            'Keano': 'proj_keano.png',
+            'Pablo': 'proj_pablo.png'
+        };
+
+        const projFile = idMap[char.id] || `proj_${char.id.toLowerCase()}.png`;
+
+        const cutinKey = `${char.id}_Cutin`;
+        if (!this.game.assetManager.images[cutinKey]) {
+            this.game.assetManager.queueImage(cutinKey, `assets/fx/char_projectiles/${projFile}`);
         }
     }
 
@@ -489,66 +724,114 @@ export default class CombatState {
 
     /** Play an announcer sound (round_1, fight, ko, perfect, win, game_over, etc.) */
     playAnnouncer(type) {
-        try {
-            const a = new Audio(`assets/audio/announcer_${type}.mp3`);
-            a.volume = (this.game.settings && this.game.settings.voiceVolume) || 0.9;
-            a.play().catch(() => { });
-        } catch (e) { }
+        const path = `assets/audio/announcer_${type}.mp3`;
+        this.game.audioManager.playSFX(path, true);  // isHeavy = loud
     }
 
     /** Play a fighter-specific sound (hit, ko, special, win, intro, taunt, super) */
     playFighterSound(fighterId, type) {
-        try {
-            const AUDIO_MAP = {
-                'Keano': 'keano', 'Hattori': 'hattori', 'Raheel': 'raheel',
-                'Pablo': 'pablo', 'Tzubaza': 'tzubaza', 'AlCapone': 'capone',
-                'Gargamel': 'gargamel', 'Marley': 'marley', 'Kowalski': 'kowalski',
-                'Paco': 'paco', 'Juan': 'juan', 'Lee': 'lee',
-                'JJDark': 'jayden', 'Putin': 'putin', 'VikingoRaw': 'vikingo',
-            };
-            const prefix = AUDIO_MAP[fighterId] || fighterId.toLowerCase();
-            const a = new Audio(`assets/audio/${prefix}_${type}.mp3`);
-            a.volume = (this.game.settings && this.game.settings.sfxVolume) || 0.5;
-            a.play().catch(() => { });
-        } catch (e) { }
+        const AUDIO_MAP = {
+            'Keano': 'keano', 'Hattori': 'hattori', 'Raheel': 'raheel',
+            'Pablo': 'pablo', 'Tzubaza': 'tzubaza', 'AlCapone': 'capone',
+            'Gargamel': 'gargamel', 'Marley': 'marley', 'Kowalski': 'kowalski',
+            'Paco': 'paco', 'Juan': 'juan', 'Lee': 'lee',
+            'JJDark': 'jayden', 'Putin': 'putin', 'VikingoRaw': 'vikingo',
+            'Vikingo': 'vikingo', 'SupremeKeano': 'keano', 'HyperKeano': 'keano',
+            'JayX': 'jayden', 'GargamelHoodie': 'gargamel', 'Simba': 'keano' // Fallback to Keano if Simba has no custom voice
+        };
+        const prefix = AUDIO_MAP[fighterId] || fighterId.toLowerCase();
+
+        // ALL character voice files live directly in assets/audio/
+        const path = `assets/audio/${prefix}_${type}.mp3`;
+        this.game.audioManager.playSFX(path, false);
     }
 
-    /** Called during combat collisions — plays hit/block/ko sounds */
+    /** Called during combat collisions — plays hit/ko sounds */
     playCombatSound(type, charId) {
+        // Voice reaction and physical impact (The voice files include the smack sound natively)
         if (type === 'hit') this.playFighterSound(charId, 'hit');
         else if (type === 'ko') {
             this.playFighterSound(charId, 'ko');
             this.playAnnouncer('ko');
+        } else if (type === 'special') {
+            this.playFighterSound(charId, 'special');
         }
     }
 
     enforceBoundaries(f) {
-        if (f.x < 60) f.x = 60;
-        if (f.x > this.game.width - 60) f.x = this.game.width - 60;
+        if (f.x < 150) f.x = 150;
+        if (f.x > this.game.width - 150) f.x = this.game.width - 150;
     }
 
     processAI(dt) {
-        const ai = { up: false, down: false, left: false, right: false, l: false, h: false, s: false };
+        const ai = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, lJust: false, hJust: false, sJust: false };
 
         if (!this.p1 || !this.p2 || this.p2.state === 'KO' || this.p1.state === 'KO') {
             return ai;
         }
+
+        const difficultySetting = this.game.settings?.difficulty || 'NORMAL';
+
+        // ─── AI PACIFICATION (Cooldown Timer) ───
+        if (typeof this.p2.aiWaitTimer === 'undefined') this.p2.aiWaitTimer = 0;
+        if (this.p2.aiWaitTimer > 0) {
+            this.p2.aiWaitTimer -= dt;
+            // While waiting, occasionally block or just stand still
+            if (Math.random() < 0.2) {
+                if (this.p1.x > this.p2.x) ai.left = true;
+                else ai.right = true;
+            }
+            return ai; // Skip all attack logic
+        }
+
+        const applyCooldown = () => {
+            if (ai.lJust || ai.hJust || ai.sJust || ai.up) {
+                if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 1.2 + Math.random();
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.5 + Math.random() * 0.5;
+                else this.p2.aiWaitTimer = 0.1;
+            } else if (Math.random() < 0.02) {
+                if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 0.6;
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.3;
+            }
+            return ai;
+        };
 
         const dist = Math.abs(this.p1.x - this.p2.x);
         const p2HpPct = this.p2.hp / this.p2.maxHP;
         const p1HpPct = this.p1.hp / this.p1.maxHP;
 
         // Difficulty scales with roster position (0=easy, 14=hardest boss)
+        // Scale from 0.1 (very easy) to 1.5 (hyper aggressive)
         const rosterIdx = this.combatData?.p2?.rosterIndex || 0;
-        const diff = Math.min(1.0, 0.3 + (rosterIdx / 14) * 0.7);
-        // diff: 0.3 (Hattori) → 1.0 (Dark Vikingo)
+        let diff = Math.min(1.5, 0.1 + (rosterIdx / 14) * 1.4);
 
-        // ─── DEFENSIVE: Block when P1 is attacking nearby ───
-        if (this.p1.state === 'ATTACK' && dist < 250 && Math.random() < diff * 0.6) {
-            // Retreat away from P1
-            if (this.p1.x > this.p2.x) ai.left = true;
-            else ai.right = true;
-            return ai;
+        // ─── GLOBAL DIFFICULTY OVERRIDE ───
+        if (difficultySetting === 'EASY') diff *= 0.3;
+        else if (difficultySetting === 'HARD') diff *= 1.4;
+
+        // ─── JUMP FREQUENCY BOOST ───
+        // AI jumps much more often now, especially when at a distance
+        const jumpChance = dist > 250 ? 0.04 * diff : 0.015 * diff;
+        if (Math.random() < jumpChance && this.p2.isGrounded) {
+            ai.up = true;
+            if (dist <= 250) ai.hJust = true; // Jump kick if close enough 
+        }
+
+        // ─── PERFECT BLOCK CHECK ───
+        // On Easy/Normal, the AI should make mistakes and eat hits.
+        // It only gets to perfectly hold BACK against an attack if it passes this check.
+        const seesAttack = this.p1.state === 'ATTACK' && dist < 250;
+        if (seesAttack) {
+            if (Math.random() < diff * 0.4) {
+                // Successful Block!
+                if (this.p1.x > this.p2.x) ai.left = true;
+                else ai.right = true;
+            } else {
+                // Failed Block! Stand still and eat the punch like a man.
+                ai.left = false;
+                ai.right = false;
+            }
+            return applyCooldown();
         }
 
         // ─── LOW HP: Play defensively ───
@@ -558,10 +841,11 @@ export default class CombatState {
                 if (this.p1.x > this.p2.x) ai.left = true;
                 else ai.right = true;
             }
-            if (dist < 150 && Math.random() < diff * 0.12) {
-                ai.s = true; // Desperate special
+            if (dist < 150 && Math.random() < diff * 0.15) {
+                if (this.p2.specialEnergy >= 100) ai.sJust = true;
+                else ai.hJust = true; // Fallback to heavy
             }
-            return ai;
+            return applyCooldown();
         }
 
         // ─── APPROACH ZONE (far away) ───
@@ -569,57 +853,93 @@ export default class CombatState {
             if (this.p1.x > this.p2.x) ai.right = true;
             else ai.left = true;
 
-            // Jump-in approach
-            if (Math.random() < 0.01 * diff && this.p2.isGrounded) ai.up = true;
+            // Jump-in approach (bosses do this more)
+            if (Math.random() < 0.015 * diff && this.p2.isGrounded) ai.up = true;
 
             // AI fires projectile from far range (harder opponents do this more)
-            if (Math.random() < diff * 0.004 && this.p2.state === 'IDLE') {
-                this.projectiles.push(new Projectile(
-                    this.p2.x + this.p2.facing * 80,
-                    this.p2.y - 150,
-                    this.p2.facing,
-                    'p2'
-                ));
-                this.p2.state = 'ATTACK';
-                this.p2.stateTimer = 0;
-                this.p2.currentAttack = { startup: 0.1, active: 0.05, recovery: 0.3, damage: 0, pushback: 0, hitstop: 0, box: null };
+            if (Math.random() < diff * 0.005 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
+                if (this.p2.specialEnergy >= 100 && !this.projectiles.some(p => p.owner === 'p2')) {
+                    this.p2.specialEnergy -= 100;
+                    const imgKey = `${this.p2.data.id}_Cutin`;
+                    const img = this.game.assetManager.images[imgKey];
+
+                    this.projectiles.push(new Projectile(
+                        this.p2.x + this.p2.facing * 80,
+                        this.p2.y - 180,
+                        this.p2.facing,
+                        'p2',
+                        img,
+                        this.game
+                    ));
+                    this.playCombatSound('special', this.p2.data.id);
+                    this.triggerShake(2, 0.08);
+                    this.p2.state = 'ATTACK';
+                    this.p2.stateTimer = 0;
+                    this.p2.currentAttack = { startup: 0.1, active: 0.05, recovery: 0.3, damage: 0, pushback: 0, hitstop: 0, box: null, type: 'SPECIAL' };
+                }
             }
 
             // ─── STRIKE ZONE (close) ───
         } else if (dist <= 180) {
-            if (this.p2.state === 'IDLE') {
+            if (this.p2.state === 'IDLE' || this.p2.state === 'WALK') {
                 const rand = Math.random();
-                const attackChance = diff * 0.08; // 2.4% for easy, 8% for boss
+                // Aggressive attack multiplier drops significantly on Easy
+                const attackChance = Math.min(0.9, diff * 0.4);
 
-                if (rand < attackChance * 0.3) {
-                    ai.h = true; // Heavy punch
-                } else if (rand < attackChance * 0.6) {
-                    ai.l = true; // Light punch
-                } else if (rand < attackChance) {
-                    ai.s = true; // Special/kick
+                if (rand < attackChance) {
+                    const mixup = Math.random();
+                    if (mixup < 0.2) {
+                        if (this.p2.specialEnergy >= 100) ai.sJust = true;
+                        else ai.hJust = true; // Fallback
+                    }
+                    else if (mixup < 0.6) ai.hJust = true;  // 40% Heavy
+                    else ai.lJust = true;                   // 40% Light
+                } else {
+                    // Weaving and Retreating Strategy
+                    const retreatThreshold = Math.max(0.4, 0.9 - (1.0 - diff) * 0.4);
+                    if (rand > retreatThreshold) {
+                        // Flawed retreat!
+                        // If AI holds BACK, it becomes invincible to attacks.
+                        // So on Easy/Normal, we sometimes force them to walk FORWARD or stand still during footsies
+                        if (Math.random() > diff) {
+                            if (this.p1.x > this.p2.x) ai.right = true; // Walk towards
+                            else ai.left = true;
+                        } else {
+                            if (this.p1.x > this.p2.x) ai.left = true; // Walk away
+                            else ai.right = true;
+                        }
+                    }
                 }
             }
-            // Jump attack (boss does this more)
-            if (Math.random() < diff * 0.008 && this.p2.isGrounded) {
+            // Jump attack (close range)
+            if (Math.random() < diff * 0.05 && this.p2.isGrounded) {
                 ai.up = true;
-                ai.l = true;
+                ai.hJust = true;
             }
 
             // ─── FOOTSIES ZONE (mid-range) ───
         } else {
-            if (Math.random() < 0.04 + diff * 0.04) {
+            // Aggressively close the gap based on diff.
+            // Easy: Might wander backwards. Hard: Runs straight at you.
+            const advanceChance = Math.min(0.85, 0.30 + diff * 0.4);
+            if (Math.random() < advanceChance) {
                 if (this.p1.x > this.p2.x) ai.right = true;
                 else ai.left = true;
+            } else {
+                if (this.p1.x > this.p2.x) ai.left = true;
+                else ai.right = true;
             }
-            // Dash-in kick at mid range
-            if (Math.random() < diff * 0.02 && this.p2.state === 'IDLE') {
+
+            // Dash-in heavy/light attack at mid range
+            if (Math.random() < diff * 0.08 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
                 if (this.p1.x > this.p2.x) ai.right = true;
                 else ai.left = true;
-                ai.l = true;
+                if (Math.random() > 0.5) ai.hJust = true;
+                else ai.lJust = true;
             }
         }
 
-        return ai;
+        return applyCooldown();
     }
 
     draw(ctx) {
@@ -642,7 +962,10 @@ export default class CombatState {
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
 
-        // 2. Draw Fighters
+        // 2. Draw Stage Objects (BEHIND fighters)
+        this.stageObjects.draw(ctx);
+
+        // 3. Draw Fighters
         if (this.p1.state === 'ATTACK') {
             this.p2.draw(ctx);
             this.p1.draw(ctx);
@@ -650,9 +973,6 @@ export default class CombatState {
             this.p1.draw(ctx);
             this.p2.draw(ctx);
         }
-
-        // 2.2 Draw Stage Objects (in foreground, overlapping feet)
-        this.stageObjects.draw(ctx);
 
         // 2.3 Draw Projectiles
         for (const proj of this.projectiles) {
@@ -671,10 +991,10 @@ export default class CombatState {
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
 
+        ctx.restore();
+
         // 3. HUD
         this.drawHUD(ctx);
-
-        ctx.restore();
 
         // 4. Overlays per match phase
         if (this.matchPhase === 'FIGHT_INTRO') {
@@ -686,6 +1006,34 @@ export default class CombatState {
             this.drawPostMatch(ctx);
         } else if (this.matchPhase === 'VICTORY') {
             this.drawVictory(ctx);
+        }
+
+        // 5. Pause Screen Overlay
+        if (this.paused) {
+            this.drawPause(ctx);
+        }
+    }
+
+    drawPause(ctx) {
+        const w = this.game.width;
+        const h = this.game.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.font = 'bold 80px "Press Start 2P"';
+        ctx.fillStyle = '#fdbf00';
+        ctx.textAlign = 'center';
+        ctx.fillText('PAUSED', cx, cy - 80);
+
+        const options = ['RESUME FIGHT', 'QUIT TO MENU'];
+        ctx.font = 'bold 36px "Press Start 2P"';
+        for (let i = 0; i < options.length; i++) {
+            const y = cy + 40 + (i * 80);
+            ctx.fillStyle = this.pauseSelection === i ? '#ff0055' : '#888';
+            ctx.fillText(this.pauseSelection === i ? `> ${options[i]} <` : options[i], cx, y);
         }
     }
 
@@ -732,6 +1080,44 @@ export default class CombatState {
         ctx.lineWidth = 2;
         ctx.strokeRect(p1X, barY, barW, barH);
         ctx.strokeRect(p2X, barY, barW, barH);
+
+        // Menu Pause Button
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(this.game.width - 150, 10, 140, 50);
+        ctx.strokeStyle = '#888';
+        ctx.strokeRect(this.game.width - 150, 10, 140, 50);
+        ctx.fillStyle = '#fff';
+        ctx.font = '20px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText('MENU', this.game.width - 80, 42);
+
+        // ─── SPECIAL ENERGY METERS ───
+        const spH = 15;
+        const spY = barY + barH + 10;
+
+        // Background (dark blue)
+        ctx.fillStyle = '#001133';
+        ctx.fillRect(p1X, spY, barW, spH);
+        ctx.fillRect(p2X, spY, barW, spH);
+
+        // P1 Special (Cyan)
+        const p1SpPct = Math.max(0, this.p1.specialEnergy / this.p1.maxSpecialEnergy);
+        const p1SpReady = p1SpPct >= 1.0;
+        ctx.fillStyle = p1SpReady ? (Math.floor(this.time * 10) % 2 === 0 ? '#ffffff' : '#00ffff') : '#0088cc';
+        ctx.fillRect(p1X, spY, barW * p1SpPct, spH);
+
+        // P2 Special (Cyan)
+        const p2SpPct = Math.max(0, this.p2.specialEnergy / this.p2.maxSpecialEnergy);
+        const p2SpReady = p2SpPct >= 1.0;
+        ctx.fillStyle = p2SpReady ? (Math.floor(this.time * 10) % 2 === 0 ? '#ffffff' : '#00ffff') : '#0088cc';
+        const p2SpW = barW * p2SpPct;
+        ctx.fillRect(p2X + (barW - p2SpW), spY, p2SpW, spH);
+
+        // Special outlines
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(p1X, spY, barW, spH);
+        ctx.strokeRect(p2X, spY, barW, spH);
     }
 
     drawFightIntro(ctx) {
@@ -786,42 +1172,48 @@ export default class CombatState {
 
         // K.O. text with pulse
         const pulse = 1 + Math.sin(this.koFreezeTimer * 6) * 0.03;
-        ctx.save();
-        ctx.translate(cx, cy - 40);
-        ctx.scale(pulse, pulse);
-        ctx.font = 'bold 180px "Press Start 2P"';
-        ctx.fillStyle = '#ff0000';
-        ctx.strokeStyle = '#fdbf00';
-        ctx.lineWidth = 4;
-        ctx.shadowColor = '#000';
-        ctx.shadowBlur = 20;
-        ctx.strokeText('K.O.', 0, 0);
-        ctx.fillText('K.O.', 0, 0);
-        ctx.shadowBlur = 0;
-        ctx.restore();
 
-        // PERFECT if winner has full HP
-        const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
-        if (winnerFighter.hp >= winnerFighter.maxHP) {
-            ctx.font = 'bold 60px "Press Start 2P"';
-            ctx.fillStyle = '#fdbf00';
-            ctx.shadowColor = '#ff6600';
-            ctx.shadowBlur = 15;
-            ctx.fillText('PERFECT', cx, cy + 60);
-            ctx.shadowBlur = 0;
-            if (!this._perfectAnnounced) {
-                this._perfectAnnounced = true;
-                this.playAnnouncer('perfect');
-            }
-        } else {
-            // Winner name
-            const winnerName = this.winner === 'p1' ? this.p1.data.name : this.p2.data.name;
-            ctx.font = 'bold 60px "Press Start 2P"';
-            ctx.fillStyle = '#fdbf00';
+        // Cinematic view: hide K.O. after 1.5 seconds so we can see the slow-mo body flying
+        if (this.koFreezeTimer < 1.5) {
+            ctx.save();
+            ctx.translate(cx, cy - 40);
+            ctx.scale(pulse, pulse);
+            ctx.font = 'bold 180px "Press Start 2P"';
+            ctx.fillStyle = '#ff0000';
+            ctx.strokeStyle = '#fdbf00';
+            ctx.lineWidth = 4;
             ctx.shadowColor = '#000';
-            ctx.shadowBlur = 10;
-            ctx.fillText(`${winnerName.toUpperCase()} WINS!`, cx, cy + 60);
+            ctx.shadowBlur = 20;
+            ctx.strokeText('K.O.', 0, 0);
+            ctx.fillText('K.O.', 0, 0);
             ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        // Delay the "PERFECT" or "WINNER" text until the very end of the sequence when the body hits the floor
+        if (this.koFreezeTimer >= 3.0) {
+            const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
+            if (winnerFighter.hp >= winnerFighter.maxHP) {
+                ctx.font = 'bold 60px "Press Start 2P"';
+                ctx.fillStyle = '#fdbf00';
+                ctx.shadowColor = '#ff6600';
+                ctx.shadowBlur = 15;
+                ctx.fillText('PERFECT', cx, cy + 60);
+                ctx.shadowBlur = 0;
+                if (!this._perfectAnnounced) {
+                    this._perfectAnnounced = true;
+                    this.playAnnouncer('perfect');
+                }
+            } else {
+                // Winner name
+                const winnerName = this.winner === 'p1' ? this.p1.data.name : this.p2.data.name;
+                ctx.font = 'bold 60px "Press Start 2P"';
+                ctx.fillStyle = '#fdbf00';
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 10;
+                ctx.fillText(`${winnerName.toUpperCase()} WINS!`, cx, cy + 60);
+                ctx.shadowBlur = 0;
+            }
         }
     }
 
@@ -832,7 +1224,7 @@ export default class CombatState {
         if (this.arcadeMode) {
             // Arcade progress bar
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(cx - 400, startY - 40, 800, 160);
+            ctx.fillRect(cx - 300, startY - 40, 600, 160); // Narrower box so the winner can be seen on the sides
 
             ctx.font = 'bold 20px "Press Start 2P"';
             ctx.textAlign = 'center';
@@ -840,12 +1232,7 @@ export default class CombatState {
             ctx.fillText(`FIGHT ${this.arcadeIndex} / ${ROSTER.length - 1}`, cx, startY - 5);
 
             if (this.winner === 'p1') {
-                ctx.font = 'bold 36px "Press Start 2P"';
-                ctx.fillStyle = '#00ff00';
-                ctx.fillText('> NEXT FIGHT <', cx, startY + 55);
-                ctx.font = '18px "Press Start 2P"';
-                ctx.fillStyle = '#888';
-                ctx.fillText('PRESS ATTACK TO CONTINUE', cx, startY + 95);
+                // Auto Advance (no text)
             } else {
                 const lossOpts = ['CONTINUE?', 'GIVE UP'];
                 ctx.font = 'bold 32px "Press Start 2P"';
@@ -859,7 +1246,7 @@ export default class CombatState {
             // Free battle options
             const options = ['REMATCH', 'CHARACTER SELECT', 'MAIN MENU'];
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(cx - 400, startY - 40, 800, options.length * 65 + 30);
+            ctx.fillRect(cx - 300, startY - 40, 600, options.length * 65 + 30);
             ctx.font = 'bold 32px "Press Start 2P"';
             ctx.textAlign = 'center';
             for (let i = 0; i < options.length; i++) {
@@ -895,8 +1282,24 @@ export default class CombatState {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(`WINS: ${this.arcadeWins + 1}`, cx, cy + 60);
 
-        ctx.font = '18px "Press Start 2P"';
-        ctx.fillStyle = '#888';
-        ctx.fillText('PRESS ATTACK TO RETURN', cx, cy + 120);
+        // Show Unlocked Character if any
+        if (this._newlyUnlocked) {
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.fillStyle = '#ff0055';
+            ctx.shadowColor = '#ff0055';
+            ctx.shadowBlur = 10;
+            ctx.fillText(`BLOODLINE UNLOCKED:`, cx, cy + 110);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(this._newlyUnlocked.name.toUpperCase(), cx, cy + 140);
+            ctx.shadowBlur = 0;
+
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillStyle = '#888';
+            ctx.fillText('PRESS ATTACK TO VIEW CREDITS', cx, cy + 200);
+        } else {
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillStyle = '#888';
+            ctx.fillText('PRESS ATTACK TO VIEW CREDITS', cx, cy + 140);
+        }
     }
 }
