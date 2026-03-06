@@ -19,12 +19,12 @@ export default class TouchPad {
         this.buttons = { l: false, h: false, s: false };
         this.prevButtons = { l: false, h: false, s: false };
 
-        // Layout — HUGE for phone screens
+        // Layout — MASSIVE for phone scaling (1920px canvas → 375px screen)
         this.stickCenter = { x: 0, y: 0 };
-        this.stickRadius = 140;
-        this.stickOuter = 180;
+        this.stickRadius = 200;
+        this.stickOuter = 250;
         this.stickPos = { x: 0, y: 0 };
-        this.btnRadius = 80;
+        this.btnRadius = 120;
         this.btnPositions = [];
 
         // Detect touch device
@@ -41,14 +41,14 @@ export default class TouchPad {
         const w = this.canvas.width;
         const h = this.canvas.height;
 
-        // Analog stick — bottom-left, MASSIVE
-        this.stickCenter = { x: 240, y: h - 260 };
+        // Analog stick — bottom-left, PHONE-SCALE
+        this.stickCenter = { x: 320, y: h - 330 };
         this.stickPos = { ...this.stickCenter };
 
         // Action buttons — bottom-right, triangle layout
-        const rx = w - 220;
-        const ry = h - 260;
-        const spacing = 110;
+        const rx = w - 320;
+        const ry = h - 330;
+        const spacing = 160;
         this.btnPositions = [
             { id: 'l', x: rx - spacing, y: ry, label: 'P', sub: 'PUNCH', color: '#00ccff' },
             { id: 'h', x: rx, y: ry - spacing, label: 'K', sub: 'KICK', color: '#ff4444' },
