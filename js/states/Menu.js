@@ -137,7 +137,8 @@ export default class MenuState {
                 this.credits--;
                 this.startStoryMode();
             } else if (this.selectedIndex === 1) {
-                // ARCADE MODE
+                // ARCADE MODE — locked until story complete
+                if (!this.storyCompleted) return;
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
@@ -146,7 +147,8 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: true });
                 }, 500);
             } else if (this.selectedIndex === 2) {
-                // VERSUS MODE
+                // VERSUS MODE — locked until story complete
+                if (!this.storyCompleted) return;
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
@@ -508,7 +510,7 @@ export default class MenuState {
         const menuStartY = this.game.height * 0.65; // Pushed down
         for (let i = 0; i < this.options.length; i++) {
             const y = menuStartY + (i * 65);
-            const isLocked = false; // (i === 1 || i === 2) && !this.storyCompleted; // Temporarily unlocked
+            const isLocked = (i === 1 || i === 2) && !this.storyCompleted;
 
             if (i === this.selectedIndex) {
                 ctx.fillStyle = isLocked ? '#663333' : '#00ffff';
