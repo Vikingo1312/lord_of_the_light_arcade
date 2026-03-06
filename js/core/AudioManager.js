@@ -274,18 +274,38 @@ export default class AudioManager {
         this.voiceChannel.src = path;
 
         const playPromise = this.voiceChannel.play();
+
+        // Mobile Safari HARD FALLBACK:
+        // Even if the promise doesn't explicitly reject, it might just hang indefinitely in a pending state.
+        // We set an absolute timeout (e.g. 10 seconds) to force the callback so the story doesn't permanently freeze.
+        let forceEndTimeout = setTimeout(() => {
+            if (this.voiceChannel.onended) {
+                console.log("Forced voice fallback timeout triggered (Safari block).");
+                this.voiceChannel.onended();
+            }
+        }, 8000); // 8 seconds max wait for voice lines to "play" 
+
         if (playPromise !== undefined) {
-            playPromise.catch(e => {
+            playPromise.then(() => {
+                // Audio actually started playing normally, clear the fallback if we want to rely on the natural end
+                // However, for safety on mobile, we can leave the timeout as a hard maximum duration to prevent soft-locks.
+                // We'll calculate a more accurate timeout based on duration if possible.
+                if (this.voiceChannel.duration) {
+                    clearTimeout(forceEndTimeout);
+                    forceEndTimeout = setTimeout(() => {
+                        if (this.voiceChannel.onended) this.voiceChannel.onended();
+                    }, (this.voiceChannel.duration * 1000) + 2000); // Add 2s buffer
+                }
+            }).catch(e => {
                 console.warn("Voice play failed or was blocked by browser:", e);
-                // CRITICAL FIX: If the voice is blocked by Safari Autoplay Policy or is a 404 missing file, 
-                // the 'onended' event will NEVER fire natively. This completely breaks Story sequences!
-                // We must manually trigger the callback after a fallback text-reading delay (e.g. 15 seconds).
-                this._voiceFallbackTimeout = setTimeout(() => {
+                // Trigger almost immediately on explicitly rejected promises (404, explicit Autoplay deny)
+                clearTimeout(forceEndTimeout);
+                setTimeout(() => {
                     if (this.voiceChannel.onended) {
-                        console.log("Triggering fallback onended for blocked voice track.");
+                        console.log("Explicit fallback onended for blocked voice track.");
                         this.voiceChannel.onended();
                     }
-                }, 15000);
+                }, 2000); // Wait 2 seconds for user to read text
             });
         }
 

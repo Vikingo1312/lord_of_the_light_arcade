@@ -64,6 +64,10 @@ export default class TouchPad {
     setupTouchListeners() {
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
+            // Unlock audio on the very first touch during combat to guarantee SFX 
+            if (this.game && this.game.audioManager && this.game.audioManager.unlockAudio) {
+                this.game.audioManager.unlockAudio();
+            }
             this.handleTouches(e.touches);
         }, { passive: false });
 
