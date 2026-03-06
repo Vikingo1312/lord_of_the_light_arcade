@@ -16,6 +16,7 @@ window.onload = () => {
     canvas.height = 1080;
 
     const game = new Game(canvas);
+    window.__gameRef = game; // Expose for mobile hamburger menu
 
     // Register states
     game.stateManager.addState('Boot', new BootState(game));

@@ -21,10 +21,10 @@ export default class TouchPad {
 
         // Layout
         this.stickCenter = { x: 0, y: 0 };
-        this.stickRadius = 70;
-        this.stickOuter = 100;
+        this.stickRadius = 90;
+        this.stickOuter = 130;
         this.stickPos = { x: 0, y: 0 }; // Current thumb position
-        this.btnRadius = 40;
+        this.btnRadius = 55;
         this.btnPositions = [];
 
         // Detect touch device
@@ -41,14 +41,14 @@ export default class TouchPad {
         const w = this.canvas.width;
         const h = this.canvas.height;
 
-        // Analog stick — bottom-left
-        this.stickCenter = { x: 150, y: h - 170 };
+        // Analog stick — bottom-left, big
+        this.stickCenter = { x: 180, y: h - 200 };
         this.stickPos = { ...this.stickCenter };
 
-        // Action buttons — bottom-right, diamond layout like PlayStation
-        const rx = w - 130;
-        const ry = h - 170;
-        const spacing = 65;
+        // Action buttons — bottom-right, diamond layout
+        const rx = w - 160;
+        const ry = h - 200;
+        const spacing = 80;
         this.btnPositions = [
             { id: 'l', x: rx - spacing, y: ry, label: 'P', sub: 'PUNCH', color: '#00ccff' },
             { id: 'h', x: rx, y: ry - spacing, label: 'K', sub: 'KICK', color: '#ff4444' },
@@ -259,9 +259,9 @@ export default class TouchPad {
             // Button label
             ctx.globalAlpha = isPressed ? 1 : 0.8;
             ctx.fillStyle = isPressed ? '#000' : '#ddd';
-            ctx.font = 'bold 22px "Press Start 2P"';
+            ctx.font = 'bold 28px "Press Start 2P"';
             ctx.textAlign = 'center';
-            ctx.fillText(btn.label, btn.x, btn.y + 8);
+            ctx.fillText(btn.label, btn.x, btn.y + 10);
         }
 
         ctx.restore();
