@@ -562,12 +562,14 @@ export default class MenuState {
         this.drawSpinningCoin(ctx, cx - 280, y - 10);
         this.drawSpinningCoin(ctx, cx + 280, y - 10);
 
-        // Click to insert coin (touch/mouse)
+        // Insert coin via button press OR screen tap
         if (this.credits <= 0) {
-            // Check for click/tap in INSERT COIN area
-            if (this.game.inputManager.p1.l || this.game.inputManager.p1.h) {
+            const p1 = this.game.inputManager.p1;
+            // Accept any input: keyboard punch/kick, touchpad button, or screen tap
+            if (p1.l || p1.h || p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down) {
                 this.credits = this.maxCredits;
                 this.inputCooldown = 15;
+                this.game.audioManager.unlockAudio();
             }
         }
     }
