@@ -8,6 +8,7 @@ export default class BootState {
             if (!this.engineReady) {
                 this.engineReady = true;
                 this.game.start();
+                this.game.audioManager._initWebAudio(); // Create AudioContext in user-gesture context
                 this.game.audioManager.unlockAudio(); // Prime audio on first touch
                 this.loadAssets();
             }

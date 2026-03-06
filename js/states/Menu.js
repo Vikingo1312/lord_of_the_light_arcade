@@ -44,6 +44,8 @@ export default class MenuState {
                 wobble: Math.random() * Math.PI * 2
             });
         }
+        // Mobile tap handler (bound reference for cleanup)
+        this._onMenuTap = null;
     }
 
     enter(data) {
@@ -51,6 +53,7 @@ export default class MenuState {
         this.selectedIndex = 0;
         this.inputCooldown = 15;
         this.inOptions = false;
+        this._tapConfirmPending = false;
 
         // Check story completion
         try {
@@ -62,11 +65,77 @@ export default class MenuState {
         // Gradually ramp volume up over ~2 seconds
         this._fadeInTimer = 0;
         this._fadeInTarget = this.game.settings.musicVolume;
+
+        // Setup direct tap-on-menu for mobile
+        this._setupMenuTap();
     }
 
     exit() {
         // Do not stop music here if transitioning to character select or story
         // The new state will handle changing or stopping it via AudioManager
+        this._removeMenuTap();
+    }
+
+    /**
+     * Direct tap-on-menu support for mobile.
+     * Tapping on a menu item selects AND confirms it —
+     * no need to find the small P/K/S buttons.
+     */
+    _setupMenuTap() {
+        this._removeMenuTap(); // Clean up any previous listener
+
+        this._onMenuTap = (e) => {
+            if (this.inOptions) return; // Options sub-menu uses controller
+
+            const rect = this.game.canvas.getBoundingClientRect();
+            const scaleX = this.game.canvas.width / rect.width;
+            const scaleY = this.game.canvas.height / rect.height;
+
+            // Use first touch
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const tx = (touch.clientX - rect.left) * scaleX;
+            const ty = (touch.clientY - rect.top) * scaleY;
+
+            // Unlock audio on any tap
+            if (this.game.audioManager.unlockAudio) {
+                this.game.audioManager.unlockAudio();
+            }
+
+            // INSERT COIN: if no credits, any tap adds coins
+            if (this.credits <= 0) {
+                this.credits = this.maxCredits;
+                this.inputCooldown = 15;
+                return;
+            }
+
+            // Check if tap hits a menu item
+            const menuStartY = this.game.height * 0.65;
+            const itemHeight = 65;
+            const hitPadding = 35; // vertical hit area around each item
+
+            for (let i = 0; i < this.options.length; i++) {
+                const itemY = menuStartY + (i * itemHeight);
+                if (ty >= itemY - hitPadding && ty <= itemY + hitPadding) {
+                    // Tapped on menu item i
+                    this.selectedIndex = i;
+                    // Simulate confirm (same as pressing P/K/S)
+                    this._tapConfirmPending = true;
+                    return;
+                }
+            }
+        };
+
+        this.game.canvas.addEventListener('touchend', this._onMenuTap, { passive: true });
+        // Also support click for hybrid devices
+        this.game.canvas.addEventListener('click', this._onMenuTap, { passive: true });
+    }
+
+    _removeMenuTap() {
+        if (this._onMenuTap) {
+            this.game.canvas.removeEventListener('touchend', this._onMenuTap);
+            this.game.canvas.removeEventListener('click', this._onMenuTap);
+            this._onMenuTap = null;
+        }
     }
 
     update(dt) {
@@ -127,7 +196,12 @@ export default class MenuState {
             }
         }
 
-        if ((p1.h || p1.l || p1.s) && this.inputCooldown <= 0) {
+        // Confirm via controller buttons OR direct tap on menu item
+        const confirmPressed = (p1.h || p1.l || p1.s) && this.inputCooldown <= 0;
+        const tapConfirm = this._tapConfirmPending;
+        this._tapConfirmPending = false;
+
+        if (confirmPressed || tapConfirm) {
             if (this.credits <= 0) return; // No credits!
 
             if (this.selectedIndex === 0) {

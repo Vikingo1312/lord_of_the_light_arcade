@@ -12,6 +12,10 @@ export default class CaesarSplash {
         // Play a subtle crystal chime
         try {
             this.game.audioManager._initWebAudio();
+            // Resume AudioContext if suspended (mobile Safari/Chrome)
+            if (this.game.audioManager.audioCtx && this.game.audioManager.audioCtx.state === 'suspended') {
+                this.game.audioManager.audioCtx.resume();
+            }
             this._playChime();
         } catch (e) {
             console.warn('Splash audio failed:', e);
