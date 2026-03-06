@@ -614,7 +614,8 @@ export default class CombatState {
     }
 
     async startArcadeFight(nextIdx, wins) {
-        const keano = ROSTER[0];
+        // Carry over the selected P1 character from the previous match!
+        const player1 = this.combatData ? this.combatData.p1 : ROSTER[0];
         const opponent = ROSTER[nextIdx];
         const stageId = opponent.stageId;
         const stage = STAGES[stageId];
@@ -628,7 +629,7 @@ export default class CombatState {
         await this.game.assetManager.loadAll();
 
         this.game.stateManager.switchState('VersusIntro', {
-            p1: keano,
+            p1: player1,
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
@@ -639,7 +640,8 @@ export default class CombatState {
     }
 
     async startArcadeFightViaStory(nextIdx, wins, storyData) {
-        const keano = ROSTER[0];
+        // Carry over the selected P1 character from the previous match!
+        const player1 = this.combatData ? this.combatData.p1 : ROSTER[0];
         const opponent = ROSTER[nextIdx];
         const stageId = opponent.stageId;
         const stage = STAGES[stageId];
@@ -652,7 +654,7 @@ export default class CombatState {
         await this.game.assetManager.loadAll();
 
         const combatData = {
-            p1: keano,
+            p1: player1,
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
