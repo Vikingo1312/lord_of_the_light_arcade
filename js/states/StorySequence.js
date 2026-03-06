@@ -221,7 +221,7 @@ export default class StorySequence {
                 this.scrollY = centeredY;
                 this.scrollSpeed = 0;
                 // Don't set finished — birthday stays on screen forever until manual exit
-            } else if (!this.voicePath && lastLineY <= centerStopY) {
+            } else if (!this.voicePath && lastLineY <= this.game.height / 2) {
                 // UNVOICED NON-BIRTHDAY: Freeze at center + start reading timer
                 this.scrollSpeed = 0;
                 if (!this._unvoicedReadTimerStarted) {
