@@ -98,15 +98,15 @@ export default class StorySequence {
         // Voice always plays CLEAN on top.
         if (this.isBirthdayScene) {
             // Birthday: main soundtrack, clean
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/Main_soundtrack.wav', true, false, 0.4);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Nicht jede')) {
             // Prologue: Main Theme MUFFLED (voice narrates clean on top)
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/Main_soundtrack.wav', true, this.game.settings.bgmFilterEnabled, 0.4);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Arenen')) {
             // Reflexion: Main Theme MUFFLED (voice narrates clean on top)
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/Main_soundtrack.wav', true, this.game.settings.bgmFilterEnabled, 0.4);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Der letzte')) {
             // Epilogue: Valhalla music MUFFLED
@@ -254,7 +254,7 @@ export default class StorySequence {
                 const krY = this.scrollY + krIdx * this.lineHeight;
                 if (krY < this.game.height / 2 + 50) {
                     this.lichtkristallTriggered = true;
-                    this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.5);
+                    this.game.audioManager.playBGM('assets/audio/music/Main_soundtrack.wav', true, false, 0.5);
 
                     // Spawn huge golden explosion
                     for (let i = 0; i < 400; i++) {

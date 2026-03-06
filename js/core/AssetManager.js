@@ -72,7 +72,16 @@ export default class AssetManager {
             });
         });
 
-        await Promise.all(promises);
+        await Promise.all(promises.map(p => {
+            // Add a 5-second timeout on individual promises to prevent indefinite hangs
+            return Promise.race([
+                p,
+                new Promise(resolve => setTimeout(() => {
+                    console.warn('[AssetManager] Asset load timeout reached. Forcing resolve.');
+                    resolve();
+                }, 5000))
+            ]);
+        }));
     }
 
     /**

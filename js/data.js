@@ -55,7 +55,7 @@ export const STAGES = {
     'Dojo': { file: '12_Jayden_Dojo.png', music: '12_Dojo_Dark.mp3', name: 'Shadow Dojo' },
     'Russia': { file: '13_Putin_Russia.png', music: '13_Russia.wav', name: 'Siberian Frost' },
     'Valhalla': { file: '14_Dark Vikingo_Valhalla_Boss.png', music: '14_Valhalla.wav', name: 'Valhalla Gates' },
-    'Canada': { file: 'Extra_Canada.png', music: 'main_soundtrack.mp3', name: 'Canada Arena' },
+    'Canada': { file: 'Extra_Canada.png', music: 'Main_soundtrack.wav', name: 'Canada Arena' },
 };
 
 /**
