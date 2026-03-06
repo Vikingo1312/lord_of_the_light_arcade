@@ -12,14 +12,15 @@ export default class TouchPad {
 
         // D-Pad state
         this.dpad = { up: false, down: false, left: false, right: false };
-        // Attack buttons
+        // Attack buttons — current + previous frame for "just pressed" detection
         this.buttons = { l: false, h: false, s: false };
+        this.prevButtons = { l: false, h: false, s: false };
 
         // Layout positions (set in resize)
         this.dpadCenter = { x: 160, y: 0 };
-        this.dpadRadius = 80;
+        this.dpadRadius = 90;
         this.btnPositions = [];
-        this.btnRadius = 45;
+        this.btnRadius = 55;
 
         // Detect touch device
         this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -32,16 +33,17 @@ export default class TouchPad {
     }
 
     resize() {
+        const w = this.canvas.width;
         const h = this.canvas.height;
-        this.dpadCenter = { x: 160, y: h - 160 };
+        this.dpadCenter = { x: 140, y: h - 180 };
 
-        // Three attack buttons on the right side
-        const rightX = this.canvas.width - 100;
-        const btnY = h - 160;
+        // Three attack buttons on the right side — bigger and more spaced
+        const rightX = w - 110;
+        const btnY = h - 180;
         this.btnPositions = [
-            { id: 'l', x: rightX - 130, y: btnY + 30, label: 'LP', color: '#00ccff' },
-            { id: 'h', x: rightX - 30, y: btnY - 20, label: 'HP', color: '#ff4400' },
-            { id: 's', x: rightX - 30, y: btnY + 70, label: 'SK', color: '#fdbf00' },
+            { id: 'l', x: rightX - 150, y: btnY + 30, label: '👊', color: '#00ccff' },
+            { id: 'h', x: rightX - 40, y: btnY - 30, label: '🦶', color: '#ff4400' },
+            { id: 's', x: rightX - 40, y: btnY + 80, label: '⚡', color: '#fdbf00' },
         ];
     }
 
@@ -58,6 +60,11 @@ export default class TouchPad {
     }
 
     processTouches(touchList) {
+        // Save previous state for "just pressed" detection
+        this.prevButtons.l = this.buttons.l;
+        this.prevButtons.h = this.buttons.h;
+        this.prevButtons.s = this.buttons.s;
+
         // Reset all
         this.dpad = { up: false, down: false, left: false, right: false };
         this.buttons = { l: false, h: false, s: false };
@@ -76,7 +83,7 @@ export default class TouchPad {
             const dy = ty - this.dpadCenter.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < this.dpadRadius * 2) {
+            if (dist < this.dpadRadius * 2.5) {
                 const angle = Math.atan2(dy, dx);
                 const deg = angle * (180 / Math.PI);
 
@@ -90,7 +97,7 @@ export default class TouchPad {
             for (const btn of this.btnPositions) {
                 const bdx = tx - btn.x;
                 const bdy = ty - btn.y;
-                if (Math.sqrt(bdx * bdx + bdy * bdy) < this.btnRadius * 1.3) {
+                if (Math.sqrt(bdx * bdx + bdy * bdy) < this.btnRadius * 1.5) {
                     this.buttons[btn.id] = true;
                 }
             }
@@ -106,49 +113,79 @@ export default class TouchPad {
         p1.right = p1.right || this.dpad.right;
         p1.up = p1.up || this.dpad.up;
         p1.down = p1.down || this.dpad.down;
+
+        // Held buttons
         p1.l = p1.l || this.buttons.l;
         p1.h = p1.h || this.buttons.h;
         p1.s = p1.s || this.buttons.s;
+
+        // "Just pressed" — true on the frame the button goes from false to true
+        if (this.buttons.l && !this.prevButtons.l) p1.lJust = true;
+        if (this.buttons.h && !this.prevButtons.h) p1.hJust = true;
+        if (this.buttons.s && !this.prevButtons.s) p1.sJust = true;
     }
 
     draw(ctx) {
         if (!this.active) return;
         ctx.save();
-        ctx.globalAlpha = 0.35;
+        ctx.globalAlpha = 0.7;
 
-        // D-Pad base circle
-        ctx.fillStyle = '#222';
+        // D-Pad base circle with border
+        ctx.fillStyle = 'rgba(20, 20, 30, 0.8)';
+        ctx.strokeStyle = '#00d4ff';
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(this.dpadCenter.x, this.dpadCenter.y, this.dpadRadius + 20, 0, Math.PI * 2);
+        ctx.arc(this.dpadCenter.x, this.dpadCenter.y, this.dpadRadius + 25, 0, Math.PI * 2);
         ctx.fill();
+        ctx.stroke();
 
-        // D-Pad arrows
+        // D-Pad directional arrows
         const dirs = [
-            { dx: 0, dy: -1, active: this.dpad.up },
-            { dx: 0, dy: 1, active: this.dpad.down },
-            { dx: -1, dy: 0, active: this.dpad.left },
-            { dx: 1, dy: 0, active: this.dpad.right },
+            { dx: 0, dy: -1, active: this.dpad.up, label: '▲' },
+            { dx: 0, dy: 1, active: this.dpad.down, label: '▼' },
+            { dx: -1, dy: 0, active: this.dpad.left, label: '◀' },
+            { dx: 1, dy: 0, active: this.dpad.right, label: '▶' },
         ];
         for (const d of dirs) {
-            const ax = this.dpadCenter.x + d.dx * 50;
-            const ay = this.dpadCenter.y + d.dy * 50;
-            ctx.fillStyle = d.active ? '#00ffff' : '#666';
+            const ax = this.dpadCenter.x + d.dx * 55;
+            const ay = this.dpadCenter.y + d.dy * 55;
+            ctx.fillStyle = d.active ? '#00ffff' : 'rgba(100, 100, 120, 0.8)';
             ctx.beginPath();
-            ctx.arc(ax, ay, 22, 0, Math.PI * 2);
+            ctx.arc(ax, ay, 28, 0, Math.PI * 2);
             ctx.fill();
+
+            // Arrow label
+            ctx.fillStyle = d.active ? '#000' : '#ccc';
+            ctx.font = 'bold 18px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(d.label, ax, ay + 7);
         }
 
-        // Attack buttons
+        // Attack buttons — large, visible, with glow when pressed
         for (const btn of this.btnPositions) {
-            ctx.fillStyle = this.buttons[btn.id] ? btn.color : '#444';
+            const isPressed = this.buttons[btn.id];
+
+            // Glow ring when pressed
+            if (isPressed) {
+                ctx.shadowColor = btn.color;
+                ctx.shadowBlur = 20;
+            }
+
+            // Button background
+            ctx.fillStyle = isPressed ? btn.color : 'rgba(40, 40, 50, 0.85)';
+            ctx.strokeStyle = btn.color;
+            ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.arc(btn.x, btn.y, this.btnRadius, 0, Math.PI * 2);
             ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
 
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 20px "Press Start 2P"';
+            // Button emoji label
+            ctx.fillStyle = isPressed ? '#000' : '#fff';
+            ctx.font = 'bold 28px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(btn.label, btn.x, btn.y + 7);
+            ctx.fillText(btn.label, btn.x, btn.y + 10);
         }
 
         ctx.restore();
