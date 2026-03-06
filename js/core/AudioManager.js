@@ -49,16 +49,22 @@ export default class AudioManager {
                 this.audioCtx.resume();
             }
 
-            // Unlock all 8 HTML5 SFX Audio elements by forcing an empty load/play
-            this.sfxChannels.forEach(channel => {
-                channel.volume = 0;
-                channel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
-                channel.play().catch(e => { });
-            });
+            // Only force HTML5 Audio unlocking on Mobile devices
+            // This prevents a massive loading stutter on Desktop PCs
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-            this.voiceChannel.volume = 0;
-            this.voiceChannel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
-            this.voiceChannel.play().catch(e => { });
+            if (isMobile) {
+                // Unlock all 8 HTML5 SFX Audio elements by forcing an empty load/play
+                this.sfxChannels.forEach(channel => {
+                    channel.volume = 0;
+                    channel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
+                    channel.play().catch(e => { });
+                });
+
+                this.voiceChannel.volume = 0;
+                this.voiceChannel.src = 'data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
+                this.voiceChannel.play().catch(e => { });
+            }
 
             this.audioUnlocked = true;
             console.log("Audio Engine Unlocked by User Interaction");
