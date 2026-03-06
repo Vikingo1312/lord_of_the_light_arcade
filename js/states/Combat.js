@@ -479,7 +479,11 @@ export default class CombatState {
 
     checkCombatCollisions() {
         // Check P1 hitting P2
-        if (this.p1.activeHitbox && this.p2.state !== 'KO') {
+        // Invincibility check: P2 cannot be hit by a basic attack if currently REELING on the ground.
+        const p2CanBeHit = this.p2.state !== 'KO' &&
+            !(this.p2.state === 'HIT' && this.p2.isGrounded && this.p1.currentAttack && !this.p1.currentAttack.lift && this.p1.currentAttack.type !== 'SPECIAL');
+
+        if (this.p1.activeHitbox && p2CanBeHit) {
             const hitR = this.p1.activeHitbox.getWorldRect(this.p1.x, this.p1.y, this.p1.facing);
             const hurtR = this.p2.hurtbox.getWorldRect(this.p2.x, this.p2.y, this.p2.facing);
 
@@ -512,7 +516,11 @@ export default class CombatState {
         }
 
         // Check P2 hitting P1
-        if (this.p2.activeHitbox && this.p1.state !== 'KO') {
+        // Invincibility check: P1 cannot be hit by a basic attack if currently REELING on the ground.
+        const p1CanBeHit = this.p1.state !== 'KO' &&
+            !(this.p1.state === 'HIT' && this.p1.isGrounded && this.p2.currentAttack && !this.p2.currentAttack.lift && this.p2.currentAttack.type !== 'SPECIAL');
+
+        if (this.p2.activeHitbox && p1CanBeHit) {
             const hitR = this.p2.activeHitbox.getWorldRect(this.p2.x, this.p2.y, this.p2.facing);
             const hurtR = this.p1.hurtbox.getWorldRect(this.p1.x, this.p1.y, this.p1.facing);
 
