@@ -21,6 +21,7 @@ export default class MenuState {
         // Sub-menu state
         this.inOptions = false;
         this.optionIndex = 0;
+        this.isTransitioning = false;
 
         // Game settings (merge with existing — Game.js may have already set bgmFilterEnabled etc.)
         Object.assign(this.game.settings, {
@@ -54,6 +55,7 @@ export default class MenuState {
         this.inputCooldown = 15;
         this.inOptions = false;
         this._tapConfirmPending = false;
+        this.isTransitioning = false;
 
         // Check story completion
         try {
@@ -139,6 +141,8 @@ export default class MenuState {
     }
 
     update(dt) {
+        if (this.isTransitioning) return; // Block input while loading/transitioning
+
         this.time += dt;
         this.coinAngle += dt * 3; // Spinning coins
 
@@ -209,6 +213,7 @@ export default class MenuState {
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
+                this.isTransitioning = true;
                 this.startStoryMode();
             } else if (this.selectedIndex === 1) {
                 // ARCADE MODE — locked until story complete
@@ -216,6 +221,7 @@ export default class MenuState {
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
+                this.isTransitioning = true;
                 this.game.audioManager.stopBGM();
                 setTimeout(() => {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: true });
@@ -226,6 +232,7 @@ export default class MenuState {
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
+                this.isTransitioning = true;
                 this.game.audioManager.stopBGM();
                 setTimeout(() => {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
