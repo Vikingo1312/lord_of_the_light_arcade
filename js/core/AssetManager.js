@@ -55,21 +55,42 @@ export default class AssetManager {
                     img.src = item.path + '?v=' + Date.now(); // Cache buster
                 } else if (item.type === 'audio') {
                     const aud = new Audio();
-                    // iOS Safari often won't fire oncanplaythrough without a direct user gesture.
-                    // Instead of blocking the whole game's loading screen, we just initialize the Audio object.
-                    // The browser will fetch it in the background to the extent allowed by its policies.
                     this.audioBuffer[item.key] = aud;
 
-                    aud.onerror = () => {
-                        console.warn(`Failed to pre-load audio: ${item.path}`);
+                    let resolved = false;
+
+                    // 1. Listen for the native load completion
+                    aud.oncanplaythrough = () => {
+                        if (resolved) return;
+                        resolved = true;
+                        this.loadedCount++;
+                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                        resolve();
                     };
+
+                    aud.onerror = () => {
+                        if (!resolved) {
+                            resolved = true;
+                            console.warn(`Failed to pre-load audio: ${item.path}`);
+                            this.loadedCount++;
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            resolve();
+                        }
+                    };
+
                     aud.src = item.path;
                     aud.load();
 
-                    // Immediately resolve so we don't hang the visual game load
-                    this.loadedCount++;
-                    if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
-                    resolve();
+                    // 2. iOS Safari Fallback Timer (MAX 2 SECONDS PER FILE)
+                    setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            console.warn(`Audio preload timeout for ${item.path} - bypassing to prevent hang`);
+                            this.loadedCount++;
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            resolve(); // Force resolve if it takes too long
+                        }
+                    }, 2000);
                 }
             });
         });
