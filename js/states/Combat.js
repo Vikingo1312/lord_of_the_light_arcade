@@ -172,7 +172,20 @@ export default class CombatState {
         // ─── POST MATCH ───
         if (this.matchPhase === 'POST_MATCH') {
             this.postMatchTimer = (this.postMatchTimer || 0) + dt;
+
+            // Initialize auto-advance countdown (10 seconds)
+            if (this.autoAdvanceTimer === undefined) {
+                this.autoAdvanceTimer = 10.0;
+            }
+
             if (this.inputCooldown <= 0 && !this._transitioning) {
+                // Decrement auto-advance timer
+                this.autoAdvanceTimer -= dt;
+
+                // If the user presses a button OR the timer hits 0, trigger the confirm action
+                const confirmPressed = p1.lJust || p1.hJust || p1.sJust;
+                const timeOut = this.autoAdvanceTimer <= 0;
+
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
                         // AUTO ADVANCE TO NEXT STAGE (No button press required)
@@ -240,7 +253,8 @@ export default class CombatState {
                         if (p1.up || p1.down) {
                             this.postMatchIndex = this.postMatchIndex === 0 ? 1 : 0;
                             this.inputCooldown = 10;
-                        } else if (p1.lJust || p1.hJust || p1.sJust) {
+                            this.autoAdvanceTimer = 10.0; // Reset timer on input!
+                        } else if (confirmPressed || timeOut) {
                             this._transitioning = true;
                             if (this.postMatchIndex === 0) {
                                 // Retry same fight
@@ -255,10 +269,12 @@ export default class CombatState {
                     if (p1.up) {
                         this.postMatchIndex = Math.max(0, this.postMatchIndex - 1);
                         this.inputCooldown = 10;
+                        this.autoAdvanceTimer = 10.0; // Reset timer on input!
                     } else if (p1.down) {
                         this.postMatchIndex = Math.min(2, this.postMatchIndex + 1);
                         this.inputCooldown = 10;
-                    } else if (p1.l || p1.h || p1.s) {
+                        this.autoAdvanceTimer = 10.0; // Reset timer on input!
+                    } else if (confirmPressed || timeOut) {
                         if (this.postMatchIndex === 0) {
                             this.game.stateManager.switchState('Combat', this.combatData);
                         } else if (this.postMatchIndex === 1) {
@@ -1230,6 +1246,19 @@ export default class CombatState {
     drawPostMatch(ctx) {
         const cx = this.game.width / 2;
         const startY = this.game.height * 0.68;
+
+        // Draw Countdown Warning
+        if (this.autoAdvanceTimer !== undefined && (!this.arcadeMode || this.winner !== 'p1')) {
+            const timeRemaining = Math.ceil(this.autoAdvanceTimer);
+            ctx.font = 'bold 24px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            if (timeRemaining <= 3 && Math.floor(Date.now() / 200) % 2 === 0) {
+                ctx.fillStyle = '#ff0000'; // Flash red
+            } else {
+                ctx.fillStyle = '#ffff00'; // Steady yellow
+            }
+            ctx.fillText(`AUTO ADVANCE: ${timeRemaining}`, cx, startY - 70);
+        }
 
         if (this.arcadeMode) {
             // Arcade progress bar
