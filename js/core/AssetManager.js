@@ -96,6 +96,7 @@ export default class AssetManager {
         });
 
         await Promise.all(promises);
+        this.queue = []; // Clear queue so next loadAll only processes NEW items
     }
 
     /**
