@@ -820,11 +820,11 @@ export default class CombatState {
         const applyCooldown = () => {
             if (ai.lJust || ai.hJust || ai.sJust || ai.up) {
                 if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 1.2 + Math.random();
-                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.5 + Math.random() * 0.5;
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.25 + Math.random() * 0.3;
                 else this.p2.aiWaitTimer = 0.1;
             } else if (Math.random() < 0.02) {
                 if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 0.6;
-                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.3;
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.15;
             }
             return ai;
         };

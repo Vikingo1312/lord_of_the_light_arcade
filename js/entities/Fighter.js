@@ -71,6 +71,9 @@ export default class Fighter {
         const holdingBack = (this.facing === 1 && inputQueue.left) || (this.facing === -1 && inputQueue.right);
         this.isBlocking = holdingBack && this.isGrounded && this.state !== 'ATTACK' && this.state !== 'HIT' && this.state !== 'KO';
 
+        // Hit-immunity countdown (prevents chain-stun after recovering from HIT)
+        if (this.hitImmunity > 0) this.hitImmunity -= dt;
+
         // Blockstun countdown
         if (this.blockStun > 0) {
             this.blockStun -= dt;
@@ -79,6 +82,7 @@ export default class Fighter {
                 this.blockStun = 0;
                 this.state = 'IDLE';
             }
+
             // Inline physics during blockstun
             if (!this.isGrounded) {
                 this.vy += this.gravity * dt;
@@ -174,6 +178,7 @@ export default class Fighter {
                 this.activeHitbox = null;
                 if (this.stateTimer > 0.4) { // 400ms hitstun baseline
                     this.state = 'IDLE';
+                    this.hitImmunity = 0.25; // 250ms invulnerability after recovering (prevents chain-stun)
                 }
                 // Decelerate pushback rapidly
                 this.vx *= 0.8;
@@ -217,8 +222,8 @@ export default class Fighter {
 
         // Commit to horizontal velocity based on input AT THE MOMENT of jump
         // Give airborne movement slightly more speed so they can cross over
-        if (inputQueue.left) this.vx = -this.speed * 0.9;
-        else if (inputQueue.right) this.vx = this.speed * 0.9;
+        if (inputQueue.left) this.vx = -this.speed * 1.1;
+        else if (inputQueue.right) this.vx = this.speed * 1.1;
         else this.vx = 0;
     }
 
@@ -261,6 +266,9 @@ export default class Fighter {
 
     takeDamage(attackDef, attackerFacing) {
         if (this.state === 'KO') return;
+
+        // Chain-hit protection: can't be re-hit during immunity frames
+        if (this.hitImmunity > 0) return 'IMMUNE';
 
         // ─── BLOCK CHECK (SF2: hold back = auto-block) ───
         if (this.isBlocking) {
