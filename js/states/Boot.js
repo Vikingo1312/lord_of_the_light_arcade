@@ -20,6 +20,28 @@ export default class BootState {
     async loadAssets() {
         console.log("Loading V2.0 Core Assets...");
 
+        // ─── Preload ALL BGM tracks (must happen during/after user gesture for iOS) ───
+        const bgmTracks = [
+            'assets/audio/music/main_soundtrack.mp3',
+            'assets/audio/music/selectmenu_theme.mp3',
+            'assets/audio/music/1_Japan.mp3',
+            'assets/audio/music/2_India.mp3',
+            'assets/audio/music/3_Brazil.mp3',
+            'assets/audio/music/4_China.mp3',
+            'assets/audio/music/5_Italy.mp3',
+            'assets/audio/music/6_Germany.mp3',
+            'assets/audio/music/7_Jamaica.mp3',
+            'assets/audio/music/8_Poland.mp3',
+            'assets/audio/music/9_Mexico.mp3',
+            'assets/audio/music/10_Spain.mp3',
+            'assets/audio/music/11_Japan_Night.mp3',
+            'assets/audio/music/12_Dojo_Dark.mp3',
+            'assets/audio/music/13_Russia_Ice.mp3',
+        ];
+        for (const track of bgmTracks) {
+            this.game.audioManager.preloadTrack(track);
+        }
+
         // Shared Background for Menu / Boot screen
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');
 

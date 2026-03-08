@@ -113,6 +113,15 @@ export default class AssetManager {
             return;
         }
 
+        // iOS/Safari: Skip ChromaKey entirely to prevent canvas memory crashes (invisible sprites)
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (isIOS) {
+            this.images[key] = img;
+            callback();
+            return;
+        }
+
         // BYPASS: Skip chroma key if disabled in settings
         if (this.game && this.game.settings && !this.game.settings.chromaKeyEnabled) {
             this.images[key] = img;

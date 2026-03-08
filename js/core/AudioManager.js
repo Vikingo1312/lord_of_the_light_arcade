@@ -6,6 +6,9 @@ export default class AudioManager {
         this.sfxChannels = Array.from({ length: 8 }, () => new Audio());
         this.sfxIndex = 0;
 
+        // Audio preload cache (path → Audio element)
+        this._audioCache = {};
+
         // WebAudio API for BGM filtering
         this.audioCtx = null;
         this.bgmSource = null;
@@ -68,6 +71,20 @@ export default class AudioManager {
         } catch (e) {
             console.error("Audio unlock failed", e);
         }
+    }
+
+    /**
+     * Preload a BGM track so it's ready to play instantly.
+     * MUST be called during or shortly after a user gesture on iOS.
+     */
+    preloadTrack(path) {
+        if (this._audioCache[path]) return; // Already cached
+        const aud = new Audio(path);
+        aud.crossOrigin = 'anonymous';
+        aud.preload = 'auto';
+        aud.load();
+        this._audioCache[path] = aud;
+        console.log(`[AudioManager] Preloaded: ${path}`);
     }
 
     /**
@@ -155,18 +172,17 @@ export default class AudioManager {
         this.stopBGM();
 
         this.currentPath = path;
-        this.bgm = new Audio(path);
-        this.bgm.crossOrigin = 'anonymous';
 
-        // Reuse preloaded audio from AssetManager if available (avoids double-download lag!)
-        if (this.game && this.game.assetManager) {
-            const preloaded = this.game.assetManager.audioBuffer[path];
-            if (preloaded) {
-                this.bgm = preloaded;
-                // Ensure crossOrigin is set for WebAudio routing
-                if (!this.bgm.crossOrigin) this.bgm.crossOrigin = 'anonymous';
-            }
+        // Reuse preloaded/cached audio if available (instant playback on iOS!)
+        if (this._audioCache[path]) {
+            this.bgm = this._audioCache[path];
+            this.bgm.currentTime = 0;
+        } else if (this.game && this.game.assetManager && this.game.assetManager.audioBuffer[path]) {
+            this.bgm = this.game.assetManager.audioBuffer[path];
+        } else {
+            this.bgm = new Audio(path);
         }
+        this.bgm.crossOrigin = 'anonymous';
 
         this.bgm.loop = loop;
 
@@ -194,14 +210,13 @@ export default class AudioManager {
     }
 
     stopBGM() {
-        // Clear any pending play promise reference (but do NOT use .then() to pause — 
-        // that creates a race condition where the callback pauses the NEW bgm!)
+        // Clear any pending play promise reference
         this._bgmPlayPromise = null;
 
         if (this.bgm) {
             try { this.bgm.pause(); } catch (e) { }
-            this.bgm.removeAttribute('src'); // Completely nuke the source so it can't restart
-            this.bgm.load(); // Force element reload state
+            this.bgm.currentTime = 0;
+            // Do NOT destroy the element — keep it cached for instant replay
             this.bgm = null;
         }
         if (this.bgmSource) {
@@ -321,25 +336,28 @@ export default class AudioManager {
         const channel = this.sfxChannels[this.sfxIndex];
         channel.src = path;
         channel.volume = isHeavy ? 1.0 : 0.6;
+        channel.load(); // iOS Safari needs explicit .load() after setting src
 
         channel.play().catch(e => {
             // Automatic Fallback 1: 'voice/' subdirectory mismatch
             if (path.includes('voice/')) {
                 const fallbackPath = path.replace('voice/', '');
                 channel.src = fallbackPath;
+                channel.load();
                 channel.play().catch(() => { });
             }
             // Automatic Fallback 2: Missing Character Audio
-            // If a boss lacks custom hit/ko/special voice sounds, fall back to Keano 
-            // so that at least the physical impact (punch smack) is heard!
             else if (path.includes('_hit.mp3')) {
                 channel.src = 'assets/audio/keano_hit.mp3';
+                channel.load();
                 channel.play().catch(() => { });
             } else if (path.includes('_ko.mp3')) {
                 channel.src = 'assets/audio/keano_ko.mp3';
+                channel.load();
                 channel.play().catch(() => { });
             } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
                 channel.src = 'assets/audio/keano_special.mp3';
+                channel.load();
                 channel.play().catch(() => { });
             }
         });
