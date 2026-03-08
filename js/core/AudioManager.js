@@ -157,6 +157,17 @@ export default class AudioManager {
         this.currentPath = path;
         this.bgm = new Audio(path);
         this.bgm.crossOrigin = 'anonymous';
+
+        // Reuse preloaded audio from AssetManager if available (avoids double-download lag!)
+        if (this.game && this.game.assetManager) {
+            const preloaded = this.game.assetManager.audioBuffer[path];
+            if (preloaded) {
+                this.bgm = preloaded;
+                // Ensure crossOrigin is set for WebAudio routing
+                if (!this.bgm.crossOrigin) this.bgm.crossOrigin = 'anonymous';
+            }
+        }
+
         this.bgm.loop = loop;
 
         if (this.audioCtx && this.lpFilter && this.gainNode) {

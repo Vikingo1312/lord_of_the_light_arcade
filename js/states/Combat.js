@@ -292,12 +292,8 @@ export default class CombatState {
         if (this.matchPhase === 'VICTORY') {
             if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust)) {
                 this._transitioning = true;
-                // In true Arcade without story sequences, just show Birthday reward
-                this.game.stateManager.switchState('Story', {
-                    ...STORY_BIRTHDAY,
-                    nextState: 'Menu',
-                    nextData: null,
-                });
+                // Arcade complete — go straight back to Menu
+                this.game.stateManager.switchState('Menu');
             }
             return;
         }
