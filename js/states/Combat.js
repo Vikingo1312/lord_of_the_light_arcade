@@ -723,6 +723,17 @@ export default class CombatState {
             }
         }
 
+        // ─── SUPREME KEANO: Preload extra animation frames ───
+        if (char.id === 'SupremeKeano') {
+            const extraFrames = ['keano_dive_kick', 'keano_low_kick', 'keano_hook_punch'];
+            for (const frame of extraFrames) {
+                const key = `SupremeKeano_${frame}`;
+                if (!this.game.assetManager.images[key]) {
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${frame}.png`);
+                }
+            }
+        }
+
         // Preload Special Cut-in portrait
         // Manual mapping for inconsistencies in the `fx/char_projectiles` folder
         const idMap = {

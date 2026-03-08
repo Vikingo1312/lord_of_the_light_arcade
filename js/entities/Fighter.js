@@ -335,22 +335,102 @@ export default class Fighter {
             // ALL States now use ctx.scale(facing) to mirror 
             // We use the ONE SOURCE OF TRUTH for every pose.
             // By convention, almost all single-pose images in the asset pack face RIGHT.
-            if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP') {
-                suffix = '_right.png'; // Use combat fighting stance (faces opponent)
-            } else if (this.state === 'ATTACK') {
-                if (this.currentAttack && this.currentAttack.type === 'SPECIAL') suffix = '_special.png';
-                else if (this.currentAttack && this.currentAttack.type === 'HEAVY') suffix = '_kick.png';
-                else suffix = '_punch.png';
-            } else if (this.state === 'HIT') {
-                suffix = '_hit.png';
-            } else if (this.state === 'KO') {
-                suffix = '_ko.png';
-            } else if (this.state === 'WIN') {
-                suffix = '_win.png';
+
+            // ─── SUPREME KEANO: Multi-frame animation system ───
+            if (this.data.id === 'SupremeKeano') {
+                // Supreme Keano has extra sprites for fluid frame-by-frame animation
+                const imgs = this.game.assetManager.images;
+
+                if (this.state === 'IDLE' || this.state === 'WALK') {
+                    // Breathing animation: alternate between _right and _left every 0.6s
+                    const breathFrame = Math.floor(this.stateTimer / 0.6) % 2;
+                    suffix = breathFrame === 0 ? '_right.png' : '_left.png';
+                } else if (this.state === 'JUMP') {
+                    // Use dive kick sprite if attacking in the air, otherwise idle
+                    if (this.currentAttack) {
+                        const diveImg = imgs['SupremeKeano_keano_dive_kick'];
+                        if (diveImg) {
+                            suffix = '__CUSTOM__';
+                            spriteImage = diveImg;
+                        } else {
+                            suffix = '_kick.png';
+                        }
+                    } else {
+                        suffix = '_right.png';
+                    }
+                } else if (this.state === 'ATTACK') {
+                    const phase = this.stateTimer;
+                    const startup = this.currentAttack ? this.currentAttack.startup : 0.05;
+                    const active = this.currentAttack ? this.currentAttack.active : 0.15;
+                    const totalActive = startup + active;
+
+                    if (this.currentAttack && this.currentAttack.type === 'LIGHT') {
+                        // LIGHT ATTACK: idle → hook → jab → idle
+                        if (phase < startup) {
+                            // Startup: wind up (hook pose)
+                            const hookImg = imgs['SupremeKeano_keano_hook_punch'];
+                            if (hookImg) { suffix = '__CUSTOM__'; spriteImage = hookImg; }
+                            else suffix = '_right.png';
+                        } else if (phase < totalActive) {
+                            // Active: jab lands
+                            suffix = '_punch.png';
+                        } else {
+                            // Recovery: return to stance
+                            suffix = '_right.png';
+                        }
+                    } else if (this.currentAttack && this.currentAttack.type === 'HEAVY') {
+                        // HEAVY ATTACK: idle → low sweep → roundhouse
+                        if (phase < startup) {
+                            // Startup: crouch down (low kick pose)
+                            const lowImg = imgs['SupremeKeano_keano_low_kick'];
+                            if (lowImg) { suffix = '__CUSTOM__'; spriteImage = lowImg; }
+                            else suffix = '_right.png';
+                        } else if (phase < totalActive) {
+                            // Active: roundhouse kick
+                            suffix = '_kick.png';
+                        } else {
+                            // Recovery
+                            suffix = '_right.png';
+                        }
+                    } else if (this.currentAttack && this.currentAttack.type === 'SPECIAL') {
+                        suffix = '_special.png';
+                    } else {
+                        suffix = '_punch.png';
+                    }
+                } else if (this.state === 'HIT') {
+                    suffix = '_hit.png';
+                } else if (this.state === 'KO') {
+                    suffix = '_ko.png';
+                } else if (this.state === 'WIN') {
+                    suffix = '_win.png';
+                }
+
+                // Only look up by key if we didn't already set a custom spriteImage
+                if (suffix !== '__CUSTOM__') {
+                    const exactKey = `${this.data.id}${suffix}`;
+                    const fallbackKey = `${this.data.id}${suffix}_fallback`;
+                    spriteImage = imgs[exactKey] || imgs[fallbackKey];
+                }
+
+            } else {
+                // ─── STANDARD CHARACTERS: Single image per state ───
+                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP') {
+                    suffix = '_right.png'; // Use combat fighting stance (faces opponent)
+                } else if (this.state === 'ATTACK') {
+                    if (this.currentAttack && this.currentAttack.type === 'SPECIAL') suffix = '_special.png';
+                    else if (this.currentAttack && this.currentAttack.type === 'HEAVY') suffix = '_kick.png';
+                    else suffix = '_punch.png';
+                } else if (this.state === 'HIT') {
+                    suffix = '_hit.png';
+                } else if (this.state === 'KO') {
+                    suffix = '_ko.png';
+                } else if (this.state === 'WIN') {
+                    suffix = '_win.png';
+                }
+                const exactKey = `${this.data.id}${suffix}`;
+                const fallbackKey = `${this.data.id}${suffix}_fallback`;
+                spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
             }
-            const exactKey = `${this.data.id}${suffix}`;
-            const fallbackKey = `${this.data.id}${suffix}_fallback`;
-            spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
 
             // If a specific Kick or Special sprite is missing, fall back to the basic Punch sprite!
             if (!spriteImage && this.state === 'ATTACK') {
