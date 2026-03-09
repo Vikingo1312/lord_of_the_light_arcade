@@ -301,6 +301,7 @@ export default class AudioManager {
 
         this.voiceChannel.volume = 1.0; // Restore volume (unlockAudio sets it to 0)
         this.voiceChannel.src = path;
+        this.voiceChannel.load(); // iOS Safari needs explicit .load() after setting src
 
         const playPromise = this.voiceChannel.play();
         if (playPromise !== undefined) {

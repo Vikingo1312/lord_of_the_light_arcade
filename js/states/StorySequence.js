@@ -340,9 +340,9 @@ export default class StorySequence {
             }
         }
 
-        // Allow skip with any button press after 5s (starts fade, doesn't cut)
+        // Allow skip with any button/touch after 5s (starts fade, doesn't cut)
         // Birthday: this is the ONLY way to exit
-        if (this.time > 5 && (p1.lJust || p1.hJust || p1.sJust) && !this.fading) {
+        if (this.time > 5 && (p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down || p1.left || p1.right) && !this.fading) {
             this.fading = true;
         }
     }
