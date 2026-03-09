@@ -362,7 +362,7 @@ export default class AudioManager {
                         }
                     });
                 })
-                .then(decodedBuffer => {
+                .then(async decodedBuffer => {
                     // Stop any previous voice
                     if (this._voiceBufferSource) {
                         try { this._voiceBufferSource.stop(); } catch (e) { }
@@ -413,8 +413,18 @@ export default class AudioManager {
                         if (onEndedCallback) onEndedCallback();
                     };
 
+                    // Apple Safari rigorously suspends AudioContexts during async fetch operations. 
+                    // We MUST force a hardware resume AND AWAIT IT right before we attempt to push sound out!
+                    if (this.audioCtx.state === 'suspended') {
+                        try {
+                            await this.audioCtx.resume();
+                        } catch (e) {
+                            console.warn("[Voice] Web Audio context forcibly denied resume:", e);
+                        }
+                    }
+
                     source.start(0);
-                    console.log(`[Voice] Playing via Web Audio: ${path} (${decodedBuffer.duration.toFixed(1)}s)`);
+                    console.log(`[Voice] Playing via Web Audio: ${path} (${decodedBuffer.duration.toFixed(1)}s) at Vol: ${voiceGain.gain.value}`);
 
                     // Clear any existing fallback timeout
                     if (this._voiceFallbackTimeout) clearTimeout(this._voiceFallbackTimeout);
