@@ -137,14 +137,14 @@ export default class StorySequence {
         this.fadeOut = 0;   // 0 = fully visible, 1 = fully faded
         this.fading = false;
 
-        // Safety timeout: force-advance after 30s even if everything is stuck
+        // Safety timeout: force-advance after 15s even if everything is stuck
         this._safetyTimeout = setTimeout(() => {
             if (!this._advanced) {
                 console.warn('[StorySequence] Safety timeout — force-advancing');
                 this._advanced = true;
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
-        }, 30000);
+        }, 15000);
     }
 
     exit() {
@@ -195,13 +195,13 @@ export default class StorySequence {
 
         // Smooth fade-out transition
         if (this.fading) {
-            this.fadeOut += dt; // 1 second fade (was 2 — felt too slow on mobile)
+            this.fadeOut += dt * 2; // 0.5 second fade (fast!)
             if (this.fadeOut >= 1 && !this._advanced) {
                 this._advanced = true;
                 console.log(`[StorySequence] Advancing to: ${this.nextState}`);
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
-            return; // Stop all other updates during fade
+            // DON'T return here — let text keep scrolling during fade so screen doesn't freeze
         }
 
         // Sync text scroll speed to audio duration if playing
@@ -351,10 +351,11 @@ export default class StorySequence {
             }
         }
 
-        // Allow skip with any button/touch after 2s (starts fade, doesn't cut)
+        // Allow skip with ATTACK BUTTONS ONLY after 3s (starts fade)
+        // NOTE: Do NOT use p1.up/down/left/right — those are HELD states that fire every frame!
         // Birthday: this is the ONLY way to exit
-        if (this.time > 2 && (p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down || p1.left || p1.right) && !this.fading) {
-            console.log('[StorySequence] Skip triggered by user input');
+        if (this.time > 3 && (p1.lJust || p1.hJust || p1.sJust) && !this.fading) {
+            console.log('[StorySequence] Skip triggered by attack button');
             this.fading = true;
         }
     }
