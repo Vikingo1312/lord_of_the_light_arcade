@@ -31,22 +31,8 @@ export default class BootState {
         // Premium Intro Logo
         this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png');
 
-        // Dynamically load ALL fighter portraits for the Character Select grid
-        const { ALL_FIGHTERS, STAGES } = await import('../data.js');
-        for (const char of ALL_FIGHTERS) {
-            this.game.assetManager.queueImage(
-                `${char.id}_front.png`,
-                `assets/CHARACTERS/${char.folder}/_front.png`
-            );
-        }
-
-        // Preload ALL stage backgrounds
-        for (const [stageId, stage] of Object.entries(STAGES)) {
-            this.game.assetManager.queueImage(
-                `Stage_${stageId}`,
-                `assets/STAGES/${stage.file}`
-            );
-        }
+        // Fighter portraits & stage backgrounds are loaded LAZILY when needed
+        // (CharSelect, VersusIntro, Combat all queue their own assets on enter)
 
         await this.game.assetManager.loadAll((progress) => {
             this.loadProgress = progress;

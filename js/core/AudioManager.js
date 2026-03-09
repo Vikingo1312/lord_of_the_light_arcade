@@ -315,7 +315,7 @@ export default class AudioManager {
                         console.log("Triggering fallback onended for blocked voice track.");
                         this.voiceChannel.onended();
                     }
-                }, 15000);
+                }, 8000);
             });
         }
 

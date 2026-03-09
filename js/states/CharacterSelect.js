@@ -36,6 +36,16 @@ export default class CharacterSelectState {
 
         this.inputCooldown = 20;
         this.loadingCombat = false;
+
+        // Lazy-load all fighter portraits (they fill in progressively)
+        for (const char of this.allFighters) {
+            const key = `${char.id}_front.png`;
+            if (!this.game.assetManager.images[key]) {
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png`);
+            }
+        }
+        this.game.assetManager.loadAll(); // Fire-and-forget
+
         // Play char select music
         this.game.audioManager.playBGM('assets/audio/music/selectmenu_theme.mp3', true, false, 0.15);
     }
