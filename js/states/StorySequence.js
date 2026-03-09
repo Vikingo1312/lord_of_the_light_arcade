@@ -343,20 +343,24 @@ export default class StorySequence {
         if (this._advanced) return;
         const p1 = this.game.inputManager.p1;
 
-        // Voiceover ended → auto-advance with smooth fade (but NOT for Birthday!)
-        if (this.finished && !this.fading && !this.isBirthdayScene) {
+        // Voiceover ended → auto-advance immediately (but NOT for Birthday!)
+        if (this.finished && !this.isBirthdayScene) {
             this.finishTimer += dt;
-            if (this.finishTimer > 1) {
-                this.fading = true; // Start smooth fade-out
+            if (this.finishTimer > 0.5) {
+                this._advanced = true;
+                this.game.stateManager.switchState(this.nextState, this.nextData);
+                return;
             }
         }
 
-        // Allow skip with ATTACK BUTTONS ONLY after 3s (starts fade)
+        // Allow skip with ATTACK BUTTONS ONLY after 3s → INSTANT switch (no fade)
         // NOTE: Do NOT use p1.up/down/left/right — those are HELD states that fire every frame!
         // Birthday: this is the ONLY way to exit
-        if (this.time > 3 && (p1.lJust || p1.hJust || p1.sJust) && !this.fading) {
-            console.log('[StorySequence] Skip triggered by attack button');
-            this.fading = true;
+        if (this.time > 3 && (p1.lJust || p1.hJust || p1.sJust)) {
+            console.log('[StorySequence] Skip triggered — instant switch');
+            this._advanced = true;
+            this.game.stateManager.switchState(this.nextState, this.nextData);
+            return;
         }
     }
 
