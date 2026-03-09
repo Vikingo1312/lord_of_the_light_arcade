@@ -367,10 +367,25 @@ export default class MenuState {
         // and instantly `pause()` it. Safari then permanently flags the element as "User Approved"
         // and allows `StorySequence.js` to `play()` it again later!
         const voiceChannel = this.game.audioManager.voiceChannel;
+        const sfxChannels = this.game.audioManager.sfxChannels;
+        const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+        // Unlock Voice
         if (voiceChannel) {
-            voiceChannel.volume = 0; // Prevent any glitch noises
+            voiceChannel.volume = 0;
+            voiceChannel.src = silentWav;
             voiceChannel.play().catch(() => { });
-            voiceChannel.pause();
+            setTimeout(() => { if (!voiceChannel.paused) voiceChannel.pause(); }, 100);
+        }
+
+        // Unlock all SFX Channels
+        if (sfxChannels) {
+            for (const sfx of sfxChannels) {
+                sfx.volume = 0;
+                sfx.src = silentWav;
+                sfx.play().catch(() => { });
+                setTimeout(() => { if (!sfx.paused) sfx.pause(); }, 100);
+            }
         }
 
         await this.game.assetManager.loadAll();
@@ -409,6 +424,30 @@ export default class MenuState {
         if (stage && !this.game.assetManager.images[stageKey]) {
             this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
         }
+
+        // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
+        const voiceChannel = this.game.audioManager.voiceChannel;
+        const sfxChannels = this.game.audioManager.sfxChannels;
+        const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+
+        // Unlock Voice
+        if (voiceChannel) {
+            voiceChannel.volume = 0;
+            voiceChannel.src = silentWav;
+            voiceChannel.play().catch(() => { });
+            setTimeout(() => { if (!voiceChannel.paused) voiceChannel.pause(); }, 100);
+        }
+
+        // Unlock all SFX Channels
+        if (sfxChannels) {
+            for (const sfx of sfxChannels) {
+                sfx.volume = 0;
+                sfx.src = silentWav;
+                sfx.play().catch(() => { });
+                setTimeout(() => { if (!sfx.paused) sfx.pause(); }, 100);
+            }
+        }
+
         await this.game.assetManager.loadAll();
 
         const combatData = {
