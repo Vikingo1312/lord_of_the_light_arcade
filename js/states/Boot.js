@@ -1,5 +1,7 @@
 export default class BootState {
     constructor(game) {
+        // ─── ONE-TIME UNLOCK: Supreme Keano ───
+        try { localStorage.setItem('unlock_SupremeKeano', 'true'); console.log('✅ Supreme Keano UNLOCKED!'); } catch (e) { }
         this.game = game;
         this.engineReady = false;
         this.loaded = false;
