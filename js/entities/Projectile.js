@@ -17,6 +17,7 @@ export default class Projectile {
         this.alive = true;
         this.size = 120; // Visual size for draw scaling
         this.time = 0;
+        this.vy = 0; // Vertical velocity (used for Supreme Keano's angled projectile)
 
         // Hitbox enlarged to ensure reliable collision
         this.hitbox = new Hitbox(-50, -50, 100, 100);
@@ -27,6 +28,7 @@ export default class Projectile {
         this.time += dt;
 
         this.x += this.speed * this.facing * dt;
+        this.y += this.vy * dt; // Apply vertical movement
         this.life -= dt;
         if (this.life <= 0) this.alive = false;
     }

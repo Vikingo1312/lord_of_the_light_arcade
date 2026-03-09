@@ -393,6 +393,24 @@ export default class CombatState {
                         img,
                         this.game
                     ));
+
+                    // ─── SUPREME KEANO: DUAL PROJECTILES ───
+                    // Fires a second golden projectile at an upward angle
+                    if (this.p1.data.id === 'SupremeKeano') {
+                        const img2 = this.game.assetManager.images['SupremeKeano_Cutin2'] || img;
+                        const proj2 = new Projectile(
+                            this.p1.x + this.p1.facing * 80,
+                            this.p1.y - 220,
+                            this.p1.facing,
+                            'p1',
+                            img2,
+                            this.game
+                        );
+                        proj2.vy = -200; // Angled upward trajectory
+                        proj2.damage = 25; // Slightly less damage on the second
+                        this.projectiles.push(proj2);
+                    }
+
                     this.game.inputManager.clearMotionHistory();
                     this.playCombatSound('special', this.p1.data.id);
                     this.triggerShake(2, 0.08);
@@ -507,6 +525,10 @@ export default class CombatState {
 
                 // Award Special Energy (Attacker gets 15 on hit, 5 on block / Defender gets 10)
                 this.p1.specialEnergy = Math.min(this.p1.maxSpecialEnergy, this.p1.specialEnergy + (result === 'BLOCKED' ? 5 : 15));
+                // Supreme Keano: 2x energy regen bonus
+                if (this.p1.data.id === 'SupremeKeano') {
+                    this.p1.specialEnergy = Math.min(this.p1.maxSpecialEnergy, this.p1.specialEnergy + (result === 'BLOCKED' ? 5 : 15));
+                }
                 this.p2.specialEnergy = Math.min(this.p2.maxSpecialEnergy, this.p2.specialEnergy + 10);
 
                 // Visual feedback
@@ -727,6 +749,10 @@ export default class CombatState {
                 if (!this.game.assetManager.images[key]) {
                     this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${frame}.png`);
                 }
+            }
+            // Preload second projectile sprite
+            if (!this.game.assetManager.images['SupremeKeano_Cutin2']) {
+                this.game.assetManager.queueImage('SupremeKeano_Cutin2', 'assets/fx/char_projectiles/proj_supreme_keano_2.png');
             }
         }
 
