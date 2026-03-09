@@ -1,5 +1,6 @@
 import { ROSTER, STAGES } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
+import TouchPad from '../core/TouchPad.js';
 
 export default class MenuState {
     constructor(game) {
@@ -70,12 +71,25 @@ export default class MenuState {
 
         // Setup direct tap-on-menu for mobile
         this._setupMenuTap();
+
+        // Initialize Virtual D-Pad for Options navigation
+        this.touchPad = new TouchPad(this.game);
+        if (this.touchPad.active) {
+            // Options require smaller/translucent pad on menu
+            this.touchPad.stickOuter = 140;
+            this.touchPad.btnRadius = 60;
+            this.touchPad.resize();
+        }
     }
 
     exit() {
         // Do not stop music here if transitioning to character select or story
         // The new state will handle changing or stopping it via AudioManager
         this._removeMenuTap();
+        // Clean up touchpad listeners to prevent duplicate inputs in Combat
+        if (this.touchPad && this.touchPad.cleanup) {
+            this.touchPad.cleanup();
+        }
     }
 
     /**
@@ -175,6 +189,11 @@ export default class MenuState {
             if (this.game.audioManager.unlockAudio) {
                 this.game.audioManager.unlockAudio();
             }
+        }
+
+        // Process virtual D-Pad inputs if active
+        if (this.touchPad && this.touchPad.active) {
+            this.touchPad.injectInput(this.game.inputManager);
         }
 
         if (this.inputCooldown > 0) {
@@ -770,5 +789,10 @@ export default class MenuState {
         ctx.textAlign = 'center';
         ctx.fillStyle = '#666';
         ctx.fillText('PRESS PUNCH (J) OR KICK (K) TO GO BACK', cx, this.game.height - 60);
+
+        // Draw TouchPad if mobile device to allow navigating the options
+        if (this.touchPad && this.touchPad.active) {
+            this.touchPad.draw(ctx);
+        }
     }
 }
