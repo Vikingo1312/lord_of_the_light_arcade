@@ -59,13 +59,10 @@ export default class CombatState {
         this.inputCooldown = 45;
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
+        this.shakeIntensity = 0;
         this.particles = [];
         this.projectiles = [];
         this._transitioning = false;
-        this._nextStagePreloading = false;
-        this._postKoCountdown = 10.0;
-        this._nextAction = null;
-        this._nextIdx = null;
 
         // Pause State
         this.paused = false;
@@ -191,85 +188,65 @@ export default class CombatState {
 
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
-                        // ─── 10-SECOND COUNTDOWN + ASSET PRELOADING ───
-                        // Start preloading next stage assets immediately
-                        if (!this._nextStagePreloading) {
-                            this._nextStagePreloading = true;
-                            this._postKoCountdown = 10.0;
+                        // AUTO ADVANCE TO NEXT STAGE (No button press required)
+                        if (this.postMatchTimer > 2.0) {
                             const nextIdx = this.arcadeIndex + 1;
 
-                            // STORY MODE MIDPOINT CHECK (don't preload, just flag)
+                            // STORY MODE MIDPOINT CHECK
                             if (nextIdx === 7 && this.combatData && this.combatData.storyMode) {
-                                this._nextAction = 'STORY_REFLEXION';
-                            } else if (nextIdx >= ROSTER.length) {
-                                this._nextAction = 'GAME_COMPLETE';
-                            } else {
-                                this._nextAction = 'NEXT_FIGHT';
-                                this._nextIdx = nextIdx;
-                                // Preload next opponent's sprites + stage
-                                const opponent = ROSTER[nextIdx];
-                                this.preloadFighterSprites(opponent);
-                                const stageId = opponent.stageId;
-                                const stage = STAGES[stageId];
-                                const stageKey = `Stage_${stageId}`;
-                                if (stage && !this.game.assetManager.images[stageKey]) {
-                                    this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
-                                }
-                                this.game.assetManager.loadAll(); // Fire and forget
-                                // Preload next stage music
-                                if (stage && stage.music) {
-                                    this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
-                                }
-                            }
-                        }
-
-                        // Countdown
-                        this._postKoCountdown -= dt;
-
-                        // Auto-advance when countdown reaches 0
-                        if (this._postKoCountdown <= 0) {
-                            this._transitioning = true;
-                            if (this._nextAction === 'STORY_REFLEXION') {
-                                // AWAIT asset loads before switching to Story, so skipping story doesn't break VersusIntro
-                                this.game.assetManager.loadAll().then(() => {
-                                    this.game.stateManager.switchState('Story', {
-                                        ...STORY_REFLEXION,
-                                        nextState: 'VersusIntro',
-                                        nextData: {
-                                            p1: this.p1.data,
-                                            p2: { ...ROSTER[7], rosterIndex: 7 },
-                                            stageId: ROSTER[7].stageId,
-                                            arcadeMode: true,
-                                            storyMode: true,
-                                            arcadeIndex: 7,
-                                            arcadeWins: this.arcadeWins + 1,
-                                        }
-                                    });
+                                this._transitioning = true;
+                                this.game.stateManager.switchState('Story', {
+                                    ...STORY_REFLEXION,
+                                    nextState: 'VersusIntro',
+                                    nextData: {
+                                        p1: this.p1.data,
+                                        p2: { ...ROSTER[7], rosterIndex: 7 },
+                                        stageId: ROSTER[7].stageId,
+                                        arcadeMode: true,
+                                        storyMode: true,
+                                        arcadeIndex: 7,
+                                        arcadeWins: this.arcadeWins + 1,
+                                    }
                                 });
-                            } else if (this._nextAction === 'GAME_COMPLETE') {
+                                return;
+                            }
+                            if (nextIdx >= ROSTER.length) {
+                                // BEAT THE GAME!
                                 try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
+
                                 const newlyUnlocked = unlockFighter(this.p1.data.id);
-                                if (newlyUnlocked) console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px;');
+                                if (newlyUnlocked) {
+                                    console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px; font-weight: bold;');
+                                }
 
                                 if (this.combatData && this.combatData.storyMode) {
+                                    // STORY MODE: Play full voiceover sequences ending with Credits
+                                    this._transitioning = true;
                                     this.game.stateManager.switchState('Story', {
                                         ...STORY_EPILOGUE,
                                         nextState: 'Story',
                                         nextData: {
                                             ...STORY_OUTRO,
                                             nextState: 'Story',
-                                            nextData: { ...STORY_BIRTHDAY, nextState: 'Menu', nextData: null },
+                                            nextData: {
+                                                ...STORY_BIRTHDAY,
+                                                nextState: 'Menu',
+                                                nextData: null,
+                                            },
                                         },
                                     });
                                 } else {
+                                    // ARCADE MODE: Skip voiceovers, go straight to Victory / Stats screen
                                     this._newlyUnlocked = newlyUnlocked;
                                     this.matchPhase = 'VICTORY';
-                                    this.inputCooldown = 60;
-                                    this.game.audioManager.stopBGM();
+                                    this.inputCooldown = 60; // Wait 1 second before allowing exit
+                                    this.game.audioManager.stopBGM(); // Stop battle music
                                 }
-                            } else {
-                                this.startArcadeFight(this._nextIdx, this.arcadeWins + 1);
+                                return;
                             }
+                            // Just continue straight to the next fight!
+                            this._transitioning = true;
+                            this.startArcadeFight(nextIdx, this.arcadeWins + 1);
                         }
                     } else {
                         // Player lost — Continue or Quit
@@ -315,8 +292,12 @@ export default class CombatState {
         if (this.matchPhase === 'VICTORY') {
             if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust)) {
                 this._transitioning = true;
-                // Arcade complete — go straight back to Menu
-                this.game.stateManager.switchState('Menu');
+                // In true Arcade without story sequences, just show Birthday reward
+                this.game.stateManager.switchState('Story', {
+                    ...STORY_BIRTHDAY,
+                    nextState: 'Menu',
+                    nextData: null,
+                });
             }
             return;
         }
@@ -390,6 +371,8 @@ export default class CombatState {
         p1InputCopy.sJust = false;
         p1InputCopy.s = false;
 
+
+
         // Projectile (QCF + Light/Heavy OR dedicated 'Special' button)
         const isSpecialInput = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
 
@@ -416,7 +399,6 @@ export default class CombatState {
                     ));
 
                     // ─── SUPREME KEANO: DUAL PROJECTILES ───
-                    // Fires a second golden projectile at an upward angle
                     if (this.p1.data.id === 'SupremeKeano') {
                         const img2 = this.game.assetManager.images['SupremeKeano_Cutin2'] || img;
                         const proj2 = new Projectile(
@@ -427,8 +409,8 @@ export default class CombatState {
                             img2,
                             this.game
                         );
-                        proj2.vy = -200; // Angled upward trajectory
-                        proj2.damage = 25; // Slightly less damage on the second
+                        proj2.vy = -200;
+                        proj2.damage = 25;
                         this.projectiles.push(proj2);
                     }
 
@@ -685,25 +667,10 @@ export default class CombatState {
 
         // Preload combat sprites (match Fighter.draw() key format: '{id}_right.png' etc.)
         this.preloadFighterSprites(opponent);
-
-        // Preload portraits for VersusIntro screen
-        if (!this.game.assetManager.images[`${player1.id}_front.png`]) {
-            this.game.assetManager.queueImage(`${player1.id}_front.png`, `assets/CHARACTERS/${player1.folder}/_front.png`);
-        }
-        if (!this.game.assetManager.images[`${opponent.id}_front.png`]) {
-            this.game.assetManager.queueImage(`${opponent.id}_front.png`, `assets/CHARACTERS/${opponent.folder}/_front.png`);
-        }
-
         const stageKey = `Stage_${stageId}`;
         if (stage && !this.game.assetManager.images[stageKey]) {
             this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
         }
-
-        // Preload next stage music
-        if (stage && stage.music) {
-            this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
-        }
-
         await this.game.assetManager.loadAll();
 
         this.game.stateManager.switchState('VersusIntro', {
@@ -786,7 +753,6 @@ export default class CombatState {
                     this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${frame}.png`);
                 }
             }
-            // Preload second projectile sprite
             if (!this.game.assetManager.images['SupremeKeano_Cutin2']) {
                 this.game.assetManager.queueImage('SupremeKeano_Cutin2', 'assets/fx/char_projectiles/proj_supreme_keano_2.png');
             }
@@ -882,11 +848,11 @@ export default class CombatState {
         const applyCooldown = () => {
             if (ai.lJust || ai.hJust || ai.sJust || ai.up) {
                 if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 1.2 + Math.random();
-                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.25 + Math.random() * 0.3;
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.5 + Math.random() * 0.5;
                 else this.p2.aiWaitTimer = 0.1;
             } else if (Math.random() < 0.02) {
                 if (difficultySetting === 'EASY') this.p2.aiWaitTimer = 0.6;
-                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.15;
+                else if (difficultySetting === 'NORMAL') this.p2.aiWaitTimer = 0.3;
             }
             return ai;
         };
@@ -1268,8 +1234,8 @@ export default class CombatState {
         // K.O. text with pulse
         const pulse = 1 + Math.sin(this.koFreezeTimer * 6) * 0.03;
 
-        // Cinematic view: show K.O. for full 3 seconds
-        if (this.koFreezeTimer < 3.0) {
+        // Cinematic view: hide K.O. after 1.5 seconds so we can see the slow-mo body flying
+        if (this.koFreezeTimer < 1.5) {
             ctx.save();
             ctx.translate(cx, cy - 40);
             ctx.scale(pulse, pulse);
@@ -1340,28 +1306,7 @@ export default class CombatState {
             ctx.fillText(`FIGHT ${this.arcadeIndex} / ${ROSTER.length - 1}`, cx, startY - 5);
 
             if (this.winner === 'p1') {
-                // ─── VISIBLE COUNTDOWN TIMER ───
-                const countdown = Math.ceil(this._postKoCountdown || 0);
-                ctx.font = 'bold 28px "Press Start 2P"';
-                ctx.textAlign = 'center';
-                ctx.fillStyle = '#00ffff';
-                ctx.shadowColor = '#00ffff';
-                ctx.shadowBlur = 15;
-                ctx.fillText('NEXT STAGE', cx, startY + 10);
-                ctx.shadowBlur = 0;
-
-                // Big countdown number
-                ctx.font = 'bold 72px "Press Start 2P"';
-                ctx.fillStyle = countdown <= 3 ? '#ff0055' : '#fdbf00';
-                ctx.shadowColor = ctx.fillStyle;
-                ctx.shadowBlur = 20;
-                ctx.fillText(`${countdown}`, cx, startY + 90);
-                ctx.shadowBlur = 0;
-
-                // Loading indicator
-                ctx.font = '16px "Press Start 2P"';
-                ctx.fillStyle = '#888';
-                ctx.fillText('LOADING...', cx, startY + 120);
+                // Auto Advance (no text)
             } else {
                 const lossOpts = ['CONTINUE?', 'GIVE UP'];
                 ctx.font = 'bold 32px "Press Start 2P"';

@@ -3,14 +3,8 @@ export default class AudioManager {
         this.bgm = null;
         this.currentPath = '';
         this.voiceChannel = new Audio();
-        this.sfxChannels = Array.from({ length: 8 }, () => {
-            const a = new Audio();
-            return a;
-        });
+        this.sfxChannels = Array.from({ length: 8 }, () => new Audio());
         this.sfxIndex = 0;
-
-        // Audio preload cache (path → Audio element)
-        this._audioCache = {};
 
         // WebAudio API for BGM filtering
         this.audioCtx = null;
@@ -74,19 +68,6 @@ export default class AudioManager {
         } catch (e) {
             console.error("Audio unlock failed", e);
         }
-    }
-
-    /**
-     * Preload a BGM track so it's ready to play instantly.
-     * MUST be called during or shortly after a user gesture on iOS.
-     */
-    preloadTrack(path) {
-        if (this._audioCache[path]) return; // Already cached
-        const aud = new Audio(path);
-        aud.preload = 'auto';
-        aud.load();
-        this._audioCache[path] = aud;
-        console.log(`[AudioManager] Preloaded: ${path}`);
     }
 
     /**
@@ -174,17 +155,8 @@ export default class AudioManager {
         this.stopBGM();
 
         this.currentPath = path;
-
-        // Reuse preloaded/cached audio if available (instant playback on iOS!)
-        if (this._audioCache[path]) {
-            this.bgm = this._audioCache[path];
-            this.bgm.currentTime = 0;
-        } else if (this.game && this.game.assetManager && this.game.assetManager.audioBuffer[path]) {
-            this.bgm = this.game.assetManager.audioBuffer[path];
-        } else {
-            this.bgm = new Audio(path);
-        }
-
+        this.bgm = new Audio(path);
+        this.bgm.crossOrigin = 'anonymous';
         this.bgm.loop = loop;
 
         if (this.audioCtx && this.lpFilter && this.gainNode) {
@@ -211,13 +183,14 @@ export default class AudioManager {
     }
 
     stopBGM() {
-        // Clear any pending play promise reference
+        // Clear any pending play promise reference (but do NOT use .then() to pause — 
+        // that creates a race condition where the callback pauses the NEW bgm!)
         this._bgmPlayPromise = null;
 
         if (this.bgm) {
             try { this.bgm.pause(); } catch (e) { }
-            this.bgm.currentTime = 0;
-            // Do NOT destroy the element — keep it cached for instant replay
+            this.bgm.removeAttribute('src'); // Completely nuke the source so it can't restart
+            this.bgm.load(); // Force element reload state
             this.bgm = null;
         }
         if (this.bgmSource) {
@@ -231,8 +204,6 @@ export default class AudioManager {
 
         // Connect voice via WebAudio if not already done
         if (!this.voiceSource) {
-            // CRITICAL SAFARI FIX: Route HTML5 <audio> element through WebAudio graph.
-            // This safely bypasses `fetch` and `decodeAudioData` strict MIME errors on macOS Safari!
             this.voiceSource = this.audioCtx.createMediaElementSource(this.voiceChannel);
             this.voiceGain = this.audioCtx.createGain();
             this.voiceReverbNode = this.audioCtx.createConvolver();
@@ -271,17 +242,8 @@ export default class AudioManager {
             clearTimeout(this._voiceFallbackTimeout);
             this._voiceFallbackTimeout = null;
         }
-
-        // Stop Web Audio voice source
-        if (this._voiceBufferSource) {
-            try { this._voiceBufferSource.stop(); } catch (e) { }
-            this._voiceBufferSource = null;
-        }
-
-        // Also stop fallback HTML5 voice
         this.voiceChannel.pause();
         this.voiceChannel.currentTime = 0;
-
         // Restore BGM volume & Remove Filter
         if (this.gainNode && this.audioCtx) {
             this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.1);
@@ -292,28 +254,15 @@ export default class AudioManager {
     }
 
     playVoice(path, onEndedCallback = null) {
-        if (!path) {
-            if (onEndedCallback) onEndedCallback();
-            return;
-        }
-
         if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
         }
 
-        // Dynamic Ducking + Lowpass Filter BGM while voice plays
-        if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(0.25, this.audioCtx.currentTime, 0.1);
-            if (this.lpFilter) {
-                this.lpFilter.frequency.setTargetAtTime(400, this.audioCtx.currentTime, 0.1);
-            }
-        } else if (this.bgm) {
-            this.bgm.volume = 0.2;
-        }
+        // Initialize WebAudio for voice (if supported) for the reverb effect
+        this._createVoiceReverb();
 
-        // Setup End Logic
         this.voiceChannel.onended = () => {
-            this._voiceDuration = 0; // Reset length state
+            // Restore BGM after voice
             if (this.gainNode && this.audioCtx) {
                 this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
                 if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
@@ -321,36 +270,37 @@ export default class AudioManager {
                 this.bgm.volume = 0.5;
             }
             if (onEndedCallback) onEndedCallback();
-            this.voiceChannel.onended = null;
+            this.voiceChannel.onended = null; // Clear to prevent double fires
         };
 
-        // Initialize voice track volume & source
-        const vVol = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
-        this.voiceChannel.volume = vVol;
-        if (this.voiceGain) this.voiceGain.gain.value = vVol;
-
+        this.voiceChannel.volume = 1.0; // Restore volume (unlockAudio sets it to 0)
         this.voiceChannel.src = path;
-        this.voiceChannel.load();
 
-        // 1. Force hardware resume before executing play()
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-        }
-
-        // 2. Extract Duration instantly without waiting for playback
-        this.voiceChannel.onloadedmetadata = () => {
-            this._voiceDuration = this.voiceChannel.duration;
-            console.log(`[Voice] Track ready: ${path} (${this._voiceDuration.toFixed(1)}s)`);
-        };
-
-        // 3. Guarantee Safari HTML5 Play Promise advances the game if aggressively blocked
         const playPromise = this.voiceChannel.play();
         if (playPromise !== undefined) {
             playPromise.catch(e => {
-                console.warn("[Voice] WebAudio Node HTML5 fallback blocked by Safari Autoplay Policy:", e);
-                // The track was blocked. Force Callback so the text scroll doesn't freeze into a 15-second hole!
-                if (this.voiceChannel.onended) this.voiceChannel.onended();
+                console.warn("Voice play failed or was blocked by browser:", e);
+                // CRITICAL FIX: If the voice is blocked by Safari Autoplay Policy or is a 404 missing file, 
+                // the 'onended' event will NEVER fire natively. This completely breaks Story sequences!
+                // We must manually trigger the callback after a fallback text-reading delay (e.g. 15 seconds).
+                this._voiceFallbackTimeout = setTimeout(() => {
+                    if (this.voiceChannel.onended) {
+                        console.log("Triggering fallback onended for blocked voice track.");
+                        this.voiceChannel.onended();
+                    }
+                }, 15000);
             });
+        }
+
+        // Dynamic Ducking + Lowpass Filter BGM
+        if (this.gainNode && this.audioCtx) {
+            this.gainNode.gain.setTargetAtTime(0.25, this.audioCtx.currentTime, 0.1);
+            if (this.lpFilter) {
+                // Muffle BGM Down to 400Hz so voice pops out clearly
+                this.lpFilter.frequency.setTargetAtTime(400, this.audioCtx.currentTime, 0.1);
+            }
+        } else if (this.bgm) {
+            this.bgm.volume = 0.2;
         }
     }
 
@@ -360,28 +310,25 @@ export default class AudioManager {
         const channel = this.sfxChannels[this.sfxIndex];
         channel.src = path;
         channel.volume = isHeavy ? 1.0 : 0.6;
-        channel.load(); // iOS Safari needs explicit .load() after setting src
 
         channel.play().catch(e => {
             // Automatic Fallback 1: 'voice/' subdirectory mismatch
             if (path.includes('voice/')) {
                 const fallbackPath = path.replace('voice/', '');
                 channel.src = fallbackPath;
-                channel.load();
                 channel.play().catch(() => { });
             }
             // Automatic Fallback 2: Missing Character Audio
+            // If a boss lacks custom hit/ko/special voice sounds, fall back to Keano 
+            // so that at least the physical impact (punch smack) is heard!
             else if (path.includes('_hit.mp3')) {
                 channel.src = 'assets/audio/keano_hit.mp3';
-                channel.load();
                 channel.play().catch(() => { });
             } else if (path.includes('_ko.mp3')) {
                 channel.src = 'assets/audio/keano_ko.mp3';
-                channel.load();
                 channel.play().catch(() => { });
             } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
                 channel.src = 'assets/audio/keano_special.mp3';
-                channel.load();
                 channel.play().catch(() => { });
             }
         });

@@ -23,7 +23,8 @@ export default class AssetManager {
             return new Promise((resolve, reject) => {
                 if (item.type === 'image') {
                     const img = new Image();
-
+                    // NOTE: Do NOT set crossOrigin for same-origin images (localhost).
+                    // Python SimpleHTTP has no CORS headers → tainted canvas → getImageData fails!
                     img.onload = () => {
                         this.processChromaKey(img, item.key, () => {
                             this.loadedCount++;
@@ -32,13 +33,26 @@ export default class AssetManager {
                         });
                     };
                     img.onerror = () => {
-                        console.warn(`[AssetManager] Failed to load image: ${item.path}`);
-                        this.loadedCount++;
-                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
-                        resolve(); // Resolve anyway so the game doesn't hang, but it will be a missing texture
-                    };
+                        // Check if we queued a fallback image for this key
+                        const fallbackKey = item.key + '_fallback';
+                        const fallbackItem = this.queue.find(q => q.key === fallbackKey);
 
-                    img.src = item.path + '?v=' + Date.now(); // Cache buster to ensure pure files
+                        if (fallbackItem && !item.key.endsWith('_fallback')) {
+                            console.log(`[AssetManager] Image ${item.path} not found. Attempting fallback: ${fallbackItem.path}`);
+                            // We don't resolve the primary promise yet, the fallback will resolve it
+                            // when the queue naturally gets to the fallbackItem.
+                            this.loadedCount++;
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            resolve();
+                        } else {
+                            // If it's already a fallback that failed or no fallback exists
+                            console.warn(`[AssetManager] Failed to load image: ${item.path}`);
+                            this.loadedCount++;
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            resolve(); // Resolve anyway so the game doesn't hang, but it will be a missing texture
+                        }
+                    };
+                    img.src = item.path + '?v=' + Date.now(); // Cache buster
                 } else if (item.type === 'audio') {
                     const aud = new Audio();
                     this.audioBuffer[item.key] = aud;
@@ -82,7 +96,6 @@ export default class AssetManager {
         });
 
         await Promise.all(promises);
-        this.queue = []; // Clear queue so next loadAll only processes NEW items
     }
 
     /**
@@ -94,15 +107,6 @@ export default class AssetManager {
         const k = key.toLowerCase();
         // Skip background stripping for UI elements, Stages, and Projectile Cut-ins
         if (k.startsWith('stage_') || k.startsWith('menu') || k.includes('cutin') || k.includes('caesar')) {
-            this.images[key] = img;
-            callback();
-            return;
-        }
-
-        // iOS/Safari: Skip ChromaKey entirely to prevent canvas memory crashes (invisible sprites)
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (isIOS) {
             this.images[key] = img;
             callback();
             return;
@@ -121,14 +125,14 @@ export default class AssetManager {
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        ctx.drawImage(img, 0, 0);
         let imgData;
         try {
-            // Safari throws immediately if image is tainted (cross-origin / cache-buster)
-            ctx.drawImage(img, 0, 0);
             imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         } catch (e) {
-            console.warn(`🔴 CORS BLOCKED drawImage/getImageData: ${key}`, e.message);
-            // Safari/macOS strict mode fallback: Use the RAW image so they aren't invisible!
+            console.warn(`🔴 CORS BLOCKED getImageData: ${key}`, e.message);
+            // Safari/iOS strict mode fallback: Use the RAW image so they aren't invisible!
             this.images[key] = img;
             callback();
             return;

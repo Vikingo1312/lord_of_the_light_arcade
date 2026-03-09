@@ -20,19 +20,28 @@ export default class BootState {
     async loadAssets() {
         console.log("Loading V2.0 Core Assets...");
 
-        // ─── Preload ONLY essential BGM tracks (menu music) ───
-        // Stage music is preloaded on-demand during the 10s post-KO countdown
-        this.game.audioManager.preloadTrack('assets/audio/music/main_soundtrack.mp3');
-        this.game.audioManager.preloadTrack('assets/audio/music/selectmenu_theme.mp3');
-
         // Shared Background for Menu / Boot screen
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');
 
         // Premium Intro Logo
         this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png');
 
-        // Fighter portraits & stage backgrounds are loaded LAZILY when needed
-        // (CharSelect, VersusIntro, Combat all queue their own assets on enter)
+        // Dynamically load ALL fighter portraits for the Character Select grid
+        const { ALL_FIGHTERS, STAGES } = await import('../data.js');
+        for (const char of ALL_FIGHTERS) {
+            this.game.assetManager.queueImage(
+                `${char.id}_front.png`,
+                `assets/CHARACTERS/${char.folder}/_front.png`
+            );
+        }
+
+        // Preload ALL stage backgrounds
+        for (const [stageId, stage] of Object.entries(STAGES)) {
+            this.game.assetManager.queueImage(
+                `Stage_${stageId}`,
+                `assets/STAGES/${stage.file}`
+            );
+        }
 
         await this.game.assetManager.loadAll((progress) => {
             this.loadProgress = progress;

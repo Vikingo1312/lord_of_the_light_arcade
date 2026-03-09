@@ -1,6 +1,5 @@
 import { ROSTER, STAGES } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
-import TouchPad from '../core/TouchPad.js';
 
 export default class MenuState {
     constructor(game) {
@@ -71,25 +70,12 @@ export default class MenuState {
 
         // Setup direct tap-on-menu for mobile
         this._setupMenuTap();
-
-        // Initialize Virtual D-Pad for Options navigation
-        this.touchPad = new TouchPad(this.game);
-        if (this.touchPad.active) {
-            // Options require smaller/translucent pad on menu
-            this.touchPad.stickOuter = 140;
-            this.touchPad.btnRadius = 60;
-            this.touchPad.resize();
-        }
     }
 
     exit() {
         // Do not stop music here if transitioning to character select or story
         // The new state will handle changing or stopping it via AudioManager
         this._removeMenuTap();
-        // Clean up touchpad listeners to prevent duplicate inputs in Combat
-        if (this.touchPad && this.touchPad.cleanup) {
-            this.touchPad.cleanup();
-        }
     }
 
     /**
@@ -189,11 +175,6 @@ export default class MenuState {
             if (this.game.audioManager.unlockAudio) {
                 this.game.audioManager.unlockAudio();
             }
-        }
-
-        // Process virtual D-Pad inputs if active
-        if (this.touchPad && this.touchPad.active) {
-            this.touchPad.injectInput(this.game.inputManager);
         }
 
         if (this.inputCooldown > 0) {
@@ -340,54 +321,10 @@ export default class MenuState {
             combatState.preloadFighterSprites(keano);
             combatState.preloadFighterSprites(opponent);
         }
-
-        // Preload fighter portraits for VersusIntro screen
-        if (!this.game.assetManager.images[`${keano.id}_front.png`]) {
-            this.game.assetManager.queueImage(`${keano.id}_front.png`, `assets/CHARACTERS/${keano.folder}/_front.png`);
-        }
-        if (!this.game.assetManager.images[`${opponent.id}_front.png`]) {
-            this.game.assetManager.queueImage(`${opponent.id}_front.png`, `assets/CHARACTERS/${opponent.folder}/_front.png`);
-        }
-
-        // Preload stage background
         const stageKey = `Stage_${stageId}`;
         if (stage && !this.game.assetManager.images[stageKey]) {
             this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
         }
-
-        // Preload first stage music
-        if (stage && stage.music) {
-            this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
-        }
-
-        // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
-        // Safari strictly blocks `audio.play()` if called from an async function that took longer than 1 second 
-        // after the user's click (like `assetManager.loadAll()`). 
-        // To bypass this, we must `play()` the `voiceChannel` IMMEDIATELY inside this click handler,
-        // and instantly `pause()` it. Safari then permanently flags the element as "User Approved"
-        // and allows `StorySequence.js` to `play()` it again later!
-        const voiceChannel = this.game.audioManager.voiceChannel;
-        const sfxChannels = this.game.audioManager.sfxChannels;
-        const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-
-        // Unlock Voice
-        if (voiceChannel) {
-            voiceChannel.volume = 0;
-            voiceChannel.src = silentWav;
-            voiceChannel.play().catch(() => { });
-            setTimeout(() => { if (!voiceChannel.paused) voiceChannel.pause(); }, 100);
-        }
-
-        // Unlock all SFX Channels
-        if (sfxChannels) {
-            for (const sfx of sfxChannels) {
-                sfx.volume = 0;
-                sfx.src = silentWav;
-                sfx.play().catch(() => { });
-                setTimeout(() => { if (!sfx.paused) sfx.pause(); }, 100);
-            }
-        }
-
         await this.game.assetManager.loadAll();
 
         const combatData = {
@@ -424,30 +361,6 @@ export default class MenuState {
         if (stage && !this.game.assetManager.images[stageKey]) {
             this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
         }
-
-        // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
-        const voiceChannel = this.game.audioManager.voiceChannel;
-        const sfxChannels = this.game.audioManager.sfxChannels;
-        const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
-
-        // Unlock Voice
-        if (voiceChannel) {
-            voiceChannel.volume = 0;
-            voiceChannel.src = silentWav;
-            voiceChannel.play().catch(() => { });
-            setTimeout(() => { if (!voiceChannel.paused) voiceChannel.pause(); }, 100);
-        }
-
-        // Unlock all SFX Channels
-        if (sfxChannels) {
-            for (const sfx of sfxChannels) {
-                sfx.volume = 0;
-                sfx.src = silentWav;
-                sfx.play().catch(() => { });
-                setTimeout(() => { if (!sfx.paused) sfx.pause(); }, 100);
-            }
-        }
-
         await this.game.assetManager.loadAll();
 
         const combatData = {
@@ -828,10 +741,5 @@ export default class MenuState {
         ctx.textAlign = 'center';
         ctx.fillStyle = '#666';
         ctx.fillText('PRESS PUNCH (J) OR KICK (K) TO GO BACK', cx, this.game.height - 60);
-
-        // Draw TouchPad if mobile device to allow navigating the options
-        if (this.touchPad && this.touchPad.active) {
-            this.touchPad.draw(ctx);
-        }
     }
 }

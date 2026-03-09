@@ -53,19 +53,6 @@ export default class StorySequence {
         this._unvoicedReadTimerStarted = false;
         this.explosions = [];
         this.startedOwnBGM = false;
-        this._skipRequested = false;
-
-        // Direct tap/click-to-skip listener (bypasses InputManager)
-        this._onSkipTap = () => {
-            if (this.time > 3 && !this._advanced) {
-                this._skipRequested = true;
-            }
-        };
-        const canvas = this.game.canvas || document.querySelector('canvas');
-        if (canvas) {
-            canvas.addEventListener('click', this._onSkipTap);
-            canvas.addEventListener('touchstart', this._onSkipTap);
-        }
 
         // Parse data
         this.lines = (data && data.lines) || [];
@@ -149,33 +136,10 @@ export default class StorySequence {
         // Fade-out state for smooth transitions
         this.fadeOut = 0;   // 0 = fully visible, 1 = fully faded
         this.fading = false;
-
-        // Safety timeout: force-advance after 15s even if everything is stuck
-        this._safetyTimeout = setTimeout(() => {
-            if (!this._advanced) {
-                console.warn('[StorySequence] Safety timeout — force-advancing to:', this.nextState);
-                this._advanced = true;
-                try {
-                    this.game.stateManager.switchState(this.nextState, this.nextData);
-                } catch (e) {
-                    console.error('[StorySequence] Safety fallback failed:', e);
-                    this.game.stateManager.switchState('Menu');
-                }
-            }
-        }, 15000);
     }
 
     exit() {
         if (this.autoFinishTimer) clearTimeout(this.autoFinishTimer);
-        if (this._safetyTimeout) clearTimeout(this._safetyTimeout);
-
-        // Clean up skip listeners
-        const canvas = this.game.canvas || document.querySelector('canvas');
-        if (canvas && this._onSkipTap) {
-            canvas.removeEventListener('click', this._onSkipTap);
-            canvas.removeEventListener('touchstart', this._onSkipTap);
-        }
-
         // Always stop voice when leaving a story scene
         this.game.audioManager.stopVoice();
 
@@ -221,27 +185,24 @@ export default class StorySequence {
 
         // Smooth fade-out transition
         if (this.fading) {
-            this.fadeOut += dt * 2; // 0.5 second fade (fast!)
+            this.fadeOut += dt / 2; // 2 second fade
             if (this.fadeOut >= 1 && !this._advanced) {
                 this._advanced = true;
-                console.log(`[StorySequence] Advancing to: ${this.nextState}`);
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
-            // DON'T return here — let text keep scrolling during fade so screen doesn't freeze
+            return; // Stop all other updates during fade
         }
 
         // Sync text scroll speed to audio duration if playing
-        if (this.voicePath && !this._hasGoodSpeed) {
-            // Check Web Audio duration first, then HTML5 Audio fallback
-            const actualDuration = this.game.audioManager._voiceDuration
-                || (this.game.audioManager.voiceChannel && this.game.audioManager.voiceChannel.duration);
+        if (this.voicePath && !this._hasGoodSpeed && this.game.audioManager.voiceChannel) {
+            const actualDuration = this.game.audioManager.voiceChannel.duration;
             const totalHeight = this.lines.length * this.lineHeight + this.game.height * 0.5;
             if (!isNaN(actualDuration) && actualDuration > 1 && actualDuration !== Infinity) {
                 // Add a small 2-second buffer so text finishes slightly after voice ends naturally
                 this.scrollSpeed = totalHeight / (actualDuration + 2);
                 this._hasGoodSpeed = true;
             } else if (this.time > 2.0) {
-                // If 2 seconds have passed and duration is STILL unavailable,
+                // If 2 seconds have passed and duration is STILL broken/NaN, 
                 // Safari or macOS has 100% blocked the audio. Fallback to a safe reading speed!
                 console.warn("Audio duration unavailable/blocked. Using 15s fallback speed.");
                 this.scrollSpeed = totalHeight / 15;
@@ -371,39 +332,18 @@ export default class StorySequence {
         if (this._advanced) return;
         const p1 = this.game.inputManager.p1;
 
-        // Voiceover ended → auto-advance immediately (but NOT for Birthday!)
-        if (this.finished && !this.isBirthdayScene) {
+        // Voiceover ended → auto-advance with smooth fade (but NOT for Birthday!)
+        if (this.finished && !this.fading && !this.isBirthdayScene) {
             this.finishTimer += dt;
-            if (this.finishTimer > 0.5) {
-                this._advanced = true;
-                console.log('[StorySequence] Voice ended — advancing to:', this.nextState);
-                try {
-                    this.game.stateManager.switchState(this.nextState, this.nextData);
-                } catch (e) {
-                    console.error('[StorySequence] Transition failed:', e);
-                    this._advanced = false;
-                    try { this.game.stateManager.switchState('Menu'); } catch (e2) { }
-                }
-                return;
+            if (this.finishTimer > 1) {
+                this.fading = true; // Start smooth fade-out
             }
         }
 
-        // Allow skip via TAP/CLICK or ATTACK BUTTONS after 3s
-        // TAP/CLICK: detected by direct event listener (set _skipRequested)
-        // KEYBOARD: detected by InputManager (lJust/hJust/sJust)
-        const skipTriggered = this._skipRequested || p1.lJust || p1.hJust || p1.sJust;
-        if (this.time > 3 && skipTriggered) {
-            console.log('[StorySequence] Skip triggered — advancing to:', this.nextState);
-            this._advanced = true;
-            try {
-                this.game.stateManager.switchState(this.nextState, this.nextData);
-            } catch (e) {
-                console.error('[StorySequence] Skip transition failed:', e);
-                this._advanced = false; // Unfreeze the loop so the user can try again!
-                // Force a hard reset to Menu if nextState completely failed
-                try { this.game.stateManager.switchState('Menu'); } catch (e2) { }
-            }
-            return;
+        // Allow skip with any button press after 5s (starts fade, doesn't cut)
+        // Birthday: this is the ONLY way to exit
+        if (this.time > 5 && (p1.lJust || p1.hJust || p1.sJust) && !this.fading) {
+            this.fading = true;
         }
     }
 

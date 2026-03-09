@@ -36,16 +36,6 @@ export default class CharacterSelectState {
 
         this.inputCooldown = 20;
         this.loadingCombat = false;
-
-        // Lazy-load all fighter portraits (they fill in progressively)
-        for (const char of this.allFighters) {
-            const key = `${char.id}_front.png`;
-            if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png`);
-            }
-        }
-        this.game.assetManager.loadAll(); // Fire-and-forget
-
         // Play char select music
         this.game.audioManager.playBGM('assets/audio/music/selectmenu_theme.mp3', true, false, 0.15);
     }
@@ -139,10 +129,7 @@ export default class CharacterSelectState {
         // This prevents the select theme from overlapping the next state's audio if loading takes seconds.
         this.game.audioManager.stopBGM();
 
-        // Load with safety timeout — never hang more than 10s
-        const loadPromise = this.game.assetManager.loadAll();
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
-        await Promise.race([loadPromise, timeoutPromise]);
+        await this.game.assetManager.loadAll();
         console.log(`Combat ready: ${p1Char.name} vs ${p2Char.name} @ ${stage?.name || 'Cosmic Portal'}`);
 
         setTimeout(() => {
