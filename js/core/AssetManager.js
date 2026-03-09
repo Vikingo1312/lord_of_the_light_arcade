@@ -23,7 +23,6 @@ export default class AssetManager {
             return new Promise((resolve, reject) => {
                 if (item.type === 'image') {
                     const img = new Image();
-                    img.crossOrigin = 'anonymous'; // Ensure safe CORS fetching
 
                     img.onload = () => {
                         this.processChromaKey(img, item.key, () => {

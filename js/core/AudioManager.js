@@ -3,10 +3,8 @@ export default class AudioManager {
         this.bgm = null;
         this.currentPath = '';
         this.voiceChannel = new Audio();
-        this.voiceChannel.crossOrigin = 'anonymous'; // CRITICAL: Without this, Safari mutes WebAudio output
         this.sfxChannels = Array.from({ length: 8 }, () => {
             const a = new Audio();
-            a.crossOrigin = 'anonymous'; // CRITICAL: Without this, Safari mutes WebAudio output
             return a;
         });
         this.sfxIndex = 0;
@@ -85,7 +83,6 @@ export default class AudioManager {
     preloadTrack(path) {
         if (this._audioCache[path]) return; // Already cached
         const aud = new Audio(path);
-        aud.crossOrigin = 'anonymous';
         aud.preload = 'auto';
         aud.load();
         this._audioCache[path] = aud;
@@ -187,7 +184,6 @@ export default class AudioManager {
         } else {
             this.bgm = new Audio(path);
         }
-        this.bgm.crossOrigin = 'anonymous';
 
         this.bgm.loop = loop;
 
