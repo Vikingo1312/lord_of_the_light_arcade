@@ -231,9 +231,7 @@ export default class CombatState {
                             this._transitioning = true;
                             if (this._nextAction === 'STORY_REFLEXION') {
                                 // AWAIT asset loads before switching to Story, so skipping story doesn't break VersusIntro
-                                const loadPromise = this.game.assetManager.loadAll();
-                                const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
-                                Promise.race([loadPromise, timeoutPromise]).then(() => {
+                                this.game.assetManager.loadAll().then(() => {
                                     this.game.stateManager.switchState('Story', {
                                         ...STORY_REFLEXION,
                                         nextState: 'VersusIntro',
@@ -706,10 +704,7 @@ export default class CombatState {
             this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
         }
 
-        // Load with safety timeout — never hang more than 10s
-        const loadPromise = this.game.assetManager.loadAll();
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
-        await Promise.race([loadPromise, timeoutPromise]);
+        await this.game.assetManager.loadAll();
 
         this.game.stateManager.switchState('VersusIntro', {
             p1: player1,

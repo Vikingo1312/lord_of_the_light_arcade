@@ -373,10 +373,7 @@ export default class MenuState {
             voiceChannel.pause();
         }
 
-        // Load with safety timeout — never hang more than 10s
-        const loadPromise = this.game.assetManager.loadAll();
-        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
-        await Promise.race([loadPromise, timeoutPromise]);
+        await this.game.assetManager.loadAll();
 
         const combatData = {
             p1: keano,
