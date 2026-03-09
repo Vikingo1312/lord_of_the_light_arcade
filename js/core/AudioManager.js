@@ -3,7 +3,12 @@ export default class AudioManager {
         this.bgm = null;
         this.currentPath = '';
         this.voiceChannel = new Audio();
-        this.sfxChannels = Array.from({ length: 8 }, () => new Audio());
+        this.voiceChannel.crossOrigin = 'anonymous'; // CRITICAL: Without this, Safari mutes WebAudio output
+        this.sfxChannels = Array.from({ length: 8 }, () => {
+            const a = new Audio();
+            a.crossOrigin = 'anonymous'; // CRITICAL: Without this, Safari mutes WebAudio output
+            return a;
+        });
         this.sfxIndex = 0;
 
         // Audio preload cache (path → Audio element)
