@@ -59,10 +59,13 @@ export default class CombatState {
         this.inputCooldown = 45;
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
-        this.shakeIntensity = 0;
         this.particles = [];
         this.projectiles = [];
         this._transitioning = false;
+        this._nextStagePreloading = false;
+        this._postKoCountdown = 10.0;
+        this._nextAction = null;
+        this._nextIdx = null;
 
         // Pause State
         this.paused = false;
@@ -383,8 +386,6 @@ export default class CombatState {
         // We handle Specials entirely within Combat.js now (Projectiles)
         p1InputCopy.sJust = false;
         p1InputCopy.s = false;
-
-
 
         // Projectile (QCF + Light/Heavy OR dedicated 'Special' button)
         const isSpecialInput = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
