@@ -327,10 +327,17 @@ export default class AudioManager {
             const playPromise = this.voiceChannel.play();
             if (playPromise !== undefined) {
                 playPromise.catch(e => {
-                    console.warn("[Voice] HTML5 Audio fallback play failed:", e);
-                    this._voiceFallbackTimeout = setTimeout(() => {
-                        if (this.voiceChannel.onended) this.voiceChannel.onended();
-                    }, 8000);
+                    console.warn("[Voice] HTML5 Audio fallback play blocked by browser (Autoplay):", e);
+                    // CRITICAL FIX: If macOS Safari blocks the fallback audio, we MUST fire the callback
+                    // immediately so the story doesn't freeze for 15 seconds waiting for a silent track!
+                    if (this.gainNode && this.audioCtx) {
+                        this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
+                        if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                    } else if (this.bgm) {
+                        this.bgm.volume = 0.5;
+                    }
+                    if (onEndedCallback) onEndedCallback();
+                    this.voiceChannel.onended = null;
                 });
             }
         };

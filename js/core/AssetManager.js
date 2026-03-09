@@ -23,9 +23,12 @@ export default class AssetManager {
             return new Promise((resolve, reject) => {
                 if (item.type === 'image') {
                     const img = new Image();
+                    let resolved = false;
                     // NOTE: Do NOT set crossOrigin for same-origin images (localhost).
                     // Python SimpleHTTP has no CORS headers → tainted canvas → getImageData fails!
                     img.onload = () => {
+                        if (resolved) return;
+                        resolved = true;
                         // If this is a fallback image, also store under the original key
                         let storeKey = item.key;
                         if (item.key.endsWith('_fallback')) {
@@ -39,6 +42,8 @@ export default class AssetManager {
                         });
                     };
                     img.onerror = () => {
+                        if (resolved) return;
+                        resolved = true;
                         // Check if we queued a fallback image for this key
                         const fallbackKey = item.key + '_fallback';
                         const fallbackItem = this.queue.find(q => q.key === fallbackKey);
@@ -61,6 +66,17 @@ export default class AssetManager {
                     // Removed the Date.now() cache buster because it flags local images as Cross-Origin 
                     // tainted data on macOS Safari and crashes the Canvas execution context!
                     img.src = item.path;
+
+                    // Safari Desktop Image Safety Timer (MAX 2 SECONDS)
+                    setTimeout(() => {
+                        if (!resolved) {
+                            resolved = true;
+                            console.warn(`[AssetManager] IMAGE preload timeout for ${item.path} - bypassing to prevent hang`);
+                            this.loadedCount++;
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            resolve(); // Force resolve if it takes too long
+                        }
+                    }, 2000);
                 } else if (item.type === 'audio') {
                     const aud = new Audio();
                     this.audioBuffer[item.key] = aud;

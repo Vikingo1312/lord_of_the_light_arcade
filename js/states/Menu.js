@@ -360,15 +360,9 @@ export default class MenuState {
             this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
         }
 
-        // *** iOS SAFARI AUTOPLAY FIX ***
-        // Because loadAll() takes up to 10 seconds, the browser forgets the user clicked a button 
-        // by the time StorySequence calls playVoice(). This causes Web Audio fallbacks to fail.
-        // We explicitly prime the HTML5 voice fallback channel HERE during the active touch event.
-        const voiceChannel = this.game.audioManager.voiceChannel;
-        if (voiceChannel) {
-            voiceChannel.src = 'assets/audio/prologue_voice.mp3'; // The first thing they hear
-            voiceChannel.load(); // Prime it under user-gesture context!
-        }
+        // The Web Audio context was already unlocked inside `this.unlockAudio()` during the initial click 
+        // to start the game, so we no longer need to hijack the `voiceChannel` manually here. 
+        // Hijacking it here locks the streaming channel on Desktop Safari and crashes the upcoming `fetch()`.
 
         // Load with safety timeout — never hang more than 10s
         const loadPromise = this.game.assetManager.loadAll();
