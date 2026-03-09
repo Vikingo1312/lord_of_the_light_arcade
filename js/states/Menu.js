@@ -321,11 +321,30 @@ export default class MenuState {
             combatState.preloadFighterSprites(keano);
             combatState.preloadFighterSprites(opponent);
         }
+
+        // Preload fighter portraits for VersusIntro screen
+        if (!this.game.assetManager.images[`${keano.id}_front.png`]) {
+            this.game.assetManager.queueImage(`${keano.id}_front.png`, `assets/CHARACTERS/${keano.folder}/_front.png`);
+        }
+        if (!this.game.assetManager.images[`${opponent.id}_front.png`]) {
+            this.game.assetManager.queueImage(`${opponent.id}_front.png`, `assets/CHARACTERS/${opponent.folder}/_front.png`);
+        }
+
+        // Preload stage background
         const stageKey = `Stage_${stageId}`;
         if (stage && !this.game.assetManager.images[stageKey]) {
             this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
         }
-        await this.game.assetManager.loadAll();
+
+        // Preload first stage music
+        if (stage && stage.music) {
+            this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
+        }
+
+        // Load with safety timeout — never hang more than 10s
+        const loadPromise = this.game.assetManager.loadAll();
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
+        await Promise.race([loadPromise, timeoutPromise]);
 
         const combatData = {
             p1: keano,

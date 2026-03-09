@@ -139,7 +139,10 @@ export default class CharacterSelectState {
         // This prevents the select theme from overlapping the next state's audio if loading takes seconds.
         this.game.audioManager.stopBGM();
 
-        await this.game.assetManager.loadAll();
+        // Load with safety timeout — never hang more than 10s
+        const loadPromise = this.game.assetManager.loadAll();
+        const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
+        await Promise.race([loadPromise, timeoutPromise]);
         console.log(`Combat ready: ${p1Char.name} vs ${p2Char.name} @ ${stage?.name || 'Cosmic Portal'}`);
 
         setTimeout(() => {

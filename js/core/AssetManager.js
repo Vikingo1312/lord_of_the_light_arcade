@@ -26,7 +26,13 @@ export default class AssetManager {
                     // NOTE: Do NOT set crossOrigin for same-origin images (localhost).
                     // Python SimpleHTTP has no CORS headers → tainted canvas → getImageData fails!
                     img.onload = () => {
-                        this.processChromaKey(img, item.key, () => {
+                        // If this is a fallback image, also store under the original key
+                        let storeKey = item.key;
+                        if (item.key.endsWith('_fallback')) {
+                            storeKey = item.key.replace('_fallback', '');
+                            console.log(`[AssetManager] Fallback loaded for: ${storeKey}`);
+                        }
+                        this.processChromaKey(img, storeKey, () => {
                             this.loadedCount++;
                             if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
                             resolve();
