@@ -58,7 +58,9 @@ export default class AssetManager {
                             resolve(); // Resolve anyway so the game doesn't hang, but it will be a missing texture
                         }
                     };
-                    img.src = item.path + '?v=' + Date.now(); // Cache buster
+                    // Removed the Date.now() cache buster because it flags local images as Cross-Origin 
+                    // tainted data on macOS Safari and crashes the Canvas execution context!
+                    img.src = item.path;
                 } else if (item.type === 'audio') {
                     const aud = new Audio();
                     this.audioBuffer[item.key] = aud;
@@ -141,14 +143,14 @@ export default class AssetManager {
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        ctx.drawImage(img, 0, 0);
         let imgData;
         try {
+            // Safari throws immediately if image is tainted (cross-origin / cache-buster)
+            ctx.drawImage(img, 0, 0);
             imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         } catch (e) {
-            console.warn(`🔴 CORS BLOCKED getImageData: ${key}`, e.message);
-            // Safari/iOS strict mode fallback: Use the RAW image so they aren't invisible!
+            console.warn(`🔴 CORS BLOCKED drawImage/getImageData: ${key}`, e.message);
+            // Safari/macOS strict mode fallback: Use the RAW image so they aren't invisible!
             this.images[key] = img;
             callback();
             return;
