@@ -53,6 +53,19 @@ export default class StorySequence {
         this._unvoicedReadTimerStarted = false;
         this.explosions = [];
         this.startedOwnBGM = false;
+        this._skipRequested = false;
+
+        // Direct tap/click-to-skip listener (bypasses InputManager)
+        this._onSkipTap = () => {
+            if (this.time > 3 && !this._advanced) {
+                this._skipRequested = true;
+            }
+        };
+        const canvas = this.game.canvas || document.querySelector('canvas');
+        if (canvas) {
+            canvas.addEventListener('click', this._onSkipTap);
+            canvas.addEventListener('touchstart', this._onSkipTap);
+        }
 
         // Parse data
         this.lines = (data && data.lines) || [];
@@ -155,6 +168,14 @@ export default class StorySequence {
     exit() {
         if (this.autoFinishTimer) clearTimeout(this.autoFinishTimer);
         if (this._safetyTimeout) clearTimeout(this._safetyTimeout);
+
+        // Clean up skip listeners
+        const canvas = this.game.canvas || document.querySelector('canvas');
+        if (canvas && this._onSkipTap) {
+            canvas.removeEventListener('click', this._onSkipTap);
+            canvas.removeEventListener('touchstart', this._onSkipTap);
+        }
+
         // Always stop voice when leaving a story scene
         this.game.audioManager.stopVoice();
 
@@ -364,11 +385,12 @@ export default class StorySequence {
             }
         }
 
-        // Allow skip with ATTACK BUTTONS ONLY after 3s → INSTANT switch (no fade)
-        // NOTE: Do NOT use p1.up/down/left/right — those are HELD states that fire every frame!
-        // Birthday: this is the ONLY way to exit
-        if (this.time > 3 && (p1.lJust || p1.hJust || p1.sJust)) {
-            console.log('[StorySequence] Skip triggered — advancing to:', this.nextState, 'with data:', JSON.stringify(this.nextData ? { p1: this.nextData.p1?.id, p2: this.nextData.p2?.id } : null));
+        // Allow skip via TAP/CLICK or ATTACK BUTTONS after 3s
+        // TAP/CLICK: detected by direct event listener (set _skipRequested)
+        // KEYBOARD: detected by InputManager (lJust/hJust/sJust)
+        const skipTriggered = this._skipRequested || p1.lJust || p1.hJust || p1.sJust;
+        if (this.time > 3 && skipTriggered) {
+            console.log('[StorySequence] Skip triggered — advancing to:', this.nextState);
             this._advanced = true;
             try {
                 this.game.stateManager.switchState(this.nextState, this.nextData);
