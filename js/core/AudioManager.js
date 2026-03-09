@@ -230,6 +230,8 @@ export default class AudioManager {
 
         // Connect voice via WebAudio if not already done
         if (!this.voiceSource) {
+            // CRITICAL SAFARI FIX: Route HTML5 <audio> element through WebAudio graph.
+            // This safely bypasses `fetch` and `decodeAudioData` strict MIME errors on macOS Safari!
             this.voiceSource = this.audioCtx.createMediaElementSource(this.voiceChannel);
             this.voiceGain = this.audioCtx.createGain();
             this.voiceReverbNode = this.audioCtx.createConvolver();
@@ -308,133 +310,46 @@ export default class AudioManager {
             this.bgm.volume = 0.2;
         }
 
-        const fallbackToHTML5 = () => {
-            // === FALLBACK: HTML5 Audio (non-WebAudio browsers or decode fail) ===
-            this.voiceChannel.onended = () => {
-                if (this.gainNode && this.audioCtx) {
-                    this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                    if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-                } else if (this.bgm) {
-                    this.bgm.volume = 0.5;
-                }
-                if (onEndedCallback) onEndedCallback();
-                this.voiceChannel.onended = null;
-            };
-
-            this.voiceChannel.volume = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
-            this.voiceChannel.src = path;
-            this.voiceChannel.load();
-            const playPromise = this.voiceChannel.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.warn("[Voice] HTML5 Audio fallback play blocked by browser (Autoplay):", e);
-                    // CRITICAL FIX: If macOS Safari blocks the fallback audio, we MUST fire the callback
-                    // immediately so the story doesn't freeze for 15 seconds waiting for a silent track!
-                    if (this.gainNode && this.audioCtx) {
-                        this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                        if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-                    } else if (this.bgm) {
-                        this.bgm.volume = 0.5;
-                    }
-                    if (onEndedCallback) onEndedCallback();
-                    this.voiceChannel.onended = null;
-                });
+        // Setup End Logic
+        this.voiceChannel.onended = () => {
+            this._voiceDuration = 0; // Reset length state
+            if (this.gainNode && this.audioCtx) {
+                this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
+                if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+            } else if (this.bgm) {
+                this.bgm.volume = 0.5;
             }
+            if (onEndedCallback) onEndedCallback();
+            this.voiceChannel.onended = null;
         };
 
-        // === WEB AUDIO API PATH (iOS-compatible!) ===
-        // Fetch the voice file as ArrayBuffer, decode, and play through AudioContext.
-        // The AudioContext is unlocked at boot → bypasses all iOS autoplay restrictions.
-        if (this.audioCtx) {
-            fetch(path)
-                .then(response => {
-                    if (!response.ok) throw new Error(`Voice file not found: ${path}`);
-                    return response.arrayBuffer();
-                })
-                .then(buffer => {
-                    return new Promise((resolve, reject) => {
-                        // Older Safari requires callbacks for decodeAudioData
-                        try {
-                            const decodePromise = this.audioCtx.decodeAudioData(buffer, resolve, reject);
-                            if (decodePromise) decodePromise.catch(reject);
-                        } catch (e) {
-                            reject(e);
-                        }
-                    });
-                })
-                .then(async decodedBuffer => {
-                    // Stop any previous voice
-                    if (this._voiceBufferSource) {
-                        try { this._voiceBufferSource.stop(); } catch (e) { }
-                    }
+        // Initialize voice track volume & source
+        const vVol = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
+        this.voiceChannel.volume = vVol;
+        if (this.voiceGain) this.voiceGain.gain.value = vVol;
 
-                    // Create buffer source
-                    const source = this.audioCtx.createBufferSource();
-                    source.buffer = decodedBuffer;
-                    this._voiceBufferSource = source;
-                    this._voiceDuration = decodedBuffer.duration;
+        this.voiceChannel.src = path;
+        this.voiceChannel.load();
 
-                    // Create voice gain for volume control
-                    const voiceGain = this.audioCtx.createGain();
-                    voiceGain.gain.value = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
+        // 1. Force hardware resume before executing play()
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+            this.audioCtx.resume();
+        }
 
-                    // Create subtle reverb (short room effect)
-                    const reverbLength = this.audioCtx.sampleRate * 0.15;
-                    const impulse = this.audioCtx.createBuffer(2, reverbLength, this.audioCtx.sampleRate);
-                    const left = impulse.getChannelData(0);
-                    const right = impulse.getChannelData(1);
-                    for (let i = 0; i < reverbLength; i++) {
-                        const decay = Math.exp(-i / (this.audioCtx.sampleRate * 0.05));
-                        left[i] = (Math.random() * 2 - 1) * decay;
-                        right[i] = (Math.random() * 2 - 1) * decay;
-                    }
-                    const reverb = this.audioCtx.createConvolver();
-                    reverb.buffer = impulse;
-                    const reverbGain = this.audioCtx.createGain();
-                    reverbGain.gain.value = 0.25;
+        // 2. Extract Duration instantly without waiting for playback
+        this.voiceChannel.onloadedmetadata = () => {
+            this._voiceDuration = this.voiceChannel.duration;
+            console.log(`[Voice] Track ready: ${path} (${this._voiceDuration.toFixed(1)}s)`);
+        };
 
-                    // Route: Source → voiceGain → destination (dry)
-                    //        Source → reverb → reverbGain → destination (wet)
-                    source.connect(voiceGain);
-                    source.connect(reverb);
-                    reverb.connect(reverbGain);
-                    voiceGain.connect(this.audioCtx.destination);
-                    reverbGain.connect(this.audioCtx.destination);
-
-                    // On ended: restore BGM + fire callback
-                    source.onended = () => {
-                        this._voiceBufferSource = null;
-                        if (this.gainNode && this.audioCtx) {
-                            this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                            if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-                        } else if (this.bgm) {
-                            this.bgm.volume = 0.5;
-                        }
-                        if (onEndedCallback) onEndedCallback();
-                    };
-
-                    // Apple Safari rigorously suspends AudioContexts during async fetch operations. 
-                    // We MUST force a hardware resume AND AWAIT IT right before we attempt to push sound out!
-                    if (this.audioCtx.state === 'suspended') {
-                        try {
-                            await this.audioCtx.resume();
-                        } catch (e) {
-                            console.warn("[Voice] Web Audio context forcibly denied resume:", e);
-                        }
-                    }
-
-                    source.start(0);
-                    console.log(`[Voice] Playing via Web Audio: ${path} (${decodedBuffer.duration.toFixed(1)}s) at Vol: ${voiceGain.gain.value}`);
-
-                    // Clear any existing fallback timeout
-                    if (this._voiceFallbackTimeout) clearTimeout(this._voiceFallbackTimeout);
-                })
-                .catch(err => {
-                    console.warn('[Voice] Web Audio fetch/decode failed, attempting HTML5 Fallback...', err);
-                    fallbackToHTML5();
-                });
-        } else {
-            fallbackToHTML5();
+        // 3. Guarantee Safari HTML5 Play Promise advances the game if aggressively blocked
+        const playPromise = this.voiceChannel.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(e => {
+                console.warn("[Voice] WebAudio Node HTML5 fallback blocked by Safari Autoplay Policy:", e);
+                // The track was blocked. Force Callback so the text scroll doesn't freeze into a 15-second hole!
+                if (this.voiceChannel.onended) this.voiceChannel.onended();
+            });
         }
     }
 

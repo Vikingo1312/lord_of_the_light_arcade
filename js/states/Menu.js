@@ -360,9 +360,18 @@ export default class MenuState {
             this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
         }
 
-        // The Web Audio context was already unlocked inside `this.unlockAudio()` during the initial click 
-        // to start the game, so we no longer need to hijack the `voiceChannel` manually here. 
-        // Hijacking it here locks the streaming channel on Desktop Safari and crashes the upcoming `fetch()`.
+        // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
+        // Safari strictly blocks `audio.play()` if called from an async function that took longer than 1 second 
+        // after the user's click (like `assetManager.loadAll()`). 
+        // To bypass this, we must `play()` the `voiceChannel` IMMEDIATELY inside this click handler,
+        // and instantly `pause()` it. Safari then permanently flags the element as "User Approved"
+        // and allows `StorySequence.js` to `play()` it again later!
+        const voiceChannel = this.game.audioManager.voiceChannel;
+        if (voiceChannel) {
+            voiceChannel.volume = 0; // Prevent any glitch noises
+            voiceChannel.play().catch(() => { });
+            voiceChannel.pause();
+        }
 
         // Load with safety timeout — never hang more than 10s
         const loadPromise = this.game.assetManager.loadAll();
