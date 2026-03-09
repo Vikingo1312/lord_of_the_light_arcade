@@ -500,9 +500,9 @@ export default class Fighter {
             if (this.data.id === 'Gargamel' && (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP' || this.state === 'WIN')) {
                 drawFacing *= -1;
             }
-            // Hack for Lee, Vikingo, VikingoRaw: their PUNCH sprite natively faces LEFT instead of RIGHT
+            // Hack for Lee, Vikingo, VikingoRaw, and Raheel: their PUNCH sprite natively faces LEFT instead of RIGHT
             // But their KICK sprite faces RIGHT (standard), so only flip for LIGHT (punch) attacks!
-            if ((this.data.id === 'Lee' || this.data.id === 'Vikingo' || this.data.id === 'VikingoRaw') &&
+            if ((this.data.id === 'Lee' || this.data.id === 'Vikingo' || this.data.id === 'VikingoRaw' || this.data.id === 'Raheel') &&
                 (this.state === 'ATTACK' || this.state === 'SPECIAL') &&
                 !(this.currentAttack && this.currentAttack.type === 'HEAVY')) {
                 drawFacing *= -1;
