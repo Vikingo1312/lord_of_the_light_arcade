@@ -268,8 +268,17 @@ export default class AudioManager {
             clearTimeout(this._voiceFallbackTimeout);
             this._voiceFallbackTimeout = null;
         }
+
+        // Stop Web Audio voice source
+        if (this._voiceBufferSource) {
+            try { this._voiceBufferSource.stop(); } catch (e) { }
+            this._voiceBufferSource = null;
+        }
+
+        // Also stop fallback HTML5 voice
         this.voiceChannel.pause();
         this.voiceChannel.currentTime = 0;
+
         // Restore BGM volume & Remove Filter
         if (this.gainNode && this.audioCtx) {
             this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.1);
@@ -280,54 +289,124 @@ export default class AudioManager {
     }
 
     playVoice(path, onEndedCallback = null) {
+        if (!path) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
+
         if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
         }
 
-        // Initialize WebAudio for voice (if supported) for the reverb effect
-        this._createVoiceReverb();
-
-        this.voiceChannel.onended = () => {
-            // Restore BGM after voice
-            if (this.gainNode && this.audioCtx) {
-                this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-            } else if (this.bgm) {
-                this.bgm.volume = 0.5;
-            }
-            if (onEndedCallback) onEndedCallback();
-            this.voiceChannel.onended = null; // Clear to prevent double fires
-        };
-
-        this.voiceChannel.volume = 1.0; // Restore volume (unlockAudio sets it to 0)
-        this.voiceChannel.src = path;
-        this.voiceChannel.load(); // iOS Safari needs explicit .load() after setting src
-
-        const playPromise = this.voiceChannel.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(e => {
-                console.warn("Voice play failed or was blocked by browser:", e);
-                // CRITICAL FIX: If the voice is blocked by Safari Autoplay Policy or is a 404 missing file, 
-                // the 'onended' event will NEVER fire natively. This completely breaks Story sequences!
-                // We must manually trigger the callback after a fallback text-reading delay (e.g. 15 seconds).
-                this._voiceFallbackTimeout = setTimeout(() => {
-                    if (this.voiceChannel.onended) {
-                        console.log("Triggering fallback onended for blocked voice track.");
-                        this.voiceChannel.onended();
-                    }
-                }, 8000);
-            });
-        }
-
-        // Dynamic Ducking + Lowpass Filter BGM
+        // Dynamic Ducking + Lowpass Filter BGM while voice plays
         if (this.gainNode && this.audioCtx) {
             this.gainNode.gain.setTargetAtTime(0.25, this.audioCtx.currentTime, 0.1);
             if (this.lpFilter) {
-                // Muffle BGM Down to 400Hz so voice pops out clearly
                 this.lpFilter.frequency.setTargetAtTime(400, this.audioCtx.currentTime, 0.1);
             }
         } else if (this.bgm) {
             this.bgm.volume = 0.2;
+        }
+
+        // === WEB AUDIO API PATH (iOS-compatible!) ===
+        // Fetch the voice file as ArrayBuffer, decode, and play through AudioContext.
+        // The AudioContext is unlocked at boot → bypasses all iOS autoplay restrictions.
+        if (this.audioCtx) {
+            fetch(path)
+                .then(response => {
+                    if (!response.ok) throw new Error(`Voice file not found: ${path}`);
+                    return response.arrayBuffer();
+                })
+                .then(buffer => this.audioCtx.decodeAudioData(buffer))
+                .then(decodedBuffer => {
+                    // Stop any previous voice
+                    if (this._voiceBufferSource) {
+                        try { this._voiceBufferSource.stop(); } catch (e) { }
+                    }
+
+                    // Create buffer source
+                    const source = this.audioCtx.createBufferSource();
+                    source.buffer = decodedBuffer;
+                    this._voiceBufferSource = source;
+                    this._voiceDuration = decodedBuffer.duration;
+
+                    // Create voice gain for volume control
+                    const voiceGain = this.audioCtx.createGain();
+                    voiceGain.gain.value = 1.0;
+
+                    // Create subtle reverb (short room effect)
+                    const reverbLength = this.audioCtx.sampleRate * 0.15;
+                    const impulse = this.audioCtx.createBuffer(2, reverbLength, this.audioCtx.sampleRate);
+                    const left = impulse.getChannelData(0);
+                    const right = impulse.getChannelData(1);
+                    for (let i = 0; i < reverbLength; i++) {
+                        const decay = Math.exp(-i / (this.audioCtx.sampleRate * 0.05));
+                        left[i] = (Math.random() * 2 - 1) * decay;
+                        right[i] = (Math.random() * 2 - 1) * decay;
+                    }
+                    const reverb = this.audioCtx.createConvolver();
+                    reverb.buffer = impulse;
+                    const reverbGain = this.audioCtx.createGain();
+                    reverbGain.gain.value = 0.25;
+
+                    // Route: Source → voiceGain → destination (dry)
+                    //        Source → reverb → reverbGain → destination (wet)
+                    source.connect(voiceGain);
+                    source.connect(reverb);
+                    reverb.connect(reverbGain);
+                    voiceGain.connect(this.audioCtx.destination);
+                    reverbGain.connect(this.audioCtx.destination);
+
+                    // On ended: restore BGM + fire callback
+                    source.onended = () => {
+                        this._voiceBufferSource = null;
+                        if (this.gainNode && this.audioCtx) {
+                            this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
+                            if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                        } else if (this.bgm) {
+                            this.bgm.volume = 0.5;
+                        }
+                        if (onEndedCallback) onEndedCallback();
+                    };
+
+                    source.start(0);
+                    console.log(`[Voice] Playing via Web Audio: ${path} (${decodedBuffer.duration.toFixed(1)}s)`);
+
+                    // Clear any existing fallback timeout
+                    if (this._voiceFallbackTimeout) clearTimeout(this._voiceFallbackTimeout);
+                })
+                .catch(err => {
+                    console.warn('[Voice] Web Audio fetch/decode failed:', err);
+                    // Fallback: fire callback after reading delay
+                    this._voiceFallbackTimeout = setTimeout(() => {
+                        if (onEndedCallback) onEndedCallback();
+                    }, 8000);
+                });
+        } else {
+            // === FALLBACK: HTML5 Audio (non-WebAudio browsers) ===
+            this.voiceChannel.onended = () => {
+                if (this.gainNode && this.audioCtx) {
+                    this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
+                    if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                } else if (this.bgm) {
+                    this.bgm.volume = 0.5;
+                }
+                if (onEndedCallback) onEndedCallback();
+                this.voiceChannel.onended = null;
+            };
+
+            this.voiceChannel.volume = 1.0;
+            this.voiceChannel.src = path;
+            this.voiceChannel.load();
+            const playPromise = this.voiceChannel.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.warn("Voice play failed:", e);
+                    this._voiceFallbackTimeout = setTimeout(() => {
+                        if (this.voiceChannel.onended) this.voiceChannel.onended();
+                    }, 8000);
+                });
+            }
         }
     }
 

@@ -231,15 +231,17 @@ export default class StorySequence {
         }
 
         // Sync text scroll speed to audio duration if playing
-        if (this.voicePath && !this._hasGoodSpeed && this.game.audioManager.voiceChannel) {
-            const actualDuration = this.game.audioManager.voiceChannel.duration;
+        if (this.voicePath && !this._hasGoodSpeed) {
+            // Check Web Audio duration first, then HTML5 Audio fallback
+            const actualDuration = this.game.audioManager._voiceDuration
+                || (this.game.audioManager.voiceChannel && this.game.audioManager.voiceChannel.duration);
             const totalHeight = this.lines.length * this.lineHeight + this.game.height * 0.5;
             if (!isNaN(actualDuration) && actualDuration > 1 && actualDuration !== Infinity) {
                 // Add a small 2-second buffer so text finishes slightly after voice ends naturally
                 this.scrollSpeed = totalHeight / (actualDuration + 2);
                 this._hasGoodSpeed = true;
             } else if (this.time > 2.0) {
-                // If 2 seconds have passed and duration is STILL broken/NaN, 
+                // If 2 seconds have passed and duration is STILL unavailable,
                 // Safari or macOS has 100% blocked the audio. Fallback to a safe reading speed!
                 console.warn("Audio duration unavailable/blocked. Using 15s fallback speed.");
                 this.scrollSpeed = totalHeight / 15;
