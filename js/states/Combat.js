@@ -188,13 +188,45 @@ export default class CombatState {
 
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
-                        // AUTO ADVANCE TO NEXT STAGE (No button press required)
-                        if (this.postMatchTimer > 2.0) {
+                        // ─── 10-SECOND COUNTDOWN + ASSET PRELOADING ───
+                        // Start preloading next stage assets immediately
+                        if (!this._nextStagePreloading) {
+                            this._nextStagePreloading = true;
+                            this._postKoCountdown = 10.0;
                             const nextIdx = this.arcadeIndex + 1;
 
-                            // STORY MODE MIDPOINT CHECK
+                            // STORY MODE MIDPOINT CHECK (don't preload, just flag)
                             if (nextIdx === 7 && this.combatData && this.combatData.storyMode) {
-                                this._transitioning = true;
+                                this._nextAction = 'STORY_REFLEXION';
+                            } else if (nextIdx >= ROSTER.length) {
+                                this._nextAction = 'GAME_COMPLETE';
+                            } else {
+                                this._nextAction = 'NEXT_FIGHT';
+                                this._nextIdx = nextIdx;
+                                // Preload next opponent's sprites + stage
+                                const opponent = ROSTER[nextIdx];
+                                this.preloadFighterSprites(opponent);
+                                const stageId = opponent.stageId;
+                                const stage = STAGES[stageId];
+                                const stageKey = `Stage_${stageId}`;
+                                if (stage && !this.game.assetManager.images[stageKey]) {
+                                    this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
+                                }
+                                this.game.assetManager.loadAll(); // Fire and forget
+                                // Preload next stage music
+                                if (stage && stage.music) {
+                                    this.game.audioManager.preloadTrack(`assets/audio/music/${stage.music}`);
+                                }
+                            }
+                        }
+
+                        // Countdown
+                        this._postKoCountdown -= dt;
+
+                        // Auto-advance when countdown reaches 0
+                        if (this._postKoCountdown <= 0) {
+                            this._transitioning = true;
+                            if (this._nextAction === 'STORY_REFLEXION') {
                                 this.game.stateManager.switchState('Story', {
                                     ...STORY_REFLEXION,
                                     nextState: 'VersusIntro',
@@ -208,45 +240,30 @@ export default class CombatState {
                                         arcadeWins: this.arcadeWins + 1,
                                     }
                                 });
-                                return;
-                            }
-                            if (nextIdx >= ROSTER.length) {
-                                // BEAT THE GAME!
+                            } else if (this._nextAction === 'GAME_COMPLETE') {
                                 try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
-
                                 const newlyUnlocked = unlockFighter(this.p1.data.id);
-                                if (newlyUnlocked) {
-                                    console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px; font-weight: bold;');
-                                }
+                                if (newlyUnlocked) console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px;');
 
                                 if (this.combatData && this.combatData.storyMode) {
-                                    // STORY MODE: Play full voiceover sequences ending with Credits
-                                    this._transitioning = true;
                                     this.game.stateManager.switchState('Story', {
                                         ...STORY_EPILOGUE,
                                         nextState: 'Story',
                                         nextData: {
                                             ...STORY_OUTRO,
                                             nextState: 'Story',
-                                            nextData: {
-                                                ...STORY_BIRTHDAY,
-                                                nextState: 'Menu',
-                                                nextData: null,
-                                            },
+                                            nextData: { ...STORY_BIRTHDAY, nextState: 'Menu', nextData: null },
                                         },
                                     });
                                 } else {
-                                    // ARCADE MODE: Skip voiceovers, go straight to Victory / Stats screen
                                     this._newlyUnlocked = newlyUnlocked;
                                     this.matchPhase = 'VICTORY';
-                                    this.inputCooldown = 60; // Wait 1 second before allowing exit
-                                    this.game.audioManager.stopBGM(); // Stop battle music
+                                    this.inputCooldown = 60;
+                                    this.game.audioManager.stopBGM();
                                 }
-                                return;
+                            } else {
+                                this.startArcadeFight(this._nextIdx, this.arcadeWins + 1);
                             }
-                            // Just continue straight to the next fight!
-                            this._transitioning = true;
-                            this.startArcadeFight(nextIdx, this.arcadeWins + 1);
                         }
                     } else {
                         // Player lost — Continue or Quit
@@ -1232,8 +1249,8 @@ export default class CombatState {
         // K.O. text with pulse
         const pulse = 1 + Math.sin(this.koFreezeTimer * 6) * 0.03;
 
-        // Cinematic view: hide K.O. after 1.5 seconds so we can see the slow-mo body flying
-        if (this.koFreezeTimer < 1.5) {
+        // Cinematic view: show K.O. for full 3 seconds
+        if (this.koFreezeTimer < 3.0) {
             ctx.save();
             ctx.translate(cx, cy - 40);
             ctx.scale(pulse, pulse);
@@ -1304,7 +1321,28 @@ export default class CombatState {
             ctx.fillText(`FIGHT ${this.arcadeIndex} / ${ROSTER.length - 1}`, cx, startY - 5);
 
             if (this.winner === 'p1') {
-                // Auto Advance (no text)
+                // ─── VISIBLE COUNTDOWN TIMER ───
+                const countdown = Math.ceil(this._postKoCountdown || 0);
+                ctx.font = 'bold 28px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = '#00ffff';
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 15;
+                ctx.fillText('NEXT STAGE', cx, startY + 10);
+                ctx.shadowBlur = 0;
+
+                // Big countdown number
+                ctx.font = 'bold 72px "Press Start 2P"';
+                ctx.fillStyle = countdown <= 3 ? '#ff0055' : '#fdbf00';
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.shadowBlur = 20;
+                ctx.fillText(`${countdown}`, cx, startY + 90);
+                ctx.shadowBlur = 0;
+
+                // Loading indicator
+                ctx.font = '16px "Press Start 2P"';
+                ctx.fillStyle = '#888';
+                ctx.fillText('LOADING...', cx, startY + 120);
             } else {
                 const lossOpts = ['CONTINUE?', 'GIVE UP'];
                 ctx.font = 'bold 32px "Press Start 2P"';
