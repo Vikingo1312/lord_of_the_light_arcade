@@ -308,6 +308,33 @@ export default class AudioManager {
             this.bgm.volume = 0.2;
         }
 
+        const fallbackToHTML5 = () => {
+            // === FALLBACK: HTML5 Audio (non-WebAudio browsers or decode fail) ===
+            this.voiceChannel.onended = () => {
+                if (this.gainNode && this.audioCtx) {
+                    this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
+                    if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                } else if (this.bgm) {
+                    this.bgm.volume = 0.5;
+                }
+                if (onEndedCallback) onEndedCallback();
+                this.voiceChannel.onended = null;
+            };
+
+            this.voiceChannel.volume = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
+            this.voiceChannel.src = path;
+            this.voiceChannel.load();
+            const playPromise = this.voiceChannel.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(e => {
+                    console.warn("[Voice] HTML5 Audio fallback play failed:", e);
+                    this._voiceFallbackTimeout = setTimeout(() => {
+                        if (this.voiceChannel.onended) this.voiceChannel.onended();
+                    }, 8000);
+                });
+            }
+        };
+
         // === WEB AUDIO API PATH (iOS-compatible!) ===
         // Fetch the voice file as ArrayBuffer, decode, and play through AudioContext.
         // The AudioContext is unlocked at boot → bypasses all iOS autoplay restrictions.
@@ -317,7 +344,17 @@ export default class AudioManager {
                     if (!response.ok) throw new Error(`Voice file not found: ${path}`);
                     return response.arrayBuffer();
                 })
-                .then(buffer => this.audioCtx.decodeAudioData(buffer))
+                .then(buffer => {
+                    return new Promise((resolve, reject) => {
+                        // Older Safari requires callbacks for decodeAudioData
+                        try {
+                            const decodePromise = this.audioCtx.decodeAudioData(buffer, resolve, reject);
+                            if (decodePromise) decodePromise.catch(reject);
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                })
                 .then(decodedBuffer => {
                     // Stop any previous voice
                     if (this._voiceBufferSource) {
@@ -332,7 +369,7 @@ export default class AudioManager {
 
                     // Create voice gain for volume control
                     const voiceGain = this.audioCtx.createGain();
-                    voiceGain.gain.value = 1.0;
+                    voiceGain.gain.value = this.game.settings?.voiceVolume !== undefined ? this.game.settings.voiceVolume : 1.0;
 
                     // Create subtle reverb (short room effect)
                     const reverbLength = this.audioCtx.sampleRate * 0.15;
@@ -376,37 +413,11 @@ export default class AudioManager {
                     if (this._voiceFallbackTimeout) clearTimeout(this._voiceFallbackTimeout);
                 })
                 .catch(err => {
-                    console.warn('[Voice] Web Audio fetch/decode failed:', err);
-                    // Fallback: fire callback after reading delay
-                    this._voiceFallbackTimeout = setTimeout(() => {
-                        if (onEndedCallback) onEndedCallback();
-                    }, 8000);
+                    console.warn('[Voice] Web Audio fetch/decode failed, attempting HTML5 Fallback...', err);
+                    fallbackToHTML5();
                 });
         } else {
-            // === FALLBACK: HTML5 Audio (non-WebAudio browsers) ===
-            this.voiceChannel.onended = () => {
-                if (this.gainNode && this.audioCtx) {
-                    this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                    if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-                } else if (this.bgm) {
-                    this.bgm.volume = 0.5;
-                }
-                if (onEndedCallback) onEndedCallback();
-                this.voiceChannel.onended = null;
-            };
-
-            this.voiceChannel.volume = 1.0;
-            this.voiceChannel.src = path;
-            this.voiceChannel.load();
-            const playPromise = this.voiceChannel.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(e => {
-                    console.warn("Voice play failed:", e);
-                    this._voiceFallbackTimeout = setTimeout(() => {
-                        if (this.voiceChannel.onended) this.voiceChannel.onended();
-                    }, 8000);
-                });
-            }
+            fallbackToHTML5();
         }
     }
 

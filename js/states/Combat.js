@@ -230,18 +230,23 @@ export default class CombatState {
                         if (this._postKoCountdown <= 0) {
                             this._transitioning = true;
                             if (this._nextAction === 'STORY_REFLEXION') {
-                                this.game.stateManager.switchState('Story', {
-                                    ...STORY_REFLEXION,
-                                    nextState: 'VersusIntro',
-                                    nextData: {
-                                        p1: this.p1.data,
-                                        p2: { ...ROSTER[7], rosterIndex: 7 },
-                                        stageId: ROSTER[7].stageId,
-                                        arcadeMode: true,
-                                        storyMode: true,
-                                        arcadeIndex: 7,
-                                        arcadeWins: this.arcadeWins + 1,
-                                    }
+                                // AWAIT asset loads before switching to Story, so skipping story doesn't break VersusIntro
+                                const loadPromise = this.game.assetManager.loadAll();
+                                const timeoutPromise = new Promise(resolve => setTimeout(resolve, 10000));
+                                Promise.race([loadPromise, timeoutPromise]).then(() => {
+                                    this.game.stateManager.switchState('Story', {
+                                        ...STORY_REFLEXION,
+                                        nextState: 'VersusIntro',
+                                        nextData: {
+                                            p1: this.p1.data,
+                                            p2: { ...ROSTER[7], rosterIndex: 7 },
+                                            stageId: ROSTER[7].stageId,
+                                            arcadeMode: true,
+                                            storyMode: true,
+                                            arcadeIndex: 7,
+                                            arcadeWins: this.arcadeWins + 1,
+                                        }
+                                    });
                                 });
                             } else if (this._nextAction === 'GAME_COMPLETE') {
                                 try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }

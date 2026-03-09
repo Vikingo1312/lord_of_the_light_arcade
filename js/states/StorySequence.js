@@ -381,7 +381,8 @@ export default class StorySequence {
                     this.game.stateManager.switchState(this.nextState, this.nextData);
                 } catch (e) {
                     console.error('[StorySequence] Transition failed:', e);
-                    this.game.stateManager.switchState('Menu');
+                    this._advanced = false;
+                    try { this.game.stateManager.switchState('Menu'); } catch (e2) { }
                 }
                 return;
             }
@@ -398,7 +399,9 @@ export default class StorySequence {
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             } catch (e) {
                 console.error('[StorySequence] Skip transition failed:', e);
-                this.game.stateManager.switchState('Menu');
+                this._advanced = false; // Unfreeze the loop so the user can try again!
+                // Force a hard reset to Menu if nextState completely failed
+                try { this.game.stateManager.switchState('Menu'); } catch (e2) { }
             }
             return;
         }
