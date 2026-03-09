@@ -136,10 +136,20 @@ export default class StorySequence {
         // Fade-out state for smooth transitions
         this.fadeOut = 0;   // 0 = fully visible, 1 = fully faded
         this.fading = false;
+
+        // Safety timeout: force-advance after 30s even if everything is stuck
+        this._safetyTimeout = setTimeout(() => {
+            if (!this._advanced) {
+                console.warn('[StorySequence] Safety timeout — force-advancing');
+                this._advanced = true;
+                this.game.stateManager.switchState(this.nextState, this.nextData);
+            }
+        }, 30000);
     }
 
     exit() {
         if (this.autoFinishTimer) clearTimeout(this.autoFinishTimer);
+        if (this._safetyTimeout) clearTimeout(this._safetyTimeout);
         // Always stop voice when leaving a story scene
         this.game.audioManager.stopVoice();
 
@@ -185,9 +195,10 @@ export default class StorySequence {
 
         // Smooth fade-out transition
         if (this.fading) {
-            this.fadeOut += dt / 2; // 2 second fade
+            this.fadeOut += dt; // 1 second fade (was 2 — felt too slow on mobile)
             if (this.fadeOut >= 1 && !this._advanced) {
                 this._advanced = true;
+                console.log(`[StorySequence] Advancing to: ${this.nextState}`);
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
             return; // Stop all other updates during fade
@@ -340,9 +351,10 @@ export default class StorySequence {
             }
         }
 
-        // Allow skip with any button/touch after 5s (starts fade, doesn't cut)
+        // Allow skip with any button/touch after 2s (starts fade, doesn't cut)
         // Birthday: this is the ONLY way to exit
-        if (this.time > 5 && (p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down || p1.left || p1.right) && !this.fading) {
+        if (this.time > 2 && (p1.lJust || p1.hJust || p1.sJust || p1.up || p1.down || p1.left || p1.right) && !this.fading) {
+            console.log('[StorySequence] Skip triggered by user input');
             this.fading = true;
         }
     }
