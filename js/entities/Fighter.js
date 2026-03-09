@@ -481,6 +481,12 @@ export default class Fighter {
             }
 
             // 2. Draw Sprite if loaded
+            // On iOS/Safari, bypassing ChromaKey can momentarily yield an HTMLImageElement 
+            // with 0 naturalHeight before it fully decodes. Prevent division by zero crash!
+            if (!spriteImage.naturalHeight || !spriteImage.naturalWidth) {
+                return; // Skip drawing this frame until iOS decodes the raw image
+            }
+
             // Sprites are massive, we scale them down to roughly 400px tall
             const scale = 400 / spriteImage.naturalHeight;
             const drawW = spriteImage.naturalWidth * scale;
