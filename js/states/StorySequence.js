@@ -140,9 +140,14 @@ export default class StorySequence {
         // Safety timeout: force-advance after 15s even if everything is stuck
         this._safetyTimeout = setTimeout(() => {
             if (!this._advanced) {
-                console.warn('[StorySequence] Safety timeout — force-advancing');
+                console.warn('[StorySequence] Safety timeout — force-advancing to:', this.nextState);
                 this._advanced = true;
-                this.game.stateManager.switchState(this.nextState, this.nextData);
+                try {
+                    this.game.stateManager.switchState(this.nextState, this.nextData);
+                } catch (e) {
+                    console.error('[StorySequence] Safety fallback failed:', e);
+                    this.game.stateManager.switchState('Menu');
+                }
             }
         }, 15000);
     }
@@ -348,7 +353,13 @@ export default class StorySequence {
             this.finishTimer += dt;
             if (this.finishTimer > 0.5) {
                 this._advanced = true;
-                this.game.stateManager.switchState(this.nextState, this.nextData);
+                console.log('[StorySequence] Voice ended — advancing to:', this.nextState);
+                try {
+                    this.game.stateManager.switchState(this.nextState, this.nextData);
+                } catch (e) {
+                    console.error('[StorySequence] Transition failed:', e);
+                    this.game.stateManager.switchState('Menu');
+                }
                 return;
             }
         }
@@ -357,9 +368,14 @@ export default class StorySequence {
         // NOTE: Do NOT use p1.up/down/left/right — those are HELD states that fire every frame!
         // Birthday: this is the ONLY way to exit
         if (this.time > 3 && (p1.lJust || p1.hJust || p1.sJust)) {
-            console.log('[StorySequence] Skip triggered — instant switch');
+            console.log('[StorySequence] Skip triggered — advancing to:', this.nextState, 'with data:', JSON.stringify(this.nextData ? { p1: this.nextData.p1?.id, p2: this.nextData.p2?.id } : null));
             this._advanced = true;
-            this.game.stateManager.switchState(this.nextState, this.nextData);
+            try {
+                this.game.stateManager.switchState(this.nextState, this.nextData);
+            } catch (e) {
+                console.error('[StorySequence] Skip transition failed:', e);
+                this.game.stateManager.switchState('Menu');
+            }
             return;
         }
     }
