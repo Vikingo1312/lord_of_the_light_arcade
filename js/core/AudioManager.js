@@ -156,7 +156,6 @@ export default class AudioManager {
 
         this.currentPath = path;
         this.bgm = new Audio(path);
-        this.bgm.crossOrigin = 'anonymous';
         this.bgm.loop = loop;
 
         if (this.audioCtx && this.lpFilter && this.gainNode) {

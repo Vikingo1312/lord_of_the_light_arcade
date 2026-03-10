@@ -57,40 +57,21 @@ export default class AssetManager {
                     const aud = new Audio();
                     this.audioBuffer[item.key] = aud;
 
-                    let resolved = false;
-
-                    // 1. Listen for the native load completion
                     aud.oncanplaythrough = () => {
-                        if (resolved) return;
-                        resolved = true;
                         this.loadedCount++;
                         if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
                         resolve();
                     };
 
                     aud.onerror = () => {
-                        if (!resolved) {
-                            resolved = true;
-                            console.warn(`Failed to pre-load audio: ${item.path}`);
-                            this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
-                            resolve();
-                        }
+                        console.warn(`Failed to pre-load audio: ${item.path}`);
+                        this.loadedCount++;
+                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                        resolve();
                     };
 
                     aud.src = item.path;
                     aud.load();
-
-                    // 2. iOS Safari Fallback Timer (MAX 2 SECONDS PER FILE)
-                    setTimeout(() => {
-                        if (!resolved) {
-                            resolved = true;
-                            console.warn(`Audio preload timeout for ${item.path} - bypassing to prevent hang`);
-                            this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
-                            resolve(); // Force resolve if it takes too long
-                        }
-                    }, 2000);
                 }
             });
         });
