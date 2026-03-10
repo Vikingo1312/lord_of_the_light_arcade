@@ -36,8 +36,8 @@ export default class CharacterSelectState {
 
         this.inputCooldown = 20;
         this.loadingCombat = false;
-        // Play char select music
-        this.game.audioManager.playBGM('assets/audio/music/selectmenu_theme.mp3', true, false, 0.15);
+        // Play continuous main theme across menu and select screens
+        this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.15);
     }
 
     exit() {
