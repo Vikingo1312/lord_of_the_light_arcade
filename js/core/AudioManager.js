@@ -182,21 +182,37 @@ export default class AudioManager {
     }
 
     stopBGM() {
-        // Clear any pending play promise reference (but do NOT use .then() to pause — 
-        // that creates a race condition where the callback pauses the NEW bgm!)
-        this._bgmPlayPromise = null;
+        const oldBgm = this.bgm;
+        const oldPromise = this._bgmPlayPromise;
 
-        if (this.bgm) {
-            try { this.bgm.pause(); } catch (e) { }
-            this.bgm.removeAttribute('src'); // Completely nuke the source so it can't restart
-            this.bgm.load(); // Force element reload state
-            this.bgm = null;
-        }
+        // Clear references immediately so new tracks can start without interference
+        this.bgm = null;
+        this._bgmPlayPromise = null;
+        this.currentPath = '';
+
         if (this.bgmSource) {
             try { this.bgmSource.disconnect(); } catch (e) { }
             this.bgmSource = null;
         }
-        this.currentPath = '';
+
+        if (oldBgm) {
+            // Check if there is an unresolved play promise preventing an immediate pause
+            if (oldPromise !== undefined && oldPromise !== null) {
+                oldPromise.then(() => {
+                    try { oldBgm.pause(); } catch (e) { }
+                    oldBgm.removeAttribute('src');
+                    oldBgm.load();
+                }).catch(e => {
+                    // It was already aborted by the browser
+                    oldBgm.removeAttribute('src');
+                    oldBgm.load();
+                });
+            } else {
+                try { oldBgm.pause(); } catch (e) { }
+                oldBgm.removeAttribute('src');
+                oldBgm.load();
+            }
+        }
     }
     _createVoiceReverb() {
         if (!this.audioCtx || this.voiceReverbNode) return;
@@ -241,8 +257,23 @@ export default class AudioManager {
             clearTimeout(this._voiceFallbackTimeout);
             this._voiceFallbackTimeout = null;
         }
-        this.voiceChannel.pause();
-        this.voiceChannel.currentTime = 0;
+
+        const oldPromise = this._voicePlayPromise;
+        const voiceRef = this.voiceChannel;
+
+        if (oldPromise !== undefined && oldPromise !== null) {
+            oldPromise.then(() => {
+                try { voiceRef.pause(); } catch (e) { }
+                voiceRef.currentTime = 0;
+            }).catch(() => {
+                voiceRef.currentTime = 0;
+            });
+        } else {
+            try { voiceRef.pause(); } catch (e) { }
+            voiceRef.currentTime = 0;
+        }
+
+        this._voicePlayPromise = null;
         // Restore BGM volume & Remove Filter
         if (this.gainNode && this.audioCtx) {
             this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.1);
@@ -275,9 +306,9 @@ export default class AudioManager {
         this.voiceChannel.volume = 1.0; // Restore volume (unlockAudio sets it to 0)
         this.voiceChannel.src = path;
 
-        const playPromise = this.voiceChannel.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(e => {
+        this._voicePlayPromise = this.voiceChannel.play();
+        if (this._voicePlayPromise !== undefined) {
+            this._voicePlayPromise.catch(e => {
                 console.warn("Voice play failed or was blocked by browser:", e);
                 // CRITICAL FIX: If the voice is blocked by Safari Autoplay Policy or is a 404 missing file, 
                 // the 'onended' event will NEVER fire natively. This completely breaks Story sequences!
@@ -307,30 +338,47 @@ export default class AudioManager {
         // SFX channels are raw HTML5 Audio elements, NOT routed through WebAudio,
         // so they should play even if AudioContext is suspended.
         const channel = this.sfxChannels[this.sfxIndex];
+
+        // Safely clear out any pending play promise from a previous sound on this channel
+        if (channel._sfxPromise !== undefined && channel._sfxPromise !== null) {
+            channel._sfxPromise.then(() => {
+                try { channel.pause(); } catch (e) { }
+                channel.currentTime = 0;
+            }).catch(() => { });
+        } else {
+            try { channel.pause(); } catch (e) { }
+            channel.currentTime = 0;
+        }
+
         channel.src = path;
         channel.volume = isHeavy ? 1.0 : 0.6;
 
-        channel.play().catch(e => {
-            // Automatic Fallback 1: 'voice/' subdirectory mismatch
-            if (path.includes('voice/')) {
-                const fallbackPath = path.replace('voice/', '');
-                channel.src = fallbackPath;
-                channel.play().catch(() => { });
-            }
-            // Automatic Fallback 2: Missing Character Audio
-            // If a boss lacks custom hit/ko/special voice sounds, fall back to Keano 
-            // so that at least the physical impact (punch smack) is heard!
-            else if (path.includes('_hit.mp3')) {
-                channel.src = 'assets/audio/keano_hit.mp3';
-                channel.play().catch(() => { });
-            } else if (path.includes('_ko.mp3')) {
-                channel.src = 'assets/audio/keano_ko.mp3';
-                channel.play().catch(() => { });
-            } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
-                channel.src = 'assets/audio/keano_special.mp3';
-                channel.play().catch(() => { });
-            }
-        });
+        channel._sfxPromise = channel.play();
+        if (channel._sfxPromise !== undefined) {
+            channel._sfxPromise.catch(e => {
+                // Automatic Fallback 1: 'voice/' subdirectory mismatch
+                if (path.includes('voice/')) {
+                    const fallbackPath = path.replace('voice/', '');
+                    channel.src = fallbackPath;
+                    channel._sfxPromise = channel.play();
+                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+                }
+                // Automatic Fallback 2: Missing Character Audio
+                else if (path.includes('_hit.mp3')) {
+                    channel.src = 'assets/audio/keano_hit.mp3';
+                    channel._sfxPromise = channel.play();
+                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+                } else if (path.includes('_ko.mp3')) {
+                    channel.src = 'assets/audio/keano_ko.mp3';
+                    channel._sfxPromise = channel.play();
+                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+                } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
+                    channel.src = 'assets/audio/keano_special.mp3';
+                    channel._sfxPromise = channel.play();
+                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+                }
+            });
+        }
 
         this.sfxIndex = (this.sfxIndex + 1) % this.sfxChannels.length;
     }
