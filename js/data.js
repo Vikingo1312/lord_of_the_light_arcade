@@ -48,13 +48,13 @@ export const STAGES = {
     'China': { file: '4_Tzubaza_China.png', music: '4_China.mp3', name: 'Forbidden City' },
     'Italy': { file: '5_Al_Capone_Italy.png', music: '5_Italy.mp3', name: 'Colosseum' },
     'Germany': { file: '6_C_Gargamel_Germany.png', music: '6_Germany.mp3', name: 'Berlin Wall' },
-    'Jamaica': { file: '7_Jamaica.png', music: '7_Jamaica.wav', name: 'Kingston Beach' },
+    'Jamaica': { file: '7_Jamaica.png', music: '7_Jamaica.mp3', name: 'Kingston Beach' },
     'Poland': { file: '8_Kowalski_Poland.png', music: '8_Poland.mp3', name: 'Warsaw Arena' },
     'Mexico': { file: '9_Paco_El_Taco_Mexico.png', music: '9_Mexico.mp3', name: 'Aztec Ruins' },
     'Spain': { file: '10_Juan_Spain.png', music: '10_Spain.mp3', name: 'Barcelona Ring' },
     'Dojo': { file: '12_Jayden_Dojo.png', music: '12_Dojo_Dark.mp3', name: 'Shadow Dojo' },
-    'Russia': { file: '13_Putin_Russia.png', music: '13_Russia.wav', name: 'Siberian Frost' },
-    'Valhalla': { file: '14_Dark Vikingo_Valhalla_Boss.png', music: '14_Valhalla.wav', name: 'Valhalla Gates' },
+    'Russia': { file: '13_Putin_Russia.png', music: '13_Russia_Ice.mp3', name: 'Siberian Frost' },
+    'Valhalla': { file: '14_Dark Vikingo_Valhalla_Boss.png', music: 'main_soundtrack.mp3', name: 'Valhalla Gates' },
     'Canada': { file: 'Extra_Canada.png', music: 'main_soundtrack.mp3', name: 'Canada Arena' },
 };
 

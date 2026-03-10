@@ -738,9 +738,10 @@ export default class CombatState {
         for (const suf of suffixes) {
             const key = `${char.id}${suf}.png`;
             if (!this.game.assetManager.images[key]) {
-                // AssetManager check both prefixed and un-prefixed versions
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
-                this.game.assetManager.queueImage(key + '_fallback', `assets/CHARACTERS/${char.folder}/${suf}.png`);
+                // Try the generic, widely-used un-prefixed version first to avoid 404 spam
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png`);
+                // Fallback to the prefixed version if the generic one fails
+                this.game.assetManager.queueImage(key + '_fallback', `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
             }
         }
 
