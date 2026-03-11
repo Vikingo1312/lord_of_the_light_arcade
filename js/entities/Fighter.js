@@ -317,6 +317,7 @@ export default class Fighter {
 
         // 1. Determine which sprite to draw
         let spriteImage = null;
+        let exactKey = '';
 
         // Map State to Image Key suffix
         let suffix = '_front.png';
@@ -335,7 +336,7 @@ export default class Fighter {
             else if (this.state === 'WIN') suffix = '_win.png';
             needsMirror = false; // Never mirror
 
-            const exactKey = `${this.data.id}${suffix}`;
+            exactKey = `${this.data.id}${suffix}`;
             const fallbackKey = `${this.data.id}${suffix}_fallback`;
             spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
 
@@ -415,7 +416,7 @@ export default class Fighter {
 
                 // Only look up by key if we didn't already set a custom spriteImage
                 if (suffix !== '__CUSTOM__') {
-                    const exactKey = `${this.data.id}${suffix}`;
+                    exactKey = `${this.data.id}${suffix}`;
                     const fallbackKey = `${this.data.id}${suffix}_fallback`;
                     spriteImage = imgs[exactKey] || imgs[fallbackKey];
                 }
@@ -435,7 +436,7 @@ export default class Fighter {
                 } else if (this.state === 'WIN') {
                     suffix = '_win.png';
                 }
-                const exactKey = `${this.data.id}${suffix}`;
+                exactKey = `${this.data.id}${suffix}`;
                 const fallbackKey = `${this.data.id}${suffix}_fallback`;
                 spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
             }
@@ -458,10 +459,9 @@ export default class Fighter {
                     console.error(`[Fighter] SCENE ERROR: Missing sprite for ${this.data.id} in state ${this.state} (Tried: ${exactKey} & Fallbacks)`);
                     this._loggedMissingSprite = true;
                 }
-                // Draw a red debug box to explicitly show the missing asset rather than silently defaulting to front
-                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-                ctx.fillRect(this.x - 50, this.y - 120, 100, 120);
-                return; // Don't crash, just draw the error box
+
+                // Return gracefully without drawing anything until the asset finishes loading over the network
+                return;
             }
 
             // --- SAFETY: Prevent Ghost Trading Cards on K.O. ---

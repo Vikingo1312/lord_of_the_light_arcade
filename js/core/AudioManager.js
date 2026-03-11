@@ -199,13 +199,17 @@ export default class AudioManager {
             // Check if there is an unresolved play promise preventing an immediate pause
             if (oldPromise !== undefined && oldPromise !== null) {
                 oldPromise.then(() => {
-                    try { oldBgm.pause(); } catch (e) { }
-                    oldBgm.removeAttribute('src');
-                    oldBgm.load();
+                    if (this._bgmPlayPromise === oldPromise || this._bgmPlayPromise === null) {
+                        try { oldBgm.pause(); } catch (e) { }
+                        oldBgm.removeAttribute('src');
+                        oldBgm.load();
+                    }
                 }).catch(e => {
                     // It was already aborted by the browser
-                    oldBgm.removeAttribute('src');
-                    oldBgm.load();
+                    if (this._bgmPlayPromise === oldPromise || this._bgmPlayPromise === null) {
+                        oldBgm.removeAttribute('src');
+                        oldBgm.load();
+                    }
                 });
             } else {
                 try { oldBgm.pause(); } catch (e) { }
@@ -263,10 +267,14 @@ export default class AudioManager {
 
         if (oldPromise !== undefined && oldPromise !== null) {
             oldPromise.then(() => {
-                try { voiceRef.pause(); } catch (e) { }
-                voiceRef.currentTime = 0;
+                if (this._voicePlayPromise === oldPromise || this._voicePlayPromise === null) {
+                    try { voiceRef.pause(); } catch (e) { }
+                    voiceRef.currentTime = 0;
+                }
             }).catch(() => {
-                voiceRef.currentTime = 0;
+                if (this._voicePlayPromise === oldPromise || this._voicePlayPromise === null) {
+                    voiceRef.currentTime = 0;
+                }
             });
         } else {
             try { voiceRef.pause(); } catch (e) { }
@@ -338,12 +346,15 @@ export default class AudioManager {
         // SFX channels are raw HTML5 Audio elements, NOT routed through WebAudio,
         // so they should play even if AudioContext is suspended.
         const channel = this.sfxChannels[this.sfxIndex];
+        const oldPromise = channel._sfxPromise;
 
         // Safely clear out any pending play promise from a previous sound on this channel
-        if (channel._sfxPromise !== undefined && channel._sfxPromise !== null) {
-            channel._sfxPromise.then(() => {
-                try { channel.pause(); } catch (e) { }
-                channel.currentTime = 0;
+        if (oldPromise !== undefined && oldPromise !== null) {
+            oldPromise.then(() => {
+                if (channel._sfxPromise === oldPromise || channel._sfxPromise === null) {
+                    try { channel.pause(); } catch (e) { }
+                    channel.currentTime = 0;
+                }
             }).catch(() => { });
         } else {
             try { channel.pause(); } catch (e) { }
