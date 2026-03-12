@@ -77,8 +77,8 @@ export function isFighterUnlocked(id) {
     // Main roster is always unlocked
     if (ROSTER.find(f => f.id === id)) return true;
 
-    // Check DEV unlock flag (optional bypass)
-    // if (localStorage.getItem('DEV_UNLOCK_ALL') === 'true') return true;
+    // V21 FIX: Unlock requested special characters for the user
+    if (id === 'SupremeKeano' || id === 'HyperKeano') return true;
 
     // Check localStorage
     const saved = localStorage.getItem(`unlock_${id}`);
