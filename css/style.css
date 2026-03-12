@@ -1,0 +1,166 @@
+:root {
+    --neon-yellow: #f0f000;
+    --neon-glow: 0 0 10px #f0f000, 0 0 20px #f0f000, 0 0 30px #f0f000;
+}
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #000;
+    color: #fff;
+    font-family: 'Courier New', Courier, monospace; /* Arcade style */
+    overflow: hidden;
+    user-select: none;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.active {
+    display: flex !important;
+}
+
+/* 1️⃣ Boot Screen */
+#boot-screen {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    z-index: 100;
+    position: absolute;
+    top: 0;
+    left: 0;
+    background: #000;
+}
+
+.neon-text {
+    color: var(--neon-yellow);
+    text-shadow: var(--neon-glow);
+    font-size: 2.5rem;
+    letter-spacing: 4px;
+}
+
+.blink {
+    animation: blinker 1.2s cubic-bezier(1, 0, 0, 1) infinite;
+}
+
+@keyframes blinker {
+    50% { opacity: 0; }
+}
+
+/* 2️⃣ Main Menu / Cosmic Shimmer */
+#main-menu {
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+    background: #000;
+}
+
+#cosmic-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: url('../assets/images/UX_Cosmic_Shimmer.png') center/cover no-repeat;
+    background-color: #050510; /* Space dark if img missing */
+    opacity: 0;
+    transition: opacity 2.5s ease-in-out;
+    z-index: 1;
+}
+
+.logo-container {
+    text-align: center;
+    margin-top: 15vh;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 2;
+}
+
+.game-logo {
+    font-size: 4.5rem;
+    font-weight: 900;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(255,255,255,0.8), 0 0 40px rgba(255,100,0,0.8);
+    margin: 0;
+    letter-spacing: 6px;
+    font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+}
+
+.subtitle {
+    font-size: 2rem;
+    color: var(--neon-yellow);
+    text-shadow: var(--neon-glow);
+    letter-spacing: 12px;
+    display: block;
+    margin-top: 15px;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.menu-options {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: auto;
+    margin-bottom:  १५vh;
+    gap: 25px;
+    opacity: 0;
+    transition: opacity 1.5s ease-in 1.5s; /* Delays appearance */
+    z-index: 2;
+}
+
+.menu-btn {
+    background: transparent;
+    border: 3px solid var(--neon-yellow);
+    color: var(--neon-yellow);
+    padding: 15px 50px;
+    font-size: 1.8rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+    box-shadow: inset 0 0 10px rgba(240,240,0,0.2), 0 0 15px rgba(240,240,0,0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.menu-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(240,240,0,0.4), transparent);
+    transition: left 0.5s ease;
+}
+
+.menu-btn:hover::before {
+    left: 100%;
+}
+
+.menu-btn:hover {
+    background: var(--neon-yellow);
+    color: #000;
+    box-shadow: var(--neon-glow);
+    transform: scale(1.05) translateY(-2px);
+    text-shadow: none;
+}

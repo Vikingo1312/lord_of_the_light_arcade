@@ -1,0 +1,127 @@
+/* Phase 3: Character Select */
+#character-select {
+    width: 100vw;
+    height: 100vh;
+    background: url('../assets/images/UX_Cosmic_Shimmer.png') center/cover no-repeat;
+    background-color: #0a0a1a;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 5vh;
+}
+
+.select-title {
+    margin-bottom: 2rem;
+    font-size: 3rem;
+}
+
+.roster-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    border: 2px solid var(--neon-yellow);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(240, 240, 0, 0.2);
+}
+
+.fighter-slot {
+    width: 120px;
+    height: 120px;
+    border: 2px solid #555;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    background: #222;
+    transition: all 0.1s;
+}
+
+.fighter-slot:hover,
+.fighter-slot.selected {
+    border-color: var(--neon-yellow);
+    box-shadow: 0 0 15px var(--neon-yellow);
+    transform: scale(1.05);
+    z-index: 2;
+}
+
+.fighter-slot img.portrait {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.8));
+}
+
+.fighter-slot .name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 2px 0;
+    font-weight: bold;
+    border-top: 1px solid var(--neon-yellow);
+}
+
+.boss-slot {
+    border-color: #f00;
+    /* Bosses have red borders initially */
+}
+
+.boss-slot:hover {
+    border-color: #ff5555;
+    box-shadow: 0 0 15px #ff0000;
+}
+
+/* VS Screen Overlay */
+#vs-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    z-index: 400;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.5s;
+}
+
+#vs-screen.active {
+    display: flex !important;
+    opacity: 1;
+}
+
+.fighter-display {
+    text-align: center;
+    width: 40vw;
+}
+
+.fighter-display img {
+    height: 60vh;
+    object-fit: contain;
+    filter: drop-shadow(0 0 20px var(--neon-yellow));
+}
+
+.fighter-display h3 {
+    font-size: 3rem;
+    color: var(--neon-yellow);
+    text-shadow: var(--neon-glow);
+    margin-top: 20px;
+}
+
+.vs-logo {
+    font-size: 6rem;
+    color: #ff0000;
+    text-shadow: 0 0 20px #ff0000;
+}

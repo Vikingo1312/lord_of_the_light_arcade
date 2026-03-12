@@ -1,0 +1,81 @@
+/* Phase 4: Combat Screen UI */
+#combat-screen {
+    width: 100vw;
+    height: 100vh;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 500;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game-canvas {
+    background: url('../assets/images/Level_Background.png') center/cover no-repeat;
+    /* Placeholder until arena loader */
+    background-color: #222;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+}
+
+.screen-shake {
+    animation: shake 0.15s cubic-bezier(.36, .07, .19, .97) both;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+@keyframes shake {
+
+    10%,
+    90% {
+        transform: translate3d(-4px, 0, 0);
+    }
+
+    20%,
+    80% {
+        transform: translate3d(5px, 0, 0);
+    }
+
+    30%,
+    50%,
+    70% {
+        transform: translate3d(-8px, 0, 0);
+    }
+
+    40%,
+    60% {
+        transform: translate3d(8px, 0, 0);
+    }
+}
+
+/* K.O. Display overlays */
+#combat-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.ko-banner {
+    font-family: Impact, sans-serif;
+    font-size: 15rem;
+    color: #ff0000;
+    text-shadow: 0 0 30px #ff0000, 10px 10px 0 #000;
+    -webkit-text-stroke: 5px #fff;
+    transform: scale(2);
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.ko-banner.active {
+    display: block !important;
+    transform: scale(1);
+    opacity: 1;
+}

@@ -1,0 +1,136 @@
+/**
+ * Story text data for all 4 cinematic sequences.
+ * Markup: {hl:text} = Keano-blue highlight, {u:text} = underlined epic word
+ * All other text renders in pure white.
+ */
+
+export const STORY_PROLOGUE = {
+    voicePath: 'assets/audio/prologue_voice.mp3',
+    lines: [
+        'Nicht jede Erschütterung beginnt mit einem {u:Knall}...',
+        '',
+        'Manche beginnen {u:leise}...',
+        'wie ein Schatten, der über die Sterne gleitet...',
+        '',
+        'Die {hl:Dimensionen} drifteten auseinander.',
+        'Ideologien verhärteten sich...',
+        '{hl:Licht} wurde gehortet, als sei es Besitz...',
+        '',
+        'Und irgendwo zwischen Sternen und Schatten',
+        'stand ein Junge, der noch nicht wusste,',
+        'dass sein {u:Name} einmal durch {hl:Welten} getragen werden würde...',
+        '',
+        'Und dass {u:wahre Stärke} nicht im Beherrschen liegt —',
+        'sondern im {u:Verbinden}.',
+    ],
+};
+
+export const STORY_REFLEXION = {
+    voicePath: 'assets/audio/reflexion_voice.mp3',
+    lines: [
+        'Die {hl:Arenen} sind durchschritten...',
+        '',
+        'Die Vertreter gefallen — nicht als Besiegte,',
+        'sondern als {u:Offenbarte}.',
+        '',
+        '{hl:Keano} trat in jede Dimension als Fremder.',
+        'Er verließ sie als {u:Spiegel}.',
+        '',
+        'Denn was er bekämpfte, war nie nur Dunkelheit...',
+        'Es war die Angst vor {u:Veränderung}...',
+        'die Furcht, Kontrolle zu verlieren...',
+        'der Irrglaube, dass Isolation Stärke sei...',
+        '',
+        'Jede Welt trug ihr eigenes {hl:Licht}...',
+        'doch sie hielten es fest, als wäre es endlich...',
+        '',
+        '{hl:Keano} verstand etwas, das nur wenige begreifen...',
+        '{hl:Licht} wird schwächer, wenn man es {u:einsperrt}...',
+        '',
+        'Manche Dimensionen werden sich wieder setzen...',
+        'Manche fallen wieder in Schatten...',
+        '',
+        'Doch nun existiert ein {u:Weg}...',
+        'ein Pfad zwischen den Welten...',
+        'geöffnet von einem Jungen von {hl:vierzehn Wintern}...',
+        'der sich weigerte, Zersplitterung als Schicksal zu akzeptieren...',
+        '',
+        'Solange Dimensionen treiben...',
+        'solange Macht über Mitgefühl gestellt wird...',
+        'wird es jemanden brauchen, der in die Mitte tritt',
+        'und {u:leuchtet}...',
+        '',
+        'Und dennoch: {u:unerschütterlich}...',
+    ],
+};
+
+export const STORY_EPILOGUE = {
+    voicePath: 'assets/audio/epilogue_voice.mp3',
+    lines: [
+        'Der letzte Gegner war kein Fremder...',
+        'Er war sein {u:Vater}.',
+        '',
+        '{hl:Vikingo} — Hüter der Lichtlinie,',
+        'Vater zweier Söhne:',
+        '{hl:Keano}, der das Licht trug...',
+        'und Jayden, der das Feuer trug...',
+        '',
+        'Zu lange hatte {hl:Vikingo} in den Abgrund geblickt...',
+        'und der Abgrund blickte zurück...',
+        'Die Dunkelheit fraß sein {hl:Licht}...',
+        '',
+        'Doch {hl:Keano} schlug nicht zu, um zu zerstören...',
+        'Er schlug zu, um zu {u:befreien}...',
+        '',
+        'Jeder Schlag war ein Ruf:',
+        '„{u:Komm zurück ins Licht}..."',
+        '',
+        'Die Linie seiner Ahnen lehrte ihn:',
+        'Energie darf nicht blockiert werden...',
+        'Sie muss {u:fließen}.',
+        '',
+        '{hl:Keano} verband das alte Feuer...',
+        'Und die Galaxie atmete wieder...',
+        '',
+        'Sanft... Leise...',
+        'Und dennoch {u:unerschütterlich}...',
+    ],
+};
+
+export const STORY_OUTRO = {
+    voicePath: 'assets/audio/outro_voice.mp3',
+    lines: [
+        'Der Kampf endete...',
+        'nicht mit Vernichtung... sondern mit {u:Erinnerung}...',
+        '',
+        'Das {hl:Licht} war nicht stärker geworden...',
+        'Es war wieder im {u:Fluss}...',
+        '',
+        'Und in diesem Fluss lag {u:Hoffnung}...',
+        '',
+        'Leise... doch {u:unvergänglich}...',
+    ],
+};
+
+export const STORY_BIRTHDAY = {
+    voicePath: '', // Plays music seamlessly, no voice yet unless provided
+    lines: [
+        '🏆 {hl:HAPPY BIRTHDAY KEANO!} 🏆',
+        '🎇',
+        'Ein {hl:Lichtkristall} wurde dir freigeschaltet –',
+        'ein Geschenk des Lords of the Light selbst.',
+        '',
+        'Mit diesem Kristall kannst du',
+        'epische Icons für deinen Avatar erwerben.',
+        'Er kann nur vom Lord of the Light genutzt werden',
+        'und muss bei deinem Vater eingelöst werden',
+        'bis zum nächsten Lichtmond, am {hl:28. Februar 2027}.',
+        '',
+        'Möge dein Licht hell brennen',
+        'und jede Dimension erleuchten, die du betrittst.',
+        '',
+        'In Liebe, Papa ❤️',
+        '{hl:KEANO ROMEO - LORD OF THE LIGHT}',
+        '© 2026',
+    ],
+};

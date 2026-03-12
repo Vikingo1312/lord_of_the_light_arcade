@@ -1,0 +1,6 @@
+*.dmg
+*.wav
+assets/SOUNDTRACK x ARENA THEME SONGS/
+test_*.py
+test_*.js
+*.DS_Store
