@@ -61,6 +61,11 @@ export default class StorySequence {
         this.nextData = (data && data.nextData) || null;
         this.unlockedFighter = (data && data.unlockedFighter) || null;
 
+        // V21 FIX: Preload upcoming combat BGM silently while reading text so there's no delay!
+        if (this.nextState === 'Combat' && this.nextData && this.nextData.stage && this.nextData.stage.music) {
+            fetch(`assets/audio/music/${this.nextData.stage.music}`, { mode: 'no-cors' }).catch(e => { });
+        }
+
         if (this.unlockedFighter) {
             const key = `${this.unlockedFighter.id}_front.png`;
             if (!this.game.assetManager.images[key]) {

@@ -29,9 +29,10 @@ export default class BootState {
         // Dynamically load ALL fighter portraits for the Character Select grid
         const { ALL_FIGHTERS, STAGES } = await import('../data.js');
         for (const char of ALL_FIGHTERS) {
+            const portraitPath = char.portrait ? char.portrait : `assets/CHARACTERS/${char.folder}/_front.png`;
             this.game.assetManager.queueImage(
                 `${char.id}_front.png`,
-                `assets/CHARACTERS/${char.folder}/_front.png`
+                portraitPath
             );
         }
 

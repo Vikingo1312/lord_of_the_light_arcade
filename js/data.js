@@ -28,8 +28,8 @@ export const ROSTER = [
 // "unlockedBy" defines the Bloodline progression requirement (who you need to beat Arcade mode with)
 export const SPECIALS = [
     { id: 'Vikingo', folder: '14.vikingo_coat', name: 'Vikingo', nickname: 'The Creator', country: 'Valhalla', special: true, stageId: 'Canada', unlockedBy: 'VikingoRaw', hp: 650, speed: 650, power: 160 },
-    { id: 'SupremeKeano', folder: '0.1.Supreme_Keano', name: 'Supreme Keano', nickname: 'Ascended Hero', country: 'Ascended', special: true, stageId: 'Japan', unlockedBy: 'HyperKeano', hp: 600, speed: 600, power: 140 },
-    { id: 'HyperKeano', folder: '0.2.Hyper_Keano', name: 'Hyper Keano', nickname: 'Vengeful Hero', country: 'Beyond', special: true, stageId: 'Japan', unlockedBy: 'Keano', hp: 500, speed: 650, power: 120 },
+    { id: 'SupremeKeano', folder: '0.1.Supreme_Keano', name: 'Supreme Keano', nickname: 'Ascended Hero', country: 'Ascended', special: true, stageId: 'Japan', unlockedBy: 'HyperKeano', hp: 600, speed: 600, power: 140, portrait: 'assets/UI/clean_supreme_keano.png' },
+    { id: 'HyperKeano', folder: '0.2.Hyper_Keano', name: 'Hyper Keano', nickname: 'Vengeful Hero', country: 'Beyond', special: true, stageId: 'Japan', unlockedBy: 'Keano', hp: 500, speed: 650, power: 120, portrait: 'assets/UI/clean_hyper_keano.png' },
     { id: 'JayX', folder: '12.1.Jay_X', name: 'Jay X', nickname: 'Neon Shadow', country: 'Shadow', special: true, stageId: 'Dojo', unlockedBy: 'JJDark', hp: 480, speed: 700, power: 100 },
     { id: 'GargamelHoodie', folder: '6.1.C_Gargamel_Hoodie', name: 'Gargamel Hoodie', nickname: 'Street Chemist', country: 'Germany', special: true, stageId: 'Germany', unlockedBy: 'Gargamel', hp: 450, speed: 520, power: 120 },
     { id: 'Simba', folder: '16.Simba', name: 'Simba', nickname: 'Lion King', country: 'Serengeti', special: true, stageId: 'Jamaica', unlockedBy: 'Vikingo', hp: 580, speed: 620, power: 145 },

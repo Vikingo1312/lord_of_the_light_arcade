@@ -35,6 +35,11 @@ export default class VersusIntro {
         this.p2Data = data.p2;
         this.stageNum = data.arcadeIndex || 1;
         this._advanced = false;
+
+        // V21 FIX: Aggressively preload the stage BGM so Combat.js won't have a silent delay!
+        if (data.stage && data.stage.music) {
+            fetch(`assets/audio/music/${data.stage.music}`, { mode: 'no-cors' }).catch(e => { });
+        }
     }
 
     exit() { }
