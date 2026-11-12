@@ -1,5 +1,6 @@
 import { ROSTER, STAGES } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js';
 
 export default class MenuState {
     constructor(game) {
@@ -288,13 +289,24 @@ export default class MenuState {
                 break;
             case 3: // Music Vol
                 s.musicVolume = Math.max(0, Math.min(1, s.musicVolume + dir * 0.1));
-                if (this.bgMusic) this.bgMusic.volume = s.musicVolume;
+                if (this.game.audioManager.bgm) {
+                    this.game.audioManager.bgm.volume = s.musicVolume;
+                }
+                if (this.game.audioManager.gainNode && this.game.audioManager.audioCtx) {
+                    this.game.audioManager.gainNode.gain.setTargetAtTime(s.musicVolume, this.game.audioManager.audioCtx.currentTime, 0.1);
+                }
                 break;
             case 4: // Voice Vol
                 s.voiceVolume = Math.max(0, Math.min(1, s.voiceVolume + dir * 0.1));
+                if (this.game.audioManager.voiceChannel) {
+                    this.game.audioManager.voiceChannel.volume = s.voiceVolume;
+                }
                 break;
             case 5: // SFX Vol
                 s.sfxVolume = Math.max(0, Math.min(1, s.sfxVolume + dir * 0.1));
+                for (const sfx of this.game.audioManager.sfxChannels) {
+                    sfx.volume = s.sfxVolume;
+                }
                 break;
             case 6: // EQ (BGM Filter)
                 s.bgmFilterEnabled = !s.bgmFilterEnabled;
@@ -307,24 +319,20 @@ export default class MenuState {
                 }
                 break;
         }
+        
+        // Save to local storage when changed
+        localStorage.setItem('lotl_settings', JSON.stringify(s));
     }
 
     async startStoryMode() {
         const keano = ROSTER[0];
         const opponent = ROSTER[1];
         const stageId = opponent.stageId;
-        const stage = STAGES[stageId];
 
-        // Preload robust combat sprites for both fighters using Combat's centralized logic
-        const combatState = this.game.stateManager.states['Combat'];
-        if (combatState && typeof combatState.preloadFighterSprites === 'function') {
-            combatState.preloadFighterSprites(keano);
-            combatState.preloadFighterSprites(opponent);
-        }
-        const stageKey = `Stage_${stageId}`;
-        if (stage && !this.game.assetManager.images[stageKey]) {
-            this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
-        }
+        preloadFighterSprites(this.game.assetManager, keano);
+        preloadFighterSprites(this.game.assetManager, opponent);
+        preloadStageAssets(this.game.assetManager, stageId);
+
         // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
         // Must be called synchronously within 1 second of the user's click, before the `await` below
         const voiceChannel = this.game.audioManager.voiceChannel;
@@ -344,6 +352,12 @@ export default class MenuState {
                 sfx.play().catch(() => { });
                 setTimeout(() => { if (!sfx.paused) sfx.pause(); }, 100);
             }
+        }
+
+        // PRE-LOAD prologue voice into cache right now so it plays instantly when StorySequence starts
+        // (Bypasses Safari's strict Autoplay async timeout block)
+        if (STORY_PROLOGUE && STORY_PROLOGUE.voicePath) {
+            this.game.assetManager.queueAudio('prologue_voice_preload', STORY_PROLOGUE.voicePath);
         }
 
         await this.game.assetManager.loadAll();
@@ -371,17 +385,10 @@ export default class MenuState {
         const pushIndex = ROSTER.length - 2; // Index 13: Putin
         const opponent = ROSTER[pushIndex];
         const stageId = opponent.stageId;
-        const stage = STAGES[stageId];
 
-        const combatState = this.game.stateManager.states['Combat'];
-        if (combatState && typeof combatState.preloadFighterSprites === 'function') {
-            combatState.preloadFighterSprites(keano);
-            combatState.preloadFighterSprites(opponent);
-        }
-        const stageKey = `Stage_${stageId}`;
-        if (stage && !this.game.assetManager.images[stageKey]) {
-            this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
-        }
+        preloadFighterSprites(this.game.assetManager, keano);
+        preloadFighterSprites(this.game.assetManager, opponent);
+        preloadStageAssets(this.game.assetManager, stageId);
         // *** ULTIMATE SAFARI AUTOPLAY BYPASS ***
         const voiceChannel = this.game.audioManager.voiceChannel;
         const sfxChannels = this.game.audioManager.sfxChannels;
@@ -781,6 +788,6 @@ export default class MenuState {
         ctx.font = '18px "Press Start 2P"';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#666';
-        ctx.fillText('PRESS PUNCH (J) OR KICK (K) TO GO BACK', cx, this.game.height - 60);
+        ctx.fillText('PRESS SPECIAL (S) TO GO BACK', cx, this.game.height - 60);
     }
 }

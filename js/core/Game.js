@@ -15,22 +15,28 @@ export default class Game {
         this.stateManager = new StateManager(this);
         this.inputManager = new InputManager();
         this.assetManager = new AssetManager(this);
-        this.audioManager = new AudioManager();
+        this.audioManager = new AudioManager(this);
         this.touchPad = new TouchPad(this);
 
         // Game settings (modified by Options menu)
+        let savedSettings = {};
+        try {
+            const raw = localStorage.getItem('lotl_settings');
+            if (raw) savedSettings = JSON.parse(raw) || {};
+        } catch (e) { }
+
         this.settings = {
-            timer: 99,
-            speed: 1.0,
-            difficulty: 'NORMAL',
-            musicVolume: 0.5,
-            voiceVolume: 0.9,
-            sfxVolume: 0.5,
+            timer: savedSettings.timer || 99,
+            speed: savedSettings.speed || 1.0,
+            difficulty: savedSettings.difficulty || 'NORMAL',
+            musicVolume: savedSettings.musicVolume ?? 0.5,
+            voiceVolume: savedSettings.voiceVolume ?? 0.9,
+            sfxVolume: savedSettings.sfxVolume ?? 0.5,
 
             // Effect Bypass Flags — set to false to disable
             chromaKeyEnabled: false,  // Sprites are already transparent — DO NOT process!
             hitFlashEnabled: true,    // White flash on hit
-            bgmFilterEnabled: true,   // Low-pass filter on BGM during voiceover
+            bgmFilterEnabled: savedSettings.bgmFilterEnabled ?? true, // Low-pass filter on BGM during voiceover
             autoFacingEnabled: true,  // Auto-mirror sprites based on position
         };
 
@@ -66,11 +72,12 @@ export default class Game {
 
             this.accumulator += frameTime;
 
-            this.inputManager.update();
-            this.touchPad.injectInput(this.inputManager);
-
             while (this.accumulator >= this.timestep) {
-                const dt = this.timestep / 1000;
+                this.inputManager.update();
+                this.touchPad.injectInput(this.inputManager);
+
+                const speedMul = (this.settings && this.settings.speed) ? this.settings.speed : 1.0;
+                const dt = (this.timestep / 1000) * speedMul;
                 this.stateManager.update(dt);
                 this.accumulator -= this.timestep;
             }

@@ -17,6 +17,7 @@ export default class Fighter {
         this.hp = this.baseMaxHP;
         this.maxHP = this.baseMaxHP;
         this.speed = this.data.speed || 500; // Movement speed
+        this.power = this.data.power || 100; // Attack power multiplier (100 = 1.0x)
         this.jumpImpulse = -1450; // Massively increased jump height to allow clearing the opponent
 
         // Deterministic Physics Constants
@@ -34,27 +35,30 @@ export default class Fighter {
         // Current Frame Data for attacks
         this.currentAttack = null;
         this.hitStop = 0;
+        this.hitImmunity = 0;
 
         // Blocking
         this.isBlocking = false;
         this.blockStun = 0;
 
         // Base Hurtbox (The body)
-        // Made slightly wider to make it easier for hits to connect
         this.hurtbox = new Hitbox(-75, 0, 150, 300);
 
         // Characters with massive physical bodies or wide visual auras need a 
         // wider body hitbox, otherwise punches pass right through their visuals.
-        const largeAuraFighters = [
-            'Tzubaza', 'Kowalski', 'Putin', 'VikingoRaw', 'Vikingo',
-            'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'JJDark'
-        ];
-        if (this.data && largeAuraFighters.includes(this.data.id)) {
+        if (this.data && this.data.largeAura) {
             this.hurtbox = new Hitbox(-100, 0, 200, 320);
         }
 
         // Active Hitbox (The fist/foot)
         this.activeHitbox = null;
+
+        // VFX: Ghost Trail Array
+        this.ghosts = [];
+
+        // Reusable offscreen canvas for hit-flash effect (prevents 60fps DOM allocation leak)
+        this._flashCanvas = null;
+        this._flashCtx = null;
     }
 
     update(dt, inputQueue) {
@@ -64,8 +68,13 @@ export default class Fighter {
             return; // Skip reading inputs and physics during frozen impact frames
         }
 
+        // Age ghosts
+        for (let i = this.ghosts.length - 1; i >= 0; i--) {
+            this.ghosts[i].age -= dt * 2.5; // Fade out quickly
+            if (this.ghosts[i].age <= 0) this.ghosts.splice(i, 1);
+        }
+
         this.stateTimer += dt;
-        const prevY = this.y;
 
         // Check if holding back (blocking stance)
         const holdingBack = (this.facing === 1 && inputQueue.left) || (this.facing === -1 && inputQueue.right);
@@ -148,8 +157,23 @@ export default class Fighter {
                 break;
 
             case 'ATTACK':
-                // Only stop moving if grounded (allows jump kicks)
-                if (this.isGrounded) this.vx = 0;
+                if (!this.currentAttack) {
+                    this.state = this.isGrounded ? 'IDLE' : 'JUMP';
+                    break;
+                }
+                if (this.currentAttack.type === 'SPECIAL_DASH') {
+                    // Lock velocity during startup and active window
+                    if (this.stateTimer <= this.currentAttack.startup + this.currentAttack.active) {
+                        this.vx = this.facing * 1800; // Keep flying forward
+                        this.vy = 0;                   // Ignore gravity
+                        // Spawn ghost trail
+                        this.ghosts.push({ x: this.x, y: this.y, age: 0.6, facing: this.facing, timer: this.stateTimer });
+                    } else {
+                        this.vx *= 0.9; // Brake hard on recovery
+                    }
+                } else if (this.isGrounded) {
+                    this.vx = 0; // Standard ground attack freeze
+                }
 
                 // Validate Frame Data phase
                 if (!this.attackHasHit && this.stateTimer >= this.currentAttack.startup && this.stateTimer < (this.currentAttack.startup + this.currentAttack.active)) {
@@ -227,45 +251,75 @@ export default class Fighter {
         else this.vx = 0;
     }
 
+    executeProjectileCast() {
+        if (this.specialEnergy < 100) return false;
+        this.specialEnergy = 0;
+        this.state = 'ATTACK';
+        this.stateTimer = 0;
+        this.attackHasHit = false;
+        this.activeHitbox = null;
+        this.currentAttack = {
+            startup: 0.10, active: 0.05, recovery: 0.30,
+            damage: 0, pushback: 0, hitstop: 0,
+            box: null,
+            type: 'SPECIAL'
+        };
+        return true;
+    }
+
     executeAttack(type) {
         // Special attacks require and consume energy
-        if (type === 'SPECIAL') {
-            if (this.specialEnergy < 100) return; // Not enough energy
+        if (type === 'SPECIAL' || type === 'SPECIAL_DASH') {
+            if (this.specialEnergy < 100) return false; // Not enough energy
             this.specialEnergy = 0; // Drain the meter fully
         }
 
         this.state = 'ATTACK';
         this.stateTimer = 0;
         this.attackHasHit = false; // Reset per-attack hit flag
+        const pwrMul = this.power / 100;
 
         if (type === 'LIGHT') {
             this.currentAttack = {
-                startup: 0.05, active: 0.15, recovery: 0.20, // Faster startup, more active frames
-                damage: 15, pushback: 180, hitstop: 0.08,    // slightly more hitstop for impact
-                box: new Hitbox(0, 200, 180, 60),            // Wider box to catch opponents consistently
+                startup: 0.05, active: 0.15, recovery: 0.20,
+                damage: Math.round(15 * pwrMul), pushback: 180, hitstop: 0.08,
+                box: new Hitbox(0, 200, 180, 60),
                 type: 'LIGHT'
             };
         } else if (type === 'HEAVY') {
             this.currentAttack = {
-                startup: 0.15, active: 0.15, recovery: 0.35, // More commitment on miss
-                damage: 35, pushback: 400, hitstop: 0.15,    // Massive pushback on hit
-                lift: -150, // Slight upward launch
-                box: new Hitbox(20, 150, 200, 80),           // Massive box
+                startup: 0.15, active: 0.15, recovery: 0.35,
+                damage: Math.round(35 * pwrMul), pushback: 400, hitstop: 0.15,
+                lift: -150,
+                box: new Hitbox(20, 150, 200, 80),
                 type: 'HEAVY'
             };
         } else if (type === 'SPECIAL') {
             this.currentAttack = {
                 startup: 0.10, active: 0.15, recovery: 0.22,
-                damage: 45, pushback: 250, hitstop: 0.12,
+                damage: Math.round(45 * pwrMul), pushback: 250, hitstop: 0.12,
                 lift: -80,
                 box: new Hitbox(10, 80, 180, 80),
                 type: 'SPECIAL'
             };
+        } else if (type === 'SPECIAL_DASH') {
+            this.currentAttack = {
+                startup: 0.15, active: 0.35, recovery: 0.35, // 350ms flight time
+                damage: Math.round(55 * pwrMul), pushback: 650, hitstop: 0.2,
+                lift: -200, // Launch opponent high
+                box: new Hitbox(0, 150, 200, 150),
+                type: 'SPECIAL_DASH'
+            };
+            this.isGrounded = false;
+            this.y -= 80; // Hop slightly off the ground to fly across
+            this.vy = 0;
+            this.vx = this.facing * 1800;
         }
+        return true;
     }
 
     takeDamage(attackDef, attackerFacing) {
-        if (this.state === 'KO') return;
+        if (this.state === 'KO') return 'IMMUNE';
 
         // Chain-hit protection: can't be re-hit during immunity frames
         if (this.hitImmunity > 0) return 'IMMUNE';
@@ -311,6 +365,7 @@ export default class Fighter {
         }
         return 'HIT';
     }
+
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
@@ -321,12 +376,11 @@ export default class Fighter {
 
         // Map State to Image Key suffix
         let suffix = '_front.png';
-        let needsMirror = false;  // Only combat poses need mirroring
 
         // BYPASS: Skip automatic facing logic only if explicitly disabled in settings
         if (this.game && this.game.settings && this.game.settings.autoFacingEnabled === false) {
             if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP') {
-                suffix = '_right.png'; // Always use default stance
+                suffix = '_right.png';
             } else if (this.state === 'ATTACK') {
                 if (this.currentAttack && this.currentAttack.type === 'SPECIAL') suffix = '_special.png';
                 else if (this.currentAttack && this.currentAttack.type === 'HEAVY') suffix = '_kick.png';
@@ -334,30 +388,56 @@ export default class Fighter {
             } else if (this.state === 'HIT') suffix = '_hit.png';
             else if (this.state === 'KO') suffix = '_ko.png';
             else if (this.state === 'WIN') suffix = '_win.png';
-            needsMirror = false; // Never mirror
 
             exactKey = `${this.data.id}${suffix}`;
             const fallbackKey = `${this.data.id}${suffix}_fallback`;
             spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
 
         } else {
-            // ALL States now use ctx.scale(facing) to mirror 
-            // We use the ONE SOURCE OF TRUTH for every pose.
-            // By convention, almost all single-pose images in the asset pack face RIGHT.
+            // ─── NEW GENERIC ANIMATION SYSTEM ───
+            if (this.data.animations) {
+                let animKey = this.state.toLowerCase();
+                if (this.state === 'ATTACK' && this.currentAttack) {
+                    animKey = `attack_${this.currentAttack.type.toLowerCase()}`;
+                }
 
-            // ─── SUPREME KEANO: Multi-frame animation system ───
-            if (this.data.id === 'SupremeKeano') {
-                // Supreme Keano has extra sprites for fluid frame-by-frame animation
+                const anim = this.data.animations[animKey];
+                if (anim && anim.frames && anim.frames.length > 0) {
+                    let currentFrameName = '';
+
+                    if (anim.durations) {
+                        let elapsed = 0;
+                        let frameIndex = anim.frames.length - 1;
+                        for (let i = 0; i < anim.durations.length; i++) {
+                            elapsed += anim.durations[i];
+                            if (this.stateTimer < elapsed) {
+                                frameIndex = i;
+                                break;
+                            }
+                        }
+                        currentFrameName = anim.frames[frameIndex];
+                    } else {
+                        const fps = anim.frameRate || 10;
+                        const frameIndex = Math.floor(this.stateTimer * fps) % anim.frames.length;
+                        currentFrameName = anim.frames[frameIndex];
+                    }
+
+                    exactKey = `${this.data.id}_${currentFrameName}.png`;
+                    spriteImage = this.game.assetManager.images[exactKey];
+                    suffix = '__CUSTOM__';
+                }
+            }
+
+            // ─── LEGACY CHARACTERS WITH HARDCODED MULTI-FRAME ANIMATIONS (e.g. Supreme Keano) ───
+            if (this.data.multiFrameAnim && suffix !== '__CUSTOM__') {
                 const imgs = this.game.assetManager.images;
 
                 if (this.state === 'IDLE' || this.state === 'WALK') {
-                    // Breathing animation: alternate between _right and _left every 0.6s
                     const breathFrame = Math.floor(this.stateTimer / 0.6) % 2;
                     suffix = breathFrame === 0 ? '_right.png' : '_left.png';
                 } else if (this.state === 'JUMP') {
-                    // Use dive kick sprite if attacking in the air, otherwise idle
                     if (this.currentAttack) {
-                        const diveImg = imgs['SupremeKeano_keano_dive_kick'];
+                        const diveImg = imgs[`${this.data.id}_${this.data.spritePrefix}_dive_kick`];
                         if (diveImg) {
                             suffix = '__CUSTOM__';
                             spriteImage = diveImg;
@@ -374,35 +454,29 @@ export default class Fighter {
                     const totalActive = startup + active;
 
                     if (this.currentAttack && this.currentAttack.type === 'LIGHT') {
-                        // LIGHT ATTACK: idle → hook → jab → idle
                         if (phase < startup) {
-                            // Startup: wind up (hook pose)
-                            const hookImg = imgs['SupremeKeano_keano_hook_punch'];
+                            const hookImg = imgs[`${this.data.id}_${this.data.spritePrefix}_hook_punch`];
                             if (hookImg) { suffix = '__CUSTOM__'; spriteImage = hookImg; }
                             else suffix = '_right.png';
                         } else if (phase < totalActive) {
-                            // Active: jab lands
                             suffix = '_punch.png';
                         } else {
-                            // Recovery: return to stance
                             suffix = '_right.png';
                         }
                     } else if (this.currentAttack && this.currentAttack.type === 'HEAVY') {
-                        // HEAVY ATTACK: idle → low sweep → roundhouse
                         if (phase < startup) {
-                            // Startup: crouch down (low kick pose)
-                            const lowImg = imgs['SupremeKeano_keano_low_kick'];
+                            const lowImg = imgs[`${this.data.id}_${this.data.spritePrefix}_low_kick`];
                             if (lowImg) { suffix = '__CUSTOM__'; spriteImage = lowImg; }
                             else suffix = '_right.png';
                         } else if (phase < totalActive) {
-                            // Active: roundhouse kick
                             suffix = '_kick.png';
                         } else {
-                            // Recovery
                             suffix = '_right.png';
                         }
                     } else if (this.currentAttack && this.currentAttack.type === 'SPECIAL') {
                         suffix = '_special.png';
+                    } else if (this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
+                        suffix = '_kick.png';
                     } else {
                         suffix = '_punch.png';
                     }
@@ -414,17 +488,16 @@ export default class Fighter {
                     suffix = '_win.png';
                 }
 
-                // Only look up by key if we didn't already set a custom spriteImage
                 if (suffix !== '__CUSTOM__') {
                     exactKey = `${this.data.id}${suffix}`;
                     const fallbackKey = `${this.data.id}${suffix}_fallback`;
                     spriteImage = imgs[exactKey] || imgs[fallbackKey];
                 }
 
-            } else {
+            } else if (suffix !== '__CUSTOM__') {
                 // ─── STANDARD CHARACTERS: Single image per state ───
                 if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP') {
-                    suffix = '_right.png'; // Use combat fighting stance (faces opponent)
+                    suffix = '_right.png';
                 } else if (this.state === 'ATTACK') {
                     if (this.currentAttack && this.currentAttack.type === 'SPECIAL') suffix = '_special.png';
                     else if (this.currentAttack && this.currentAttack.type === 'HEAVY') suffix = '_kick.png';
@@ -441,50 +514,48 @@ export default class Fighter {
                 spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
             }
 
-            // If a specific Kick or Special sprite is missing, fall back to the basic Punch sprite!
+            // Fallbacks if specific sprite is missing
             if (!spriteImage && this.state === 'ATTACK') {
                 const punchKey = `${this.data.id}_punch.png`;
                 const punchFallback = `${this.data.id}_punch.png_fallback`;
                 spriteImage = this.game.assetManager.images[punchKey] || this.game.assetManager.images[punchFallback];
             }
-            // Ultimate fallback for missing attacking sprites: just use their idle stance so they don't turn invisible
-            if (!spriteImage && this.state === 'ATTACK') {
+            if (!spriteImage && (this.state === 'ATTACK' || this.state === 'HIT' || this.state === 'KO' || this.state === 'WIN')) {
                 const idleKey = `${this.data.id}_right.png`;
                 spriteImage = this.game.assetManager.images[idleKey] || this.game.assetManager.images[`${this.data.id}_right.png_fallback`];
             }
 
             if (!spriteImage) {
-                // If Localhost is caching an old file or the python script broke headers, let's catch it here:
                 if (!this._loggedMissingSprite) {
                     console.error(`[Fighter] SCENE ERROR: Missing sprite for ${this.data.id} in state ${this.state} (Tried: ${exactKey} & Fallbacks)`);
                     this._loggedMissingSprite = true;
                 }
-
-                // Return gracefully without drawing anything until the asset finishes loading over the network
+                ctx.restore();
                 return;
             }
 
             // --- SAFETY: Prevent Ghost Trading Cards on K.O. ---
-            // Many AI generated character cards are tall portraits. If the assigned ko or hit sprite 
-            // is abnormally tall and narrow compared to a fighting sprite layout, it's a card.
             if ((this.state === 'KO' || this.state === 'HIT') && spriteImage && spriteImage.naturalHeight > spriteImage.naturalWidth * 1.05) {
-                // If the KO sprite is a trading card, try the HIT sprite
                 const hitExact = `${this.data.id}_hit.png`;
                 const hitImg = this.game.assetManager.images[hitExact] || this.game.assetManager.images[`${this.data.id}_hit.png_fallback`];
 
                 if (hitImg && hitImg.naturalHeight <= hitImg.naturalWidth * 1.05) {
                     spriteImage = hitImg;
                 } else {
-                    // If HIT is also a trading card or missing, default down to a simple colored box or hide
-                    return; // Prevent drawing the giant trading card altogether
+                    const idleImg = this.game.assetManager.images[`${this.data.id}_right.png`] || this.game.assetManager.images[`${this.data.id}_right.png_fallback`];
+                    if (idleImg && idleImg.naturalHeight <= idleImg.naturalWidth * 1.05) {
+                        spriteImage = idleImg;
+                    } else {
+                        ctx.restore();
+                        return;
+                    }
                 }
             }
 
             // 2. Draw Sprite if loaded
-            // On iOS/Safari, bypassing ChromaKey can momentarily yield an HTMLImageElement 
-            // with 0 naturalHeight before it fully decodes. Prevent division by zero crash!
             if (!spriteImage.naturalHeight || !spriteImage.naturalWidth) {
-                return; // Skip drawing this frame until iOS decodes the raw image
+                ctx.restore();
+                return;
             }
 
             // Sprites are massive, we scale them down to roughly 400px tall
@@ -495,87 +566,93 @@ export default class Fighter {
             // All sprites natively face RIGHT.
             // P1 (facing=1) is drawn normally (+1).
             // P2 (facing=-1) is mirrored horizontally (-1).
-            let drawFacing = this.facing;
-            // Hack for base Gargamel: his main stance sprite natively faces LEFT instead of RIGHT
-            if (this.data.id === 'Gargamel' && (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP' || this.state === 'WIN')) {
-                drawFacing *= -1;
-            }
-            // Hack for Lee, Vikingo, VikingoRaw, and Raheel: their PUNCH sprite natively faces LEFT instead of RIGHT
-            // But their KICK sprite faces RIGHT (standard), so only flip for LIGHT (punch) attacks!
-            if ((this.data.id === 'Lee' || this.data.id === 'Vikingo' || this.data.id === 'VikingoRaw' || this.data.id === 'Raheel') &&
-                (this.state === 'ATTACK' || this.state === 'SPECIAL') &&
-                !(this.currentAttack && this.currentAttack.type === 'HEAVY')) {
-                drawFacing *= -1;
-            }
+            const drawFacing = this.facing;
             ctx.scale(drawFacing, 1);
 
-            // ─── BREATHING ANIMATION (REMOVED) ───
-            // (Removed per user request to fix lag and rendering bugs)
+            // ─── DRAW GHOST TRAIL (PSYCHO CRUSHER) ───
+            if (this.ghosts && this.ghosts.length > 0) {
+                ctx.save();
+                ctx.scale(drawFacing, 1); // Undo local facing before reverting to world bounds
+                ctx.translate(-this.x, -this.y);
+                for (const g of this.ghosts) {
+                    ctx.save();
+                    ctx.translate(g.x, g.y);
+                    ctx.scale(g.facing, 1);
+                    ctx.translate(0, -drawH / 2);
+                    ctx.rotate(g.timer * 25.0 * g.facing);
+                    ctx.translate(0, drawH / 2);
 
-            // ─── SIMULATE STREET FIGHTER JUMP ROLL (FLIP) ───
+                    ctx.globalAlpha = g.age * 0.7;
+                    ctx.globalCompositeOperation = 'screen';
+                    ctx.drawImage(spriteImage, -drawW / 2, -drawH, drawW, drawH);
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+
+            // ─── SIMULATE STREET FIGHTER JUMP ROLL OR SPECIAL DASH SPIN ───
             let isRolling = false;
+            let currentRotation = 0;
             if (this.state === 'JUMP' && Math.abs(this.vx) > 10) {
                 isRolling = true;
-                const flipSpeed = 8.0; // Radians per sec (controls rotation speed)
-                // Direction of flip relative to facing
+                const flipSpeed = 8.0;
                 const dir = (this.vx * this.facing > 0) ? 1 : -1;
+                currentRotation = this.stateTimer * flipSpeed * dir;
+            } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
+                isRolling = true;
+                const spinSpeed = 25.0;
+                currentRotation = this.stateTimer * spinSpeed * this.facing;
+            }
 
-                // Pivot around the center of the character's drawn body, not the feet
+            if (isRolling) {
                 ctx.translate(0, -drawH / 2);
-                ctx.rotate(this.stateTimer * flipSpeed * dir);
+                ctx.rotate(currentRotation);
                 ctx.translate(0, drawH / 2);
             }
 
             // Draw relative to bottom-center (0,0 is now the character's feet)
             if (this.state === 'HIT' && this.game.settings.hitFlashEnabled) {
-                // Use offscreen canvas to flash only visible (non-transparent) pixels
-                const offCanvas = document.createElement('canvas');
-                offCanvas.width = Math.ceil(drawW);
-                offCanvas.height = Math.ceil(drawH);
-                const offCtx = offCanvas.getContext('2d');
+                const cw = Math.max(1, Math.ceil(drawW));
+                const ch = Math.max(1, Math.ceil(drawH));
+                if (!this._flashCanvas) {
+                    this._flashCanvas = document.createElement('canvas');
+                    this._flashCtx = this._flashCanvas.getContext('2d');
+                }
+                if (this._flashCanvas.width !== cw || this._flashCanvas.height !== ch) {
+                    this._flashCanvas.width = cw;
+                    this._flashCanvas.height = ch;
+                }
+                const offCtx = this._flashCtx;
+                offCtx.globalCompositeOperation = 'source-over';
+                offCtx.globalAlpha = 1.0;
+                offCtx.clearRect(0, 0, cw, ch);
                 offCtx.drawImage(spriteImage, 0, 0, drawW, drawH);
-                // White overlay only on drawn pixels
                 offCtx.globalCompositeOperation = 'source-atop';
                 offCtx.globalAlpha = 0.45;
                 offCtx.fillStyle = '#ffffff';
-                offCtx.fillRect(0, 0, drawW, drawH);
-                // Draw composited result onto main canvas
-                ctx.drawImage(offCanvas, -drawW / 2, -drawH, drawW, drawH);
+                offCtx.fillRect(0, 0, cw, ch);
+                ctx.drawImage(this._flashCanvas, -drawW / 2, -drawH, drawW, drawH);
             } else {
                 ctx.drawImage(spriteImage, -drawW / 2, -drawH, drawW, drawH);
             }
 
             // ─── UN-ROTATE THE CONTEXT ───
             if (isRolling) {
-                const dir = (this.vx * this.facing > 0) ? 1 : -1;
                 ctx.translate(0, -drawH / 2);
-                ctx.rotate(-this.stateTimer * 8.0 * dir); // Reverse the exact rotation
+                ctx.rotate(-currentRotation);
                 ctx.translate(0, drawH / 2);
             }
 
             ctx.scale(this.facing, 1); // Reverse the scale here so hitboxes draw correctly
-
-            // Because we translated, coords must be centered at 0
-            const hw = this.hurtbox.width;
-            const hh = this.hurtbox.height;
-            const hx = this.facing === 1 ? this.hurtbox.xOffset : -this.hurtbox.xOffset - hw;
-            const hy = this.hurtbox.yOffset;
-            ctx.fillRect(hx, hy, hw, hh);
-
-            // Reverse rotation if KO to preserve hitbox draw
-            if (this.state === 'KO') ctx.rotate(Math.PI / 2 * this.facing);
         }
 
         // 3. Debug: Draw Hitboxes strictly if active
-        // SET TO TRUE TO VISUALIZE THE PHYSICAL AABB GEOMETRY OVER THE SPRITES
         const debugHitboxes = false;
         if (debugHitboxes) {
-            // Draw physics hurtbox bounds over the sprite for QA
-            // Translate is already active, so just draw local offsets
             const hw = this.hurtbox.width;
             const hh = this.hurtbox.height;
-            const hx = this.facing === 1 ? this.hurtbox.xOffset : -this.hurtbox.xOffset - hw;
-            const hy = this.hurtbox.yOffset;
+            const hx = this.facing === 1 ? this.hurtbox.offsetX : -(this.hurtbox.offsetX + hw);
+            const hy = -this.hurtbox.offsetY - hh;
 
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
             ctx.lineWidth = 2;
@@ -584,8 +661,8 @@ export default class Fighter {
             if (this.activeHitbox) {
                 const aw = this.activeHitbox.width;
                 const ah = this.activeHitbox.height;
-                const ax = this.facing === 1 ? this.activeHitbox.xOffset : -this.activeHitbox.xOffset - aw;
-                const ay = this.activeHitbox.yOffset;
+                const ax = this.facing === 1 ? this.activeHitbox.offsetX : -(this.activeHitbox.offsetX + aw);
+                const ay = -this.activeHitbox.offsetY - ah;
 
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.6)';
                 ctx.fillRect(ax, ay, aw, ah);

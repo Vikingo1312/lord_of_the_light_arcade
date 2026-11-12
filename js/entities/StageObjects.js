@@ -65,7 +65,7 @@ const STAGE_OBJECTS = {
         { x: 1830, y: 0.83, w: 120, h: 100, img: 'barrel' },
         { x: 300, y: 0.85, w: 130, h: 120, img: 'brazier' },
     ],
-    'JapanNight': [
+    'Japan_Night': [
         { x: 90, y: 0.78, w: 100, h: 160, img: 'lantern' },
         { x: 1830, y: 0.78, w: 100, h: 160, img: 'lantern' },
         { x: 300, y: 0.85, w: 130, h: 100, img: 'crate' },

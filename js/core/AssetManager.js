@@ -17,9 +17,16 @@ export default class AssetManager {
     }
 
     async loadAll(onProgressCallback) {
-        if (this.queue.length === 0) return Promise.resolve();
+        if (this.queue.length === 0) {
+                if (onProgressCallback) onProgressCallback(1);
+                return Promise.resolve();
+            }
 
-        const promises = this.queue.map(item => {
+        const currentQueue = [...this.queue];
+        this.queue = [];
+        this.loadedCount = 0;
+
+        const promises = currentQueue.map(item => {
             return new Promise((resolve, reject) => {
                 if (item.type === 'image') {
                     const img = new Image();
@@ -28,27 +35,27 @@ export default class AssetManager {
                     img.onload = () => {
                         this.processChromaKey(img, item.key, () => {
                             this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                             resolve();
                         });
                     };
                     img.onerror = () => {
                         // Check if we queued a fallback image for this key
                         const fallbackKey = item.key + '_fallback';
-                        const fallbackItem = this.queue.find(q => q.key === fallbackKey);
+                        const fallbackItem = currentQueue.find(q => q.key === fallbackKey);
 
                         if (fallbackItem && !item.key.endsWith('_fallback')) {
                             console.log(`[AssetManager] Image ${item.path} not found. Attempting fallback: ${fallbackItem.path}`);
                             // We don't resolve the primary promise yet, the fallback will resolve it
                             // when the queue naturally gets to the fallbackItem.
                             this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                             resolve();
                         } else {
                             // If it's already a fallback that failed or no fallback exists
                             console.warn(`[AssetManager] Failed to load image: ${item.path}`);
                             this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                             resolve(); // Resolve anyway so the game doesn't hang, but it will be a missing texture
                         }
                     };
@@ -59,14 +66,14 @@ export default class AssetManager {
 
                     aud.oncanplaythrough = () => {
                         this.loadedCount++;
-                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                        if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                         resolve();
                     };
 
                     aud.onerror = () => {
                         console.warn(`Failed to pre-load audio: ${item.path}`);
                         this.loadedCount++;
-                        if (onProgressCallback) onProgressCallback(this.loadedCount / this.queue.length);
+                        if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                         resolve();
                     };
 

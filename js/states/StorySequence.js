@@ -64,7 +64,7 @@ export default class StorySequence {
         if (this.unlockedFighter) {
             const key = `${this.unlockedFighter.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                const path = `assets/sprites/${this.unlockedFighter.folder}/2D/${key}`;
+                const path = `assets/CHARACTERS/${this.unlockedFighter.folder}/_front.png`;
                 this.game.assetManager.queueImage(key, path);
                 this.game.assetManager.loadAll(); // Kick off lazy-load
             }
@@ -185,8 +185,10 @@ export default class StorySequence {
 
         // Smooth fade-out transition
         if (this.fading) {
-            this.fadeOut += dt / 2; // 2 second fade
-            if (this.fadeOut >= 1 && !this._advanced) {
+            const p1 = this.game.inputManager.p1;
+            // Pressing skip again during fade cuts immediately
+            this.fadeOut += dt * 2.5; // fast 0.4s fade
+            if ((this.fadeOut >= 1 || p1.skipJust) && !this._advanced) {
                 this._advanced = true;
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
@@ -340,9 +342,9 @@ export default class StorySequence {
             }
         }
 
-        // Allow skip with any button press after 5s (starts fade, doesn't cut)
-        // Birthday: this is the ONLY way to exit
-        if (this.time > 5 && (p1.lJust || p1.hJust || p1.sJust) && !this.fading) {
+        // Allow skip anytime after 0.3s with any button press, Enter, Space, Escape, or click
+        if (this.time > 0.3 && p1.skipJust && !this.fading) {
+            this.game.audioManager.stopVoice();
             this.fading = true;
         }
     }
@@ -440,13 +442,13 @@ export default class StorySequence {
         }
 
         // Skip hint — Birthday shows "HAUPTMENÜ", others show "SKIP"
-        if (this.time > 5 && !this.fading) {
-            ctx.globalAlpha = 0.5;
+        if (this.time > 0.5 && !this.fading) {
+            ctx.globalAlpha = 0.6;
             ctx.font = '300 18px "Outfit"';
             ctx.textAlign = 'center';
-            ctx.fillStyle = this.isBirthdayScene ? '#ffaa00' : '#666';
+            ctx.fillStyle = this.isBirthdayScene ? '#ffaa00' : '#888';
             ctx.fillText(
-                this.isBirthdayScene ? '⬅ TASTE DRÜCKEN FÜR HAUPTMENÜ ⬅' : 'PRESS ATTACK TO SKIP ▸',
+                this.isBirthdayScene ? '⬅ TASTE DRÜCKEN FÜR HAUPTMENÜ ⬅' : 'PRESS SPACE / ENTER / CLICK TO SKIP ▸',
                 w / 2, h - 25
             );
             ctx.globalAlpha = 1;

@@ -35,16 +35,30 @@ export default class VersusIntro {
         this.p2Data = data.p2;
         this.stageNum = data.arcadeIndex || 1;
         this._advanced = false;
+        this.loaded = false;
+        this.loadingTimer = 0;
+        this.loadProgress = 0;
+
+        this.game.assetManager.loadAll((pct) => {
+            this.loadProgress = pct;
+        }).then(() => {
+            this.loaded = true;
+        });
     }
 
     exit() { }
 
     update(dt) {
+        if (!this.loaded) {
+            this.loadingTimer += dt;
+            return;
+        }
+
         this.time += dt;
         if (this._advanced) return;
         const p1 = this.game.inputManager.p1;
 
-        if (this.time > 4 || (this.time > 1.5 && (p1.lJust || p1.hJust || p1.sJust))) {
+        if (this.time > 4 || (this.time > 0.2 && p1.skipJust)) {
             this._advanced = true;
             this.game.stateManager.switchState('Combat', this.combatData);
         }
@@ -53,6 +67,32 @@ export default class VersusIntro {
     draw(ctx) {
         const w = this.game.width;
         const h = this.game.height;
+
+        if (!this.loaded) {
+            ctx.fillStyle = '#0a0022';
+            ctx.fillRect(0, 0, w, h);
+            
+            for (const p of this.particles) {
+                p.x += p.vx * 0.2; p.y += p.vy * 0.2; 
+                if (p.y < -20) p.y = h + 20;
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            }
+            ctx.globalAlpha = 1;
+
+            ctx.globalAlpha = 0.5 + Math.sin(this.loadingTimer * 4) * 0.5;
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '24px "Press Start 2P"';
+            ctx.textAlign = 'right';
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 10;
+            ctx.fillText(`LOADING ASSETS... ${Math.floor(this.loadProgress * 100)}%`, w - 30, h - 30);
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+            return;
+        }
+
         const t = this.time;
 
         // Visual Shake impact on VS slam (at 0.5s)

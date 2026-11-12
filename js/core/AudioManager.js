@@ -1,5 +1,6 @@
 export default class AudioManager {
-    constructor() {
+    constructor(game = null) {
+        this.game = game;
         this.bgm = null;
         this.currentPath = '';
         this.voiceChannel = new Audio();
@@ -11,6 +12,18 @@ export default class AudioManager {
         this.bgmSource = null;
         this.lpFilter = null;
         this.gainNode = null;
+    }
+
+    _getMusicVol(fallback = 0.5) {
+        return this.game?.settings?.musicVolume ?? fallback;
+    }
+
+    _getVoiceVol(fallback = 0.9) {
+        return this.game?.settings?.voiceVolume ?? fallback;
+    }
+
+    _getSfxVol(fallback = 0.5) {
+        return this.game?.settings?.sfxVolume ?? fallback;
     }
 
     _initWebAudio() {
@@ -25,7 +38,7 @@ export default class AudioManager {
             this.lpFilter.Q.value = 1.0;
 
             this.gainNode = this.audioCtx.createGain();
-            this.gainNode.gain.value = 0.5; // Baseline BGM volume
+            this.gainNode.gain.value = this._getMusicVol(0.5); // Baseline BGM volume
 
             this.lpFilter.connect(this.gainNode);
             this.gainNode.connect(this.audioCtx.destination);
@@ -131,22 +144,24 @@ export default class AudioManager {
      * @param {string} path - path to the audio file
      * @param {boolean} loop - whether the track should loop
      * @param {boolean} useFilter - if true, applies the muffled low-pass filter
-     * @param {number} volume - BGM volume (default 0.5)
+     * @param {number} volume - BGM volume (default uses game.settings.musicVolume)
      */
-    playBGM(path, loop = true, useFilter = false, volume = 0.5) {
+    playBGM(path, loop = true, useFilter = false, volume = null, preloadedAudio = null) {
         this._initWebAudio();
+        const effectiveVol = volume !== null ? volume : this._getMusicVol(0.5);
 
         // Target settings
         const targetFreq = useFilter ? 400 : 20000;
+        this.filterActive = useFilter;
 
         if (this.currentPath === path && this.bgm) {
             // Track is already playing! Just adjust the filter and return.
             if (this.audioCtx && this.lpFilter) {
                 // Smoothly transition the filter frequency
                 this.lpFilter.frequency.setTargetAtTime(targetFreq, this.audioCtx.currentTime, 0.5);
-                this.gainNode.gain.setTargetAtTime(volume, this.audioCtx.currentTime, 0.5);
+                this.gainNode.gain.setTargetAtTime(effectiveVol, this.audioCtx.currentTime, 0.5);
             } else {
-                this.bgm.volume = volume;
+                this.bgm.volume = effectiveVol;
             }
             return;
         }
@@ -155,18 +170,25 @@ export default class AudioManager {
         this.stopBGM();
 
         this.currentPath = path;
-        this.bgm = new Audio(path);
+        this.bgm = preloadedAudio || new Audio(path);
         this.bgm.loop = loop;
 
         if (this.audioCtx && this.lpFilter && this.gainNode) {
             // Use WebAudio
-            this.bgmSource = this.audioCtx.createMediaElementSource(this.bgm);
-            this.bgmSource.connect(this.lpFilter);
+            try {
+                if (!this.bgm._mediaSourceNode) {
+                    this.bgm._mediaSourceNode = this.audioCtx.createMediaElementSource(this.bgm);
+                }
+                this.bgmSource = this.bgm._mediaSourceNode;
+                this.bgmSource.connect(this.lpFilter);
+            } catch (e) {
+                console.warn("MediaElementSource reuse fallback:", e);
+            }
             this.lpFilter.frequency.value = targetFreq;
-            this.gainNode.gain.value = volume;
+            this.gainNode.gain.value = effectiveVol;
         } else {
             // Fallback
-            this.bgm.volume = volume;
+            this.bgm.volume = effectiveVol;
         }
 
         // CRITICAL: Ensure AudioContext is running before playing!
@@ -201,59 +223,18 @@ export default class AudioManager {
                 oldPromise.then(() => {
                     if (this._bgmPlayPromise === oldPromise || this._bgmPlayPromise === null) {
                         try { oldBgm.pause(); } catch (e) { }
-                        oldBgm.removeAttribute('src');
-                        oldBgm.load();
+                        oldBgm.currentTime = 0;
                     }
-                }).catch(e => {
-                    // It was already aborted by the browser
-                    if (this._bgmPlayPromise === oldPromise || this._bgmPlayPromise === null) {
-                        oldBgm.removeAttribute('src');
-                        oldBgm.load();
-                    }
-                });
+                }).catch(() => { });
             } else {
                 try { oldBgm.pause(); } catch (e) { }
-                oldBgm.removeAttribute('src');
-                oldBgm.load();
+                oldBgm.currentTime = 0;
             }
         }
     }
+
     _createVoiceReverb() {
-        if (!this.audioCtx || this.voiceReverbNode) return;
-
-        // Connect voice via WebAudio if not already done
-        if (!this.voiceSource) {
-            this.voiceSource = this.audioCtx.createMediaElementSource(this.voiceChannel);
-            this.voiceGain = this.audioCtx.createGain();
-            this.voiceReverbNode = this.audioCtx.createConvolver();
-            this.reverbGain = this.audioCtx.createGain();
-
-            // Reverb mixture (mostly dry, slight wet for depth but no long hall)
-            this.voiceGain.gain.value = 0.85; // Dry signal
-            this.reverbGain.gain.value = 0.25; // Subtle wet signal
-
-            // Generate a very short impulse response (room-like, no long tails)
-            const length = this.audioCtx.sampleRate * 0.15; // 150ms tail is very short (slight room depth)
-            const impulse = this.audioCtx.createBuffer(2, length, this.audioCtx.sampleRate);
-            const left = impulse.getChannelData(0);
-            const right = impulse.getChannelData(1);
-            for (let i = 0; i < length; i++) {
-                // Exponential decay for impulse
-                const decay = Math.exp(-i / (this.audioCtx.sampleRate * 0.05));
-                left[i] = (Math.random() * 2 - 1) * decay;
-                right[i] = (Math.random() * 2 - 1) * decay;
-            }
-            this.voiceReverbNode.buffer = impulse;
-
-            // Route: Source -> Dry (VoiceGain) -> Destination
-            //        Source -> ReverbNode -> ReverbGain -> Destination
-            this.voiceSource.connect(this.voiceGain);
-            this.voiceSource.connect(this.voiceReverbNode);
-            this.voiceReverbNode.connect(this.reverbGain);
-
-            this.voiceGain.connect(this.audioCtx.destination);
-            this.reverbGain.connect(this.audioCtx.destination);
-        }
+        // Kept as raw HTML5 audio for Mobile Safari reliability.
     }
 
     stopVoice() {
@@ -282,12 +263,15 @@ export default class AudioManager {
         }
 
         this._voicePlayPromise = null;
+        const restoreVol = this._getMusicVol(0.5);
         // Restore BGM volume & Remove Filter
         if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.1);
-            if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+            this.gainNode.gain.setTargetAtTime(restoreVol, this.audioCtx.currentTime, 0.1);
+            if (this.lpFilter && !this.filterActive) {
+                this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+            }
         } else if (this.bgm) {
-            this.bgm.volume = 0.5;
+            this.bgm.volume = restoreVol;
         }
     }
 
@@ -296,31 +280,30 @@ export default class AudioManager {
             this.audioCtx.resume();
         }
 
-        // Initialize WebAudio for voice (if supported) for the reverb effect
         this._createVoiceReverb();
+        const restoreVol = this._getMusicVol(0.5);
 
         this.voiceChannel.onended = () => {
             // Restore BGM after voice
             if (this.gainNode && this.audioCtx) {
-                this.gainNode.gain.setTargetAtTime(0.5, this.audioCtx.currentTime, 0.3);
-                if (this.lpFilter) this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                this.gainNode.gain.setTargetAtTime(restoreVol, this.audioCtx.currentTime, 0.3);
+                if (this.lpFilter && !this.filterActive) {
+                    this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
+                }
             } else if (this.bgm) {
-                this.bgm.volume = 0.5;
+                this.bgm.volume = restoreVol;
             }
             if (onEndedCallback) onEndedCallback();
             this.voiceChannel.onended = null; // Clear to prevent double fires
         };
 
-        this.voiceChannel.volume = 1.0; // Restore volume (unlockAudio sets it to 0)
+        this.voiceChannel.volume = this._getVoiceVol(0.9);
         this.voiceChannel.src = path;
 
         this._voicePlayPromise = this.voiceChannel.play();
         if (this._voicePlayPromise !== undefined) {
             this._voicePlayPromise.catch(e => {
                 console.warn("Voice play failed or was blocked by browser:", e);
-                // CRITICAL FIX: If the voice is blocked by Safari Autoplay Policy or is a 404 missing file, 
-                // the 'onended' event will NEVER fire natively. This completely breaks Story sequences!
-                // We must manually trigger the callback after a fallback text-reading delay (e.g. 15 seconds).
                 this._voiceFallbackTimeout = setTimeout(() => {
                     if (this.voiceChannel.onended) {
                         console.log("Triggering fallback onended for blocked voice track.");
@@ -331,20 +314,19 @@ export default class AudioManager {
         }
 
         // Dynamic Ducking + Lowpass Filter BGM
+        const duckVol = Math.min(restoreVol, 0.25);
         if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(0.25, this.audioCtx.currentTime, 0.1);
-            if (this.lpFilter) {
+            this.gainNode.gain.setTargetAtTime(duckVol, this.audioCtx.currentTime, 0.1);
+            if (this.lpFilter && (this.game?.settings?.bgmFilterEnabled !== false)) {
                 // Muffle BGM Down to 400Hz so voice pops out clearly
                 this.lpFilter.frequency.setTargetAtTime(400, this.audioCtx.currentTime, 0.1);
             }
         } else if (this.bgm) {
-            this.bgm.volume = 0.2;
+            this.bgm.volume = Math.min(restoreVol, 0.2);
         }
     }
 
     playSFX(path, isHeavy = false) {
-        // SFX channels are raw HTML5 Audio elements, NOT routed through WebAudio,
-        // so they should play even if AudioContext is suspended.
         const channel = this.sfxChannels[this.sfxIndex];
         const oldPromise = channel._sfxPromise;
 
@@ -361,37 +343,79 @@ export default class AudioManager {
             channel.currentTime = 0;
         }
 
+        const baseSfx = this._getSfxVol(0.5);
         channel.src = path;
-        channel.volume = isHeavy ? 1.0 : 0.6;
+        channel.volume = Math.min(1.0, isHeavy ? Math.max(baseSfx, baseSfx * 1.4) : baseSfx);
+
+        const tryFallback = (altPath) => {
+            channel.src = altPath;
+            channel._sfxPromise = channel.play();
+            return channel._sfxPromise;
+        };
 
         channel._sfxPromise = channel.play();
         if (channel._sfxPromise !== undefined) {
-            channel._sfxPromise.catch(e => {
-                // Automatic Fallback 1: 'voice/' subdirectory mismatch
-                if (path.includes('voice/')) {
-                    const fallbackPath = path.replace('voice/', '');
-                    channel.src = fallbackPath;
-                    channel._sfxPromise = channel.play();
-                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+            channel._sfxPromise.catch(() => {
+                // Automatic Fallback 1: Try switching between 'assets/audio/voice/' and 'assets/audio/'
+                let altPath = null;
+                if (path.includes('assets/audio/voice/')) {
+                    altPath = path.replace('assets/audio/voice/', 'assets/audio/');
+                } else if (path.startsWith('assets/audio/')) {
+                    altPath = path.replace('assets/audio/', 'assets/audio/voice/');
                 }
-                // Automatic Fallback 2: Missing Character Audio
-                else if (path.includes('_hit.mp3')) {
-                    channel.src = 'assets/audio/keano_hit.mp3';
-                    channel._sfxPromise = channel.play();
-                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
-                } else if (path.includes('_ko.mp3')) {
-                    channel.src = 'assets/audio/keano_ko.mp3';
-                    channel._sfxPromise = channel.play();
-                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
-                } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
-                    channel.src = 'assets/audio/keano_special.mp3';
-                    channel._sfxPromise = channel.play();
-                    if (channel._sfxPromise) channel._sfxPromise.catch(() => { });
+
+                const fallbackCharacterAudio = () => {
+                    if (path.includes('_win.mp3')) {
+                        const tauntPath = (path.includes('voice/') ? path : path.replace('assets/audio/', 'assets/audio/voice/')).replace('_win.mp3', '_taunt.mp3');
+                        const p = tryFallback(tauntPath);
+                        if (p) p.catch(() => { });
+                    } else if (path.includes('_hit.mp3')) {
+                        const p = tryFallback('assets/audio/voice/keano_hit.mp3');
+                        if (p) p.catch(() => { });
+                    } else if (path.includes('_ko.mp3')) {
+                        const p = tryFallback('assets/audio/voice/keano_ko.mp3');
+                        if (p) p.catch(() => { });
+                    } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
+                        const p = tryFallback('assets/audio/voice/keano_special.mp3');
+                        if (p) p.catch(() => { });
+                    }
+                };
+
+                if (altPath) {
+                    const p = tryFallback(altPath);
+                    if (p) p.catch(fallbackCharacterAudio);
+                } else {
+                    fallbackCharacterAudio();
                 }
             });
         }
 
         this.sfxIndex = (this.sfxIndex + 1) % this.sfxChannels.length;
+    }
+
+    /** Synthesized crisp arcade block sound */
+    playBlockSound() {
+        this._initWebAudio();
+        const ctx = this.audioCtx;
+        if (!ctx) return;
+        if (ctx.state === 'suspended') ctx.resume();
+
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const vol = Math.min(0.4, this._getSfxVol(0.5) * 0.6);
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, now);
+        osc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
+
+        gain.gain.setValueAtTime(vol, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.09);
     }
 
     // ─── PREMIUM CAESAR ENGINE SPLASH AUDIO ───

@@ -48,7 +48,7 @@ export default class CaesarSplash {
     update(dt) {
         this.time += dt;
         const p1 = this.game.inputManager.p1;
-        if (p1.lJust || p1.hJust || p1.sJust) {
+        if (this.time > 0.2 && p1.skipJust) {
             this.time = this.duration;
         }
         if (this.time >= this.duration) {

@@ -1,4 +1,5 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, isFighterUnlocked } from '../data.js';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -38,6 +39,7 @@ export default class CharacterSelectState {
         this.loadingCombat = false;
         // Play continuous main theme across menu and select screens
         this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.15);
+        playAnnouncer(this.game.audioManager, 'select');
     }
 
     exit() {
@@ -58,9 +60,9 @@ export default class CharacterSelectState {
             if (p1.left) { this.p1Index = Math.max(0, this.p1Index - 1); this.inputCooldown = 10; }
             else if (p1.right) { this.p1Index = Math.min(this.allFighters.length - 1, this.p1Index + 1); this.inputCooldown = 10; }
             else if (p1.up) { this.p1Index = Math.max(0, this.p1Index - this.columns); this.inputCooldown = 10; }
-            else if (p1.down) { this.p1Index = Math.min(this.allFighters.length - 1, this.p1Index + this.columns); this.inputCooldown = 10; }
+            else if (p1.down) { this.p1Index = Math.min(this.allFighters.length - 1, this.p1Index + 1 * this.columns); this.inputCooldown = 10; }
 
-            if (p1.l || p1.h || p1.s) {
+            if (p1.l || p1.h) {
                 const char = this.allFighters[this.p1Index];
                 if (!isFighterUnlocked(char.id)) {
                     // Locked! Cannot select. Play buzzer or ignore.
@@ -70,6 +72,7 @@ export default class CharacterSelectState {
 
                 this.p1Locked = true;
                 this.inputCooldown = 20;
+                playFighterSound(this.game.audioManager, char.id, 'select');
 
                 if (this.arcadeMode) {
                     // Arcade Mode: Skip P2 selection, go straight to ladder
@@ -81,6 +84,10 @@ export default class CharacterSelectState {
                     // Versus Mode: Initialize P2 cursor to P1's position to let P1 pick P2
                     this.p2Index = this.p1Index;
                 }
+            } else if (p1.s) {
+                // Return to Main Menu
+                this.inputCooldown = 20;
+                this.game.stateManager.switchState('Menu');
             }
         } else if (this.p1Locked && !this.p2Locked && !this.arcadeMode && this.inputCooldown <= 0) {
             // P2 Selection Phase (controlled by P1 input in VS Mode)
@@ -89,7 +96,7 @@ export default class CharacterSelectState {
             else if (p1.up) { this.p2Index = Math.max(0, this.p2Index - this.columns); this.inputCooldown = 10; }
             else if (p1.down) { this.p2Index = Math.min(this.allFighters.length - 1, this.p2Index + this.columns); this.inputCooldown = 10; }
 
-            if (p1.l || p1.h || p1.s) {
+            if (p1.l || p1.h) {
                 const char = this.allFighters[this.p2Index];
                 if (!isFighterUnlocked(char.id)) {
                     // Locked!
@@ -99,50 +106,40 @@ export default class CharacterSelectState {
                 this.p2Locked = true;
                 this.inputCooldown = 60;
                 this.loadingCombat = true;
+                playFighterSound(this.game.audioManager, char.id, 'select');
                 this.preloadAndFight();
+            } else if (p1.s) {
+                // Cancel P1 lock
+                this.p1Locked = false;
+                this.inputCooldown = 20;
             }
         }
     }
 
     async preloadAndFight() {
-        const { STAGES } = await import('../data.js');
         const p1Char = this.allFighters[this.p1Index];
         const p2Char = this.allFighters[this.p2Index];
-        // Preload robust combat sprites for both fighters using Combat's centralized logic (includes Special and Projectiles)
-        const combatState = this.game.stateManager.states['Combat'];
-        if (combatState && typeof combatState.preloadFighterSprites === 'function') {
-            combatState.preloadFighterSprites(p1Char);
-            combatState.preloadFighterSprites(p2Char);
-        } else {
-            console.error("Combat state not initialized or missing preloadFighterSprites.");
-        }
 
-        // Preload P2's home stage background
+        preloadFighterSprites(this.game.assetManager, p1Char);
+        preloadFighterSprites(this.game.assetManager, p2Char);
+
         const stageId = p2Char.stageId || 'Cosmic';
-        const stage = STAGES[stageId];
-        const stageKey = `Stage_${stageId}`;
-        if (stage && !this.game.assetManager.images[stageKey]) {
-            this.game.assetManager.queueImage(stageKey, `assets/STAGES/${stage.file}`);
-        }
+        preloadStageAssets(this.game.assetManager, stageId);
 
-        // Stop the select menu music instantly BEFORE we await the large network load for assets.
-        // This prevents the select theme from overlapping the next state's audio if loading takes seconds.
+        // Stop the select menu music instantly BEFORE we transition.
         this.game.audioManager.stopBGM();
-
-        await this.game.assetManager.loadAll();
-        console.log(`Combat ready: ${p1Char.name} vs ${p2Char.name} @ ${stage?.name || 'Cosmic Portal'}`);
 
         setTimeout(() => {
             if (this.arcadeMode) {
-                // Arcade Mode: fight opponents sequentially starting from ROSTER[0]
-                const opponent = ROSTER[0];
+                // Arcade Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
+                const opponent = ROSTER[1];
                 const combatData = {
                     p1: p1Char,
-                    p2: { ...opponent, rosterIndex: 0 },
+                    p2: { ...opponent, rosterIndex: 1 },
                     stageId: opponent.stageId,
                     arcadeMode: true,
-                    storyMode: true,
-                    arcadeIndex: 0,
+                    storyMode: false,
+                    arcadeIndex: 1,
                     arcadeWins: 0,
                 };
                 this.game.stateManager.switchState('VersusIntro', combatData);

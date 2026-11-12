@@ -22,5 +22,5 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 class ThreadedServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
 
-print("🚀 Starting THREADED dev server on http://localhost:8080 (NO CACHE)")
-ThreadedServer(('', 8080), NoCacheHandler).serve_forever()
+print("🚀 Starting THREADED dev server on http://localhost:8081 (NO CACHE)")
+ThreadedServer(('', 8081), NoCacheHandler).serve_forever()
