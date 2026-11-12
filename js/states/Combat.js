@@ -343,8 +343,18 @@ export default class CombatState {
         // --- P2 AI Input & Special Move Processing ---
         const p2Input = AIController.computeInput(this, dt);
         if (p2Input.sJust) {
-            p2Input.sJust = false;
-            this.tryExecuteSpecial(this.p2, 'p2');
+            const dist = Math.abs(this.p1.x - this.p2.x);
+            const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && Math.random() < 0.55;
+            if (useMeleeSpecial) {
+                // Keep sJust = true so Fighter.update executes the 45-damage close-range SPECIAL attack
+                if (this.p2.specialEnergy >= 100 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
+                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
+                    this.triggerShake(2, 0.08);
+                }
+            } else {
+                p2Input.sJust = false;
+                this.tryExecuteSpecial(this.p2, 'p2');
+            }
         }
 
         this.p1.update(dt, p1InputCopy);

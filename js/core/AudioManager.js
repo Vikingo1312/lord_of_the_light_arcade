@@ -276,6 +276,12 @@ export default class AudioManager {
     }
 
     playVoice(path, onEndedCallback = null) {
+        if (this._voiceFallbackTimeout) {
+            clearTimeout(this._voiceFallbackTimeout);
+            this._voiceFallbackTimeout = null;
+        }
+        this._voicePlayPromise = null;
+
         if (this.audioCtx && this.audioCtx.state === 'suspended') {
             this.audioCtx.resume();
         }
@@ -303,6 +309,21 @@ export default class AudioManager {
         this._voicePlayPromise = this.voiceChannel.play();
         if (this._voicePlayPromise !== undefined) {
             this._voicePlayPromise.catch(e => {
+                // Fallback to assets/audio/voice/ if needed
+                if (path.startsWith('assets/audio/') && !path.includes('assets/audio/voice/')) {
+                    const altPath = path.replace('assets/audio/', 'assets/audio/voice/');
+                    this.voiceChannel.src = altPath;
+                    this._voicePlayPromise = this.voiceChannel.play();
+                    if (this._voicePlayPromise) {
+                        this._voicePlayPromise.catch(err => {
+                            console.warn("Voice play failed or was blocked by browser:", err);
+                            this._voiceFallbackTimeout = setTimeout(() => {
+                                if (this.voiceChannel.onended) this.voiceChannel.onended();
+                            }, 15000);
+                        });
+                    }
+                    return;
+                }
                 console.warn("Voice play failed or was blocked by browser:", e);
                 this._voiceFallbackTimeout = setTimeout(() => {
                     if (this.voiceChannel.onended) {
