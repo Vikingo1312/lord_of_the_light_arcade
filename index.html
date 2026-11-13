@@ -6,12 +6,14 @@
     <title>KEANO ROMEO — LORD OF THE LIGHT I ⚔️ (V2.0 ENGINE)</title>
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- iOS PWA Fullscreen -->
+    <!-- iOS PWA & Web App Manifest Fullscreen -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Lord of the Light">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#000000">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/UI/caesar_logo.png">
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;700&family=Press+Start+2P&display=swap"
         rel="stylesheet">
@@ -22,13 +24,20 @@
             padding: 0;
             user-select: none;
             -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body,
         html {
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            width: 100dvw;
+            height: 100dvh;
             overflow: hidden;
+            overscroll-behavior: none;
             background: #000;
             font-family: 'Press Start 2P', monospace;
             color: white;
@@ -36,11 +45,27 @@
         }
 
         #game-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
+            position: fixed;
+            inset: 0;
+            width: 100dvw;
+            height: 100dvh;
             overflow: hidden;
             background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Auto-Landscape on mobile when phone is held in Portrait or Orientation Lock is active */
+        #game-container.force-landscape {
+            width: 100dvh;
+            height: 100dvw;
+            top: 50%;
+            left: 50%;
+            right: auto;
+            bottom: auto;
+            transform: translate(-50%, -50%) rotate(90deg);
+            transform-origin: center center;
         }
 
         /* The main WebGL/2D Canvas */
@@ -52,6 +77,7 @@
             height: 100%;
             z-index: 10;
             background: #000;
+            touch-action: none;
         }
 
         /* Essential Utility Classes */
@@ -70,19 +96,34 @@
         <!-- V2.0 Canvas holds the entire render pipeline -->
         <canvas id="gameCanvas"></canvas>
 
-        <!-- Mobile Hamburger Menu (touch devices only) -->
+        <!-- Mobile Quick-Fullscreen Button & Hamburger Menu (touch devices only) -->
+        <div id="mobile-fs-btn" style="
+            display: none;
+            position: absolute; top: 10px; right: 62px; z-index: 9999;
+            height: 40px; padding: 0 12px;
+            background: rgba(15,18,25,0.88);
+            border: 2px solid rgba(0,212,255,0.55);
+            border-radius: 10px;
+            cursor: pointer;
+            align-items: center; justify-content: center;
+            color: #00d4ff; font: bold 11px 'Orbitron', sans-serif;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        " onclick="window.toggleGameFullscreen && window.toggleGameFullscreen()">
+            ⛶ VOLLBILD
+        </div>
+
         <div id="mobile-menu-btn" style="
             display: none;
-            position: fixed; top: 12px; right: 12px; z-index: 9999;
-            width: 44px; height: 44px;
-            background: rgba(15,18,25,0.85);
-            border: 2px solid rgba(0,212,255,0.4);
+            position: absolute; top: 10px; right: 10px; z-index: 9999;
+            width: 40px; height: 40px;
+            background: rgba(15,18,25,0.88);
+            border: 2px solid rgba(0,212,255,0.55);
             border-radius: 10px;
             cursor: pointer;
             align-items: center; justify-content: center;
             backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-        " ontouchstart="document.getElementById('mobile-menu').classList.toggle('hidden')">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+        " onclick="document.getElementById('mobile-menu').classList.toggle('hidden')">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                 <rect y="3" width="24" height="3" rx="1.5" fill="#00d4ff" />
                 <rect y="10" width="18" height="3" rx="1.5" fill="#00d4ff" />
                 <rect y="17" width="24" height="3" rx="1.5" fill="#00d4ff" />
@@ -90,47 +131,144 @@
         </div>
 
         <div id="mobile-menu" class="hidden" style="
-            position: fixed; top: 60px; right: 12px; z-index: 9998;
-            background: rgba(10,12,20,0.92);
-            border: 2px solid rgba(0,212,255,0.3);
+            position: absolute; top: 56px; right: 10px; z-index: 9998;
+            background: rgba(10,12,20,0.95);
+            border: 2px solid rgba(0,212,255,0.45);
             border-radius: 12px;
             padding: 8px 0;
-            min-width: 180px;
+            min-width: 200px;
             backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         ">
             <div class="mmenu-item" onclick="
-                if(document.fullscreenElement){document.exitFullscreen()}else{document.documentElement.requestFullscreen().catch(()=>{})}
+                window.toggleGameFullscreen && window.toggleGameFullscreen();
                 document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#00d4ff;font:bold 14px 'Press Start 2P';cursor:pointer;">⛶ FULLSCREEN
+            " style="padding:14px 18px;color:#00d4ff;font:bold 12px 'Press Start 2P';cursor:pointer;">⛶ VOLLBILD / DREHEN
             </div>
             <div class="mmenu-item" onclick="
                 const am=window.__gameRef?.audioManager;
                 if(am){am.bgm&&(am.bgm.muted=!am.bgm.muted)}
                 document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#ffcc00;font:bold 14px 'Press Start 2P';cursor:pointer;">🔇 MUTE</div>
+            " style="padding:14px 18px;color:#ffcc00;font:bold 12px 'Press Start 2P';cursor:pointer;">🔇 TON AN/AUS</div>
             <div class="mmenu-item" onclick="
                 window.__gameRef?.stateManager?.switchState('Menu');
                 document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#ff4444;font:bold 14px 'Press Start 2P';cursor:pointer;">🏠 MENU</div>
+            " style="padding:14px 18px;color:#ff4444;font:bold 12px 'Press Start 2P';cursor:pointer;">🏠 HAUPTMENÜ</div>
+        </div>
+
+        <!-- iOS Safari Fullscreen Helper Banner -->
+        <div id="ios-fs-toast" class="hidden" style="
+            position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
+            z-index: 10000; background: rgba(8, 12, 24, 0.96);
+            border: 2px solid #00d4ff; border-radius: 12px;
+            padding: 12px 18px; max-width: 90%; width: 460px;
+            font-family: 'Orbitron', sans-serif; color: #fff; text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.85);
+        ">
+            <div style="color:#00d4ff;font-weight:900;font-size:13px;margin-bottom:6px;">📱 IPHONE VOLLBILD-MODUS AKTIV</div>
+            <div style="font-size:11px;line-height:1.45;color:#ddd;margin-bottom:8px;">
+                Querformat ist jetzt optimal angepasst! Tipp für 100% App-Vollbild ohne Safari-Leiste: Unten in Safari auf <b>Teilen ⬆️</b> ➔ <b>„Zum Home-Bildschirm“</b> tippen.
+            </div>
+            <button onclick="document.getElementById('ios-fs-toast').classList.add('hidden')" style="
+                background:#00d4ff; color:#000; border:none; border-radius:6px;
+                padding:6px 16px; font:bold 11px 'Orbitron', sans-serif; cursor:pointer;
+            ">OK, VERSTANDEN</button>
         </div>
     </div>
 
     <!-- PeerJS for P2P WebRTC Online Co-Op & 1v1 -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
-    <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.10"></script>
-
     <script>
-        // Show hamburger menu only on touch devices
-        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-            document.getElementById('mobile-menu-btn').style.display = 'flex';
-        }
-        // iOS Safari: scroll to hide address bar
-        window.addEventListener('load', () => {
-            setTimeout(() => window.scrollTo(0, 1), 100);
-        });
+        (function () {
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const container = document.getElementById('game-container');
+
+            function updateOrientationLayout() {
+                if (!container) return;
+                // On mobile/touch devices held in portrait (or when iOS Portrait Lock is on),
+                // automatically rotate the game container 90deg into landscape so it fills 100% of the screen!
+                if (isTouchDevice && window.innerHeight > window.innerWidth) {
+                    container.classList.add('force-landscape');
+                } else {
+                    container.classList.remove('force-landscape');
+                }
+                window.scrollTo(0, 1);
+            }
+
+            // Accurate touch/click mapping that handles both standard landscape and 90deg .force-landscape rotation
+            window.mapTouchToCanvas = function (clientX, clientY, canvas) {
+                const c = canvas || document.getElementById('gameCanvas');
+                if (!c) return { x: clientX, y: clientY };
+                const rect = c.getBoundingClientRect();
+                const isRotated = container && container.classList.contains('force-landscape');
+                if (isRotated) {
+                    // When rotated +90deg clockwise:
+                    // Visual X (left->right of landscape game) runs along screen Y (top->bottom)
+                    // Visual Y (top->bottom of landscape game) runs along screen X (right->left)
+                    const relX = (clientY - rect.top) / Math.max(1, rect.height);
+                    const relY = (rect.right - clientX) / Math.max(1, rect.width);
+                    return {
+                        x: Math.max(0, Math.min(c.width, relX * c.width)),
+                        y: Math.max(0, Math.min(c.height, relY * c.height))
+                    };
+                }
+                return {
+                    x: (clientX - rect.left) * (c.width / Math.max(1, rect.width)),
+                    y: (clientY - rect.top) * (c.height / Math.max(1, rect.height))
+                };
+            };
+
+            window.toggleGameFullscreen = function () {
+                const docEl = document.documentElement;
+                const reqFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.msRequestFullscreen;
+                const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+                const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+
+                if (reqFs) {
+                    if (!fsEl) {
+                        Promise.resolve(reqFs.call(docEl)).then(() => {
+                            if (screen.orientation && screen.orientation.lock) {
+                                screen.orientation.lock('landscape').catch(() => {});
+                            }
+                        }).catch(() => {
+                            updateOrientationLayout();
+                        });
+                    } else if (exitFs) {
+                        Promise.resolve(exitFs.call(document)).catch(() => {});
+                    }
+                } else {
+                    // iPhone iOS Safari does not provide element.requestFullscreen()
+                    updateOrientationLayout();
+                    const isStandalone = window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+                    if (!isStandalone) {
+                        const toast = document.getElementById('ios-fs-toast');
+                        if (toast) {
+                            toast.classList.remove('hidden');
+                            clearTimeout(window.__iosToastTimer);
+                            window.__iosToastTimer = setTimeout(() => toast.classList.add('hidden'), 6500);
+                        }
+                    }
+                }
+            };
+
+            if (isTouchDevice) {
+                document.getElementById('mobile-menu-btn').style.display = 'flex';
+                document.getElementById('mobile-fs-btn').style.display = 'flex';
+                updateOrientationLayout();
+                window.addEventListener('resize', updateOrientationLayout);
+                window.addEventListener('orientationchange', () => setTimeout(updateOrientationLayout, 120));
+            }
+
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                    navigator.serviceWorker.register('sw.js').catch(() => {});
+                });
+            }
+        })();
     </script>
+
+    <!-- ES6 Modules Entry Point -->
+    <script type="module" src="js/main.js?v=2.19"></script>
 </body>
 
 </html>

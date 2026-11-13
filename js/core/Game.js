@@ -31,9 +31,9 @@ export default class Game {
             timer: savedSettings.timer || 99,
             speed: savedSettings.speed || 1.0,
             difficulty: savedSettings.difficulty || 'NORMAL',
-            musicVolume: savedSettings.musicVolume ?? 0.5,
-            voiceVolume: savedSettings.voiceVolume ?? 0.9,
-            sfxVolume: savedSettings.sfxVolume ?? 0.5,
+            musicVolume: savedSettings.musicVolume ?? 0.52,
+            voiceVolume: savedSettings.voiceVolume ?? 0.96,
+            sfxVolume: savedSettings.sfxVolume ?? 0.35,
 
             // Effect Bypass Flags — set to false to disable
             chromaKeyEnabled: false,  // Sprites are already transparent — DO NOT process!

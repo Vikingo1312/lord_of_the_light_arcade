@@ -15,13 +15,15 @@ export default class InputManager {
         // Just-pressed detection
         this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, menu: false };
 
-        // Double-tap dash timestamps (ms)
+        // Double-tap dash & simultaneous throw timestamps (ms)
         this._lastLeftTap = 0;
         this._lastRightTap = 0;
+        this._lastLPress = 0;
+        this._lastHPress = 0;
 
-        // Motion input history (stores last 15 directional states with timestamps)
+        // Motion input history (stores last 24 directional states with timestamps)
         this.inputHistory = [];
-        this.maxHistory = 15;
+        this.maxHistory = 24;
 
         window.addEventListener('keydown', (e) => {
             if (!e.repeat) {
@@ -97,8 +99,12 @@ export default class InputManager {
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
-        // Double-tap Left / Right detection (within 260ms window)
+        // Double-tap Left / Right detection (within 260ms window) & Simultaneous L+H Throw (within 70ms)
         const now = performance.now();
+        if (this.p1.lJust) this._lastLPress = now;
+        if (this.p1.hJust) this._lastHPress = now;
+        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 70;
+
         this.p1.dashLeftJust = false;
         this.p1.dashRightJust = false;
         if (this.p1.leftJust) {
@@ -119,32 +125,82 @@ export default class InputManager {
         }
 
         // Record directional state for motion input detection
-        const dir = { down: this.p1.down, right: this.p1.right, left: this.p1.left, t: now };
+        const dir = { up: this.p1.up, down: this.p1.down, right: this.p1.right, left: this.p1.left, t: now };
         this.inputHistory.push(dir);
         if (this.inputHistory.length > this.maxHistory) this.inputHistory.shift();
     }
 
     /**
-     * Check for Quarter-Circle Forward input (↓↘→)
+     * Check for Quarter-Circle Forward input (↓↘→ or ↓→ on keyboard)
      * @param {number} facing - 1 for right-facing, -1 for left-facing
      */
     hasQCF(facing) {
         const now = performance.now();
-        const window = 500; // ms (increased from 400ms for slightly more forgiving inputs)
-        const recent = this.inputHistory.filter(h => (now - h.t) < window);
-        if (recent.length < 3) return false;
+        const recent = this.inputHistory.filter(h => (now - h.t) < 520);
+        if (recent.length < 2) return false;
 
-        // Looking for: DOWN only → DOWN+FORWARD → FORWARD only
         const fwd = facing === 1 ? 'right' : 'left';
         let foundDown = false;
-        let foundDiag = false;
 
         for (const h of recent) {
             if (!foundDown && h.down && !h[fwd]) {
                 foundDown = true;
-            } else if (foundDown && !foundDiag && h.down && h[fwd]) {
-                foundDiag = true;
-            } else if (foundDiag && !h.down && h[fwd]) {
+            } else if (foundDown && !h.down && h[fwd]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check for Quarter-Circle Back / Hurricane Kick input (↓↙← or ↓←)
+     * @param {number} facing - 1 for right-facing, -1 for left-facing
+     */
+    hasQCB(facing) {
+        const now = performance.now();
+        const recent = this.inputHistory.filter(h => (now - h.t) < 520);
+        if (recent.length < 2) return false;
+
+        const back = facing === 1 ? 'left' : 'right';
+        let foundDown = false;
+
+        for (const h of recent) {
+            if (!foundDown && h.down && !h[back]) {
+                foundDown = true;
+            } else if (foundDown && !h.down && h[back]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check for Dragon Punch / Shoryuken input (→↓↘, →↓→, or ↓↑)
+     * @param {number} facing - 1 for right-facing, -1 for left-facing
+     */
+    hasDP(facing) {
+        const now = performance.now();
+        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        if (recent.length < 2) return false;
+
+        const fwd = facing === 1 ? 'right' : 'left';
+        let foundFwd = false;
+        let foundDownAfterFwd = false;
+        let foundDown = false;
+
+        for (const h of recent) {
+            // Classic Shoryuken: Forward -> Down -> Forward/Down-Forward
+            if (!foundFwd && h[fwd] && !h.down) {
+                foundFwd = true;
+            } else if (foundFwd && !foundDownAfterFwd && h.down) {
+                foundDownAfterFwd = true;
+            } else if (foundDownAfterFwd && h[fwd]) {
+                return true;
+            }
+            // Fast Down -> Up + Punch shortcut
+            if (!foundDown && h.down && !h.up) {
+                foundDown = true;
+            } else if (foundDown && h.up) {
                 return true;
             }
         }

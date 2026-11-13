@@ -19,13 +19,19 @@ export default class Projectile {
         this.time = 0;
         this.vy = 0; // Vertical velocity (used for Supreme Keano's angled projectile)
 
-        // Hitbox enlarged to ensure reliable collision
-        this.hitbox = new Hitbox(-50, -50, 100, 100);
+        // Tight Street Fighter projectile hitbox so jumping/saltoing over fireballs clears cleanly
+        this.hitbox = new Hitbox(-44, -32, 88, 64);
+        this.trail = [];
     }
 
     update(dt) {
         if (!this.alive) return;
         this.time += dt;
+
+        this.trail.unshift({ x: this.x, y: this.y, t: this.time });
+        if (this.trail.length > 7) {
+            this.trail.pop();
+        }
 
         this.x += this.speed * this.facing * dt;
         this.y += this.vy * dt; // Apply vertical movement
@@ -56,52 +62,130 @@ export default class Projectile {
         ctx.save();
 
         const isP1 = this.owner === 'p1';
-        const coreColor = isP1 ? '#00ddff' : '#ff4400';
+        const coreColor = isP1 ? '#00eeff' : '#ff5500';
+        const midRgba = isP1 ? '0, 210, 255' : '255, 110, 20';
+        const outerRgba = isP1 ? '0, 110, 255' : '220, 30, 0';
+        const hotRgba = isP1 ? '210, 250, 255' : '255, 240, 180';
+        const shimmerOn = !this.game || !this.game.settings || this.game.settings.shimmerEnabled !== false;
 
-        // Add a subtle glow behind the projectile
-        ctx.shadowColor = coreColor;
-        ctx.shadowBlur = 30;
+        ctx.translate(this.x, this.y);
 
-        // Draw the custom projectile image if it exists
-        if (this.img) {
-            ctx.translate(this.x, this.y);
+        // Flip horizontally based on facing direction so local +X is always forward
+        if (this.facing === -1) {
+            ctx.scale(-1, 1);
+        }
 
-            // Flip the projectile image depending on facing direction
-            if (this.facing === -1) {
-                ctx.scale(-1, 1);
+        // Slight pitch rotation if projectile has vertical velocity (e.g., angled shots)
+        if (this.vy !== 0) {
+            const angle = Math.atan2(this.vy, this.speed) * 0.65;
+            ctx.rotate(angle);
+        }
+
+        const drawW = (this.img && (this.img.width || this.img.naturalWidth)) || 100;
+        const drawH = (this.img && (this.img.height || this.img.naturalHeight)) || 100;
+        const baseW = this.size * 1.5;
+        const baseH = (drawH / drawW) * baseW;
+        const validImg = this.img && !isNaN(baseH) && baseH > 0 && baseH !== Infinity;
+
+        // Dynamic Street Fighter pulsing scale & forward kinetic stretch
+        const pulse = 1.0 + Math.sin(this.time * 34) * 0.065;
+        const stretchX = pulse * (1.03 + Math.cos(this.time * 26) * 0.025);
+        const stretchY = pulse * (0.98 - Math.cos(this.time * 26) * 0.02);
+        const w = baseW * stretchX;
+        const h = (validImg ? baseH : baseW) * stretchY;
+        const auraRadius = Math.max(w, h) * 0.62;
+
+        if (shimmerOn) {
+            ctx.globalCompositeOperation = 'screen';
+
+            // 1. High-energy comet tail extending behind the projectile (-X in local space)
+            const tailSegments = 6;
+            for (let i = tailSegments; i >= 1; i--) {
+                const frac = i / tailSegments;
+                const tailX = -i * (w * 0.14);
+                const waveY = Math.sin(this.time * 28 - i * 0.85) * (5 * frac);
+                const segRadius = auraRadius * (0.72 * (1 - frac * 0.68));
+                const tailGrad = ctx.createRadialGradient(tailX, waveY, segRadius * 0.05, tailX, waveY, segRadius);
+                const alpha = (1 - frac * 0.75) * 0.38;
+                tailGrad.addColorStop(0, `rgba(${hotRgba}, ${alpha * 1.1})`);
+                tailGrad.addColorStop(0.45, `rgba(${midRgba}, ${alpha * 0.75})`);
+                tailGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.fillStyle = tailGrad;
+                ctx.beginPath();
+                ctx.arc(tailX, waveY, segRadius, 0, Math.PI * 2);
+                ctx.fill();
             }
 
-            // Draw it centered and scaled
-            // Fallback to width/height properties, defaulting to a 1:1 aspect ratio if Safari memory drops the properties
-            const drawW = this.img.width || this.img.naturalWidth || 100;
-            const drawH = this.img.height || this.img.naturalHeight || 100;
+            // 2. Smooth radial outer aura glow (100% circular falloff to zero alpha, never a box)
+            const auraGrad = ctx.createRadialGradient(0, 0, auraRadius * 0.08, 0, 0, auraRadius * 1.15);
+            auraGrad.addColorStop(0, `rgba(${hotRgba}, 0.52)`);
+            auraGrad.addColorStop(0.4, `rgba(${midRgba}, 0.34)`);
+            auraGrad.addColorStop(0.75, `rgba(${outerRgba}, 0.14)`);
+            auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-            const w = this.size * 1.5;
-            const h = (drawH / drawW) * w;
-
-            if (isNaN(h) || h === 0 || h === Infinity) {
-                // Failsafe rendering if the image data is completely broken
-                ctx.fillStyle = coreColor;
-                ctx.fillRect(-w / 2, -w / 2, w, w);
-            } else {
-                // --- SHIMMER EFFECT (Behind the Image) ---
-                if (!this.game || !this.game.settings || this.game.settings.shimmerEnabled !== false) {
-                    ctx.globalCompositeOperation = 'lighter';
-                    const flicker = 0.1 + Math.random() * 0.15;
-                    ctx.fillStyle = isP1 ? `rgba(0, 200, 255, ${flicker})` : `rgba(255, 100, 0, ${flicker})`;
-                    ctx.fillRect(-w * 0.6, -h * 0.6, w * 1.2, h * 1.2);
-                    ctx.globalCompositeOperation = 'source-over';
-                }
-
-                // Draw the actual Custom Projectile over the glow
-                ctx.drawImage(this.img, -w / 2, -h / 2, w, h);
-            }
-        } else {
-            // Backup generic energy ball if image failed to load
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = coreColor;
+            ctx.fillStyle = auraGrad;
             ctx.beginPath();
-            ctx.arc(this.x, this.y, 40, 0, Math.PI * 2);
+            ctx.arc(0, 0, auraRadius * 1.15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 3. Pulsing shockwave / vortex energy rings around the projectile wake
+            for (let rIdx = 0; rIdx < 2; rIdx++) {
+                const phase = (this.time * 5.5 + rIdx * 0.5) % 1;
+                const ringX = -w * (0.08 + phase * 0.42);
+                const ringRx = auraRadius * (0.22 + phase * 0.18);
+                const ringRy = auraRadius * (0.52 + (1 - phase) * 0.22);
+                const ringAlpha = (1 - phase) * 0.45;
+
+                ctx.strokeStyle = `rgba(${hotRgba}, ${ringAlpha})`;
+                ctx.lineWidth = 2.5 * (1 - phase * 0.5);
+                ctx.beginPath();
+                ctx.ellipse(ringX, 0, ringRx, ringRy, 0, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            // 4. High-speed plasma spark streaks in the wake
+            ctx.lineCap = 'round';
+            for (let s = 0; s < 4; s++) {
+                const sPhase = (this.time * 9 + s * 0.25) % 1;
+                const sx = -w * (0.1 + sPhase * 0.65);
+                const sy = ((s % 2 === 0 ? 1 : -1) * (0.18 + (s * 0.09))) * h + Math.sin(this.time * 20 + s) * 6;
+                const len = w * (0.16 * (1 - sPhase * 0.5));
+                ctx.strokeStyle = `rgba(${hotRgba}, ${(1 - sPhase) * 0.55})`;
+                ctx.lineWidth = 2.0;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(sx - len, sy);
+                ctx.stroke();
+            }
+        }
+
+        if (validImg) {
+            // Additive silhouette bloom pass behind the sprite
+            if (shimmerOn) {
+                ctx.globalCompositeOperation = 'screen';
+                ctx.globalAlpha = 0.45;
+                ctx.shadowColor = coreColor;
+                ctx.shadowBlur = 28;
+                ctx.drawImage(this.img, -w * 0.53, -h * 0.53, w * 1.06, h * 1.06);
+            }
+
+            // Crisp foreground projectile sprite pass
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+            ctx.shadowColor = coreColor;
+            ctx.shadowBlur = 18;
+            ctx.drawImage(this.img, -w / 2, -h / 2, w, h);
+        } else {
+            // Fallback radial plasma sphere if image failed to load (never a rectangle)
+            ctx.globalCompositeOperation = 'screen';
+            const fbGrad = ctx.createRadialGradient(0, 0, 4, 0, 0, 48);
+            fbGrad.addColorStop(0, '#ffffff');
+            fbGrad.addColorStop(0.45, coreColor);
+            fbGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = fbGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 48, 0, Math.PI * 2);
             ctx.fill();
         }
 

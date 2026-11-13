@@ -1,0 +1,10 @@
+{
+  "appId": "eu.srinfinity.lordofthelight",
+  "appName": "Lord of the Light",
+  "webDir": ".",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "never",
+    "preferredContentMode": "mobile"
+  }
+}

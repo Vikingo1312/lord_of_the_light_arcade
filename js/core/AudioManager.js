@@ -4,6 +4,10 @@ export default class AudioManager {
         this.bgm = null;
         this.currentPath = '';
         this.voiceChannel = new Audio();
+        this.announcerChannel = new Audio();
+        this.fighterVoiceChannel = new Audio();
+        this._fighterVoicePriority = 0;
+        this._lastHitVoiceTime = 0;
         this.sfxChannels = Array.from({ length: 8 }, () => new Audio());
         this.sfxIndex = 0;
 
@@ -14,15 +18,15 @@ export default class AudioManager {
         this.gainNode = null;
     }
 
-    _getMusicVol(fallback = 0.5) {
+    _getMusicVol(fallback = 0.52) {
         return this.game?.settings?.musicVolume ?? fallback;
     }
 
-    _getVoiceVol(fallback = 0.9) {
+    _getVoiceVol(fallback = 0.96) {
         return this.game?.settings?.voiceVolume ?? fallback;
     }
 
-    _getSfxVol(fallback = 0.5) {
+    _getSfxVol(fallback = 0.35) {
         return this.game?.settings?.sfxVolume ?? fallback;
     }
 
@@ -66,15 +70,16 @@ export default class AudioManager {
             const silentB64 = 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
 
             // Unlock ONE SFX Channel (bypasses Mobile Safari's "must play an element" rule)
-            // No need to unlock all 8 as it causes a heavy CPU stutter on Desktop
             this.sfxChannels[0].volume = 0;
             this.sfxChannels[0].src = silentB64;
-            this.sfxChannels[0].play().catch(e => { });
+            this.sfxChannels[0].play().catch(() => { });
 
-            // Unlock Voice Channel
-            this.voiceChannel.volume = 0;
-            this.voiceChannel.src = silentB64;
-            this.voiceChannel.play().catch(e => { });
+            // Unlock Story Voice, Announcer, and Fighter Voice Channels
+            for (const ch of [this.voiceChannel, this.announcerChannel, this.fighterVoiceChannel]) {
+                ch.volume = 0;
+                ch.src = silentB64;
+                ch.play().catch(() => { });
+            }
 
             this.audioUnlocked = true;
             console.log("Audio Engine Unlocked by User Interaction");
@@ -364,9 +369,21 @@ export default class AudioManager {
             channel.currentTime = 0;
         }
 
-        const baseSfx = this._getSfxVol(0.5);
+        const baseSfx = this._getSfxVol(0.35);
         channel.src = path;
-        channel.volume = Math.min(1.0, isHeavy ? Math.max(baseSfx, baseSfx * 1.4) : baseSfx);
+        let sfxMul = isHeavy ? 0.78 : 0.62;
+        if (path.includes('sfx_whoosh')) {
+            sfxMul = 0.36;
+        } else if (path.includes('sfx_block')) {
+            sfxMul = 0.56;
+        } else if (path.includes('sfx_hit_light')) {
+            sfxMul = 0.64;
+        } else if (path.includes('sfx_hit_heavy') || path.includes('sfx_throw')) {
+            sfxMul = 0.74;
+        } else if (path.includes('sfx_hit_special') || path.includes('sfx_ko_boom')) {
+            sfxMul = 0.82;
+        }
+        channel.volume = Math.min(0.58, Math.max(0.0, baseSfx * sfxMul));
 
         const tryFallback = (altPath) => {
             channel.src = altPath;
@@ -414,29 +431,214 @@ export default class AudioManager {
         this.sfxIndex = (this.sfxIndex + 1) % this.sfxChannels.length;
     }
 
-    /** Synthesized crisp arcade block sound */
+    _duckCombatBGM(factor = 0.68) {
+        const baseVol = this._getMusicVol(0.52);
+        const ducked = baseVol * factor;
+        if (this.gainNode && this.audioCtx) {
+            this.gainNode.gain.setTargetAtTime(ducked, this.audioCtx.currentTime, 0.06);
+        } else if (this.bgm) {
+            this.bgm.volume = ducked;
+        }
+    }
+
+    _restoreCombatBGM() {
+        const announcerActive = this.announcerChannel && !this.announcerChannel.paused && !this.announcerChannel.ended && this.announcerChannel.currentTime > 0;
+        const fighterActive = this.fighterVoiceChannel && !this.fighterVoiceChannel.paused && !this.fighterVoiceChannel.ended && this.fighterVoiceChannel.currentTime > 0 && this._fighterVoicePriority >= 2;
+        if (announcerActive || fighterActive) return;
+        const baseVol = this._getMusicVol(0.52);
+        if (this.gainNode && this.audioCtx) {
+            this.gainNode.gain.setTargetAtTime(baseVol, this.audioCtx.currentTime, 0.18);
+        } else if (this.bgm) {
+            this.bgm.volume = baseVol;
+        }
+    }
+
+    stopFighterVoice() {
+        const ch = this.fighterVoiceChannel;
+        if (!ch) return;
+        ch.onended = null;
+        try { ch.pause(); } catch (e) { }
+        ch.currentTime = 0;
+        this._fighterVoicePriority = 0;
+        this._restoreCombatBGM();
+    }
+
+    stopAnnouncerVoice() {
+        const ch = this.announcerChannel;
+        if (!ch) return;
+        ch.onended = null;
+        try { ch.pause(); } catch (e) { }
+        ch.currentTime = 0;
+        this._restoreCombatBGM();
+    }
+
+    isFighterVoicePlaying() {
+        const ch = this.fighterVoiceChannel;
+        return Boolean(ch && !ch.paused && !ch.ended && ch.currentTime > 0);
+    }
+
+    isAnnouncerPlaying() {
+        const ch = this.announcerChannel;
+        return Boolean(ch && !ch.paused && !ch.ended && ch.currentTime > 0);
+    }
+
+    /**
+     * Dedicated single-channel Street Fighter Announcer playback (never overlaps with itself or low-priority voice).
+     */
+    playAnnouncerVoice(path, onEndedCallback = null) {
+        const ch = this.announcerChannel;
+        if (!ch) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
+
+        // Silence low-priority hit/taunt grunts when announcer calls out ROUND 1 / FIGHT / KO / PERFECT
+        if (this._fighterVoicePriority <= 1) {
+            this.stopFighterVoice();
+        }
+
+        ch.onended = null;
+        ch.onerror = null;
+        try { ch.pause(); } catch (e) { }
+        ch.currentTime = 0;
+        ch.volume = Math.min(1.0, this._getVoiceVol(0.96));
+        ch.src = path;
+        this._duckCombatBGM(0.65);
+
+        let callbackFired = false;
+        const finish = () => {
+            if (callbackFired) return;
+            callbackFired = true;
+            ch.onended = null;
+            ch.onerror = null;
+            this._restoreCombatBGM();
+            if (onEndedCallback) onEndedCallback();
+        };
+
+        ch.onended = finish;
+        ch.onerror = finish;
+
+        const p = ch.play();
+        if (p) {
+            p.catch(() => {
+                if (path.includes('assets/audio/voice/')) {
+                    ch.src = path.replace('assets/audio/voice/', 'assets/audio/');
+                    const p2 = ch.play();
+                    if (p2) p2.catch(finish);
+                } else {
+                    finish();
+                }
+            });
+        }
+    }
+
+    /**
+     * Dedicated single-channel Fighter Voice playback with Street Fighter priority & hit-grunt cooldown.
+     * Ensures zero voice overlapping!
+     */
+    playFighterVoice(path, type = 'hit', onEndedCallback = null) {
+        const ch = this.fighterVoiceChannel;
+        if (!ch) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
+
+        const PRIORITY = {
+            hit: 1,
+            taunt: 2,
+            select: 2,
+            intro: 2,
+            special: 3,
+            super: 3,
+            win: 4,
+            ko: 5
+        };
+        const prio = PRIORITY[type] || 1;
+        const now = performance.now();
+        const isPlaying = !ch.paused && !ch.ended && ch.currentTime > 0;
+        const announcerSpeaking = this.announcerChannel && !this.announcerChannel.paused && !this.announcerChannel.ended && this.announcerChannel.currentTime > 0;
+
+        if (type === 'hit') {
+            // Never talk over announcer or active fighter voice, and enforce 850ms cooldown between hit grunts
+            if (isPlaying || announcerSpeaking) return;
+            if (now - this._lastHitVoiceTime < 850) return;
+            this._lastHitVoiceTime = now;
+        } else {
+            // Do not interrupt a higher-priority voice (e.g. KO or Win)
+            if (isPlaying && prio < this._fighterVoicePriority) return;
+        }
+
+        ch.onended = null;
+        try { ch.pause(); } catch (e) { }
+        ch.currentTime = 0;
+        this._fighterVoicePriority = prio;
+
+        const baseVol = this._getVoiceVol(0.96);
+        ch.volume = Math.min(1.0, type === 'hit' ? baseVol * 0.52 : baseVol);
+        ch.src = path;
+
+        if (prio >= 2) {
+            this._duckCombatBGM(0.68);
+        }
+
+        let callbackFired = false;
+        const finish = () => {
+            if (callbackFired) return;
+            callbackFired = true;
+            ch.onended = null;
+            this._fighterVoicePriority = 0;
+            this._restoreCombatBGM();
+            if (onEndedCallback) onEndedCallback();
+        };
+
+        ch.onended = finish;
+
+        const p = ch.play();
+        if (p) {
+            p.catch(() => {
+                if (path.includes('assets/audio/voice/')) {
+                    ch.src = path.replace('assets/audio/voice/', 'assets/audio/');
+                    const p2 = ch.play();
+                    if (p2) p2.catch(finish);
+                } else {
+                    finish();
+                }
+            });
+        }
+    }
+
+    /**
+     * Plays authentic Street Fighter II / Alpha physical punch/kick impact SFX MP3s
+     * (with rich multi-band WebAudio punch transient reinforcement).
+     */
+    playHitImpactSound(isHeavy = false, isSpecialHit = false) {
+        if (isSpecialHit) {
+            this.playSFX('assets/audio/sfx/sfx_hit_special.mp3', true);
+        } else if (isHeavy) {
+            this.playSFX('assets/audio/sfx/sfx_hit_heavy.mp3', true);
+        } else {
+            this.playSFX('assets/audio/sfx/sfx_hit_light.mp3', false);
+        }
+    }
+
+    /** Plays authentic Street Fighter martial-arts swing whoosh SFX */
+    playWhooshSound(isHeavy = false) {
+        this.playSFX(isHeavy ? 'assets/audio/sfx/sfx_whoosh_heavy.mp3' : 'assets/audio/sfx/sfx_whoosh_light.mp3', false);
+    }
+
+    /** Plays authentic Street Fighter close-range grapple/throw slam SFX */
+    playThrowSound() {
+        this.playSFX('assets/audio/sfx/sfx_throw.mp3', true);
+    }
+
+    /** Plays authentic Street Fighter dramatic K.O. double-impact boom SFX */
+    playKOBoomSound() {
+        this.playSFX('assets/audio/sfx/sfx_ko_boom.mp3', true);
+    }
+
+    /** Plays authentic Street Fighter braced forearm guard block SFX (zero triangle beep!) */
     playBlockSound() {
-        this._initWebAudio();
-        const ctx = this.audioCtx;
-        if (!ctx) return;
-        if (ctx.state === 'suspended') ctx.resume();
-
-        const now = ctx.currentTime;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const vol = Math.min(0.4, this._getSfxVol(0.5) * 0.6);
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(320, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.09);
-
-        gain.gain.setValueAtTime(vol, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.09);
+        this.playSFX('assets/audio/sfx/sfx_block.mp3', false);
     }
 
     // ─── PREMIUM CAESAR ENGINE SPLASH AUDIO ───

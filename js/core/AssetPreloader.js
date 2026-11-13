@@ -15,13 +15,13 @@ const AUDIO_MAP = {
     'Lee': 'lee',
     'JJDark': 'jayden',
     'Putin': 'putin',
-    'VikingoRaw': 'vikingo',
+    'VikingoRaw': 'vikingo_raw',
     'Vikingo': 'vikingo',
-    'SupremeKeano': 'keano',
-    'HyperKeano': 'keano',
-    'JayX': 'jayden',
-    'GargamelHoodie': 'gargamel',
-    'Simba': 'keano',
+    'SupremeKeano': 'supreme_keano',
+    'HyperKeano': 'hyper_keano',
+    'JayX': 'jay_x',
+    'GargamelHoodie': 'gargamel_hoodie',
+    'Simba': 'simba',
 };
 
 /**
@@ -30,13 +30,22 @@ const AUDIO_MAP = {
 export function preloadFighterSprites(assetManager, char) {
     if (!assetManager || !char) return;
     const pfx = char.spritePrefix || char.id.toLowerCase();
-    const suffixes = ['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'];
+    const suffixes = [
+        '_right', '_idle_2', '_left', '_front',
+        '_walk', '_walk_1', '_walk_2',
+        '_crouch', '_block', '_jump',
+        '_windup_punch', '_mid_punch', '_punch', '_hook_punch', '_uppercut', '_backfist', '_dragon_uppercut',
+        '_windup_kick', '_mid_kick', '_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick',
+        '_hit', '_ko', '_special', '_win'
+    ];
 
     for (const suf of suffixes) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {
             assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png`);
-            assetManager.queueImage(`${key}_fallback`, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
+            if (['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'].includes(suf)) {
+                assetManager.queueImage(`${key}_fallback`, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
+            }
         }
     }
 
@@ -46,12 +55,6 @@ export function preloadFighterSprites(assetManager, char) {
             const key = `${char.id}_${char.spritePrefix}_${frame}`;
             if (!assetManager.images[key]) {
                 assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${char.spritePrefix}_${frame}.png`);
-            }
-        }
-        if (char.hasWalkSprite) {
-            const walkKey = `${char.id}_walk.png`;
-            if (!assetManager.images[walkKey]) {
-                assetManager.queueImage(walkKey, `assets/CHARACTERS/${char.folder}/_walk.png`);
             }
         }
         if ((char.cutinFile2 || char.id === 'SupremeKeano') && !assetManager.images[`${char.id}_Cutin2`]) {
@@ -104,32 +107,68 @@ export function preloadStageAssets(assetManager, stageId) {
 /**
  * Play announcer voice line (round_1, fight, ko, perfect, select, etc.)
  */
-export function playAnnouncer(audioManager, type) {
-    if (!audioManager) return;
-    audioManager.playSFX(`assets/audio/voice/announcer_${type}.mp3`, true);
+export function playAnnouncer(audioManager, type, onEndedCallback = null) {
+    if (!audioManager) {
+        if (onEndedCallback) onEndedCallback();
+        return;
+    }
+    if (typeof audioManager.playAnnouncerVoice === 'function') {
+        audioManager.playAnnouncerVoice(`assets/audio/voice/announcer_${type}.mp3`, onEndedCallback);
+    } else {
+        audioManager.playSFX(`assets/audio/voice/announcer_${type}.mp3`, true);
+        if (onEndedCallback) setTimeout(onEndedCallback, 900);
+    }
 }
 
 /**
  * Play character-specific voice/SFX line (hit, ko, special, win, intro, taunt, select, super)
  */
-export function playFighterSound(audioManager, fighterId, type) {
-    if (!audioManager || !fighterId) return;
+export function playFighterSound(audioManager, fighterId, type, onEndedCallback = null) {
+    if (!audioManager || !fighterId) {
+        if (onEndedCallback) onEndedCallback();
+        return;
+    }
     const prefix = AUDIO_MAP[fighterId] || fighterId.toLowerCase();
-    audioManager.playSFX(`assets/audio/voice/${prefix}_${type}.mp3`, false);
+    if (typeof audioManager.playFighterVoice === 'function') {
+        audioManager.playFighterVoice(`assets/audio/voice/${prefix}_${type}.mp3`, type, onEndedCallback);
+    } else {
+        audioManager.playSFX(`assets/audio/voice/${prefix}_${type}.mp3`, false);
+        if (onEndedCallback) setTimeout(onEndedCallback, 1200);
+    }
 }
 
 /**
  * Play combat impact / reaction sound
  */
-export function playCombatSound(audioManager, type, charId) {
+export function playCombatSound(audioManager, type, charId, isHeavy = false, isSpecialHit = false) {
     if (!audioManager) return;
     if (type === 'hit') {
+        if (typeof audioManager.playHitImpactSound === 'function') {
+            audioManager.playHitImpactSound(isHeavy, isSpecialHit);
+        }
+        // Only play vocal hit grunt on heavy hits or 35% of light hits (with 850ms cooldown in AudioManager)
+        if (isHeavy || Math.random() < 0.35) {
+            playFighterSound(audioManager, charId, 'hit');
+        }
+    } else if (type === 'throw') {
+        if (typeof audioManager.playThrowSound === 'function') {
+            audioManager.playThrowSound();
+        }
         playFighterSound(audioManager, charId, 'hit');
     } else if (type === 'ko') {
-        playFighterSound(audioManager, charId, 'ko');
-        playAnnouncer(audioManager, 'ko');
+        if (typeof audioManager.playKOBoomSound === 'function') {
+            audioManager.playKOBoomSound();
+        } else if (typeof audioManager.playHitImpactSound === 'function') {
+            audioManager.playHitImpactSound(true, true);
+        }
+        // Sequence cleanly: first fighter's short K.O. groan, then Announcer roars "K.O.!" so they never overlap!
+        playFighterSound(audioManager, charId, 'ko', () => {
+            playAnnouncer(audioManager, 'ko');
+        });
     } else if (type === 'special') {
         playFighterSound(audioManager, charId, 'special');
+    } else if (type === 'super') {
+        playFighterSound(audioManager, charId, 'super');
     } else if (type === 'block') {
         audioManager.playBlockSound();
     }

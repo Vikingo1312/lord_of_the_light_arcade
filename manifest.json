@@ -1,0 +1,18 @@
+{
+  "name": "Keano Romeo — Lord of the Light",
+  "short_name": "Lord of Light",
+  "description": "2D Cartoon Street Fighter — Keano Romeo: Lord of the Light",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "assets/UI/caesar_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import {
 } from '../core/AssetPreloader.js';
 import { STAGES, ROSTER, unlockFighter } from '../data.js';
 import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js';
+import { STORY_DIALOGUES } from '../story_dialogues.js';
 
 export default class CombatState {
     constructor(game) {
@@ -91,12 +92,33 @@ export default class CombatState {
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
         this.particles = [];
+        this.shockwaves = [];
         this.projectiles = [];
         this._transitioning = false;
         this._koAnnounced = false;
         this._perfectAnnounced = false;
         this._koKnockbackApplied = false;
         this._newlyUnlocked = null;
+
+        // Story-Driven Match Dialogue Banner
+        this.storyDialogue = STORY_DIALOGUES[p2Data.id] || STORY_DIALOGUES[p1Data.id] || null;
+        this.storyBannerTimer = 22.0;
+        this.introSubPhase = 'STORY_DIALOGUE';
+        this.introSubTimer = 0;
+
+        // Street Fighter Trailing Red Damage Bars
+        this.p1TrailHP = this.p1.maxHP;
+        this.p2TrailHP = this.p2.maxHP;
+        this.allyTrailHP = this.ally ? this.ally.maxHP : 0;
+
+        // Street Fighter Super Freeze, Camera Punch-Zoom & Arcade Callouts
+        this.superFreezeTimer = 0;
+        this.superFreezeFighter = null;
+        this.cameraZoom = 1.0;
+        this.cameraFocusX = this.game.width / 2;
+        this.cameraFocusY = this.game.height * 0.65;
+        this.firstAttackAwarded = false;
+        this.callout = null;
 
         // Combo Counter tracking
         this.p1ComboCount = 0;
@@ -117,14 +139,82 @@ export default class CombatState {
         this.stageObjects.init(this.stageId);
         this.playStageMusic();
 
-        // Announcer: "ROUND 1!" -> "FIGHT!"
-        playAnnouncer(this.game.audioManager, 'round_1');
-        if (this._fightAnnouncerTimeout) clearTimeout(this._fightAnnouncerTimeout);
-        this._fightAnnouncerTimeout = setTimeout(() => {
-            playAnnouncer(this.game.audioManager, 'fight');
-        }, 1000);
+        // Strictly Ordered, Non-Overlapping Street Fighter Intro Sequence:
+        // Step 1 ('STORY_DIALOGUE'): Opponent speaks full cinematic Story Intro to the very last word
+        // Step 2 ('ROUND_CALL'): After Story Intro finishes + 450ms pause -> Announcer roars "ROUND 1!" (1.82s)
+        // Step 3 ('FIGHT_CALL'): After "ROUND 1!" finishes + 200ms pause -> Announcer roars "FIGHT!" -> Match starts!
+        this._clearIntroTimers();
+        this.game.audioManager.stopVoice?.();
+        this.game.audioManager.stopFighterVoice?.();
+        this.game.audioManager.stopAnnouncerVoice?.();
+
+        playFighterSound(this.game.audioManager, p2Data.id, 'intro', () => {
+            this._startRoundCall(false);
+        });
+        // Generous 18s safety fallback (only if browser blocked audio; never cuts off 9-13s intro speeches!)
+        this._storyIntroTimeout = setTimeout(() => {
+            this._startRoundCall(false);
+        }, 18000);
 
         this.game.canvas.addEventListener('mousedown', this._onMouseClick);
+    }
+
+    _clearIntroTimers() {
+        if (this._roundAnnouncerTimeout) {
+            clearTimeout(this._roundAnnouncerTimeout);
+            this._roundAnnouncerTimeout = null;
+        }
+        if (this._fightAnnouncerTimeout) {
+            clearTimeout(this._fightAnnouncerTimeout);
+            this._fightAnnouncerTimeout = null;
+        }
+        if (this._storyIntroTimeout) {
+            clearTimeout(this._storyIntroTimeout);
+            this._storyIntroTimeout = null;
+        }
+    }
+
+    _startRoundCall(immediate = false) {
+        if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'STORY_DIALOGUE') return;
+        // Never interrupt if fighter intro voice is still actively speaking (unless player explicitly skipped)
+        if (!immediate && this.game.audioManager.isFighterVoicePlaying?.()) {
+            return;
+        }
+        if (this._storyIntroTimeout) {
+            clearTimeout(this._storyIntroTimeout);
+            this._storyIntroTimeout = null;
+        }
+        if (this._roundAnnouncerTimeout) clearTimeout(this._roundAnnouncerTimeout);
+
+        const delayMs = immediate ? 60 : 480;
+        this._roundAnnouncerTimeout = setTimeout(() => {
+            if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'STORY_DIALOGUE') return;
+            this.introSubPhase = 'ROUND_CALL';
+            this.introSubTimer = 0;
+            this.storyBannerTimer = Math.min(this.storyBannerTimer, 0.35);
+            playAnnouncer(this.game.audioManager, 'round_1', () => {
+                this._startFightCall();
+            });
+            // Safety fallback for ROUND 1 duration (announcer_round_1.mp3 is 1.82s long)
+            if (this._fightAnnouncerTimeout) clearTimeout(this._fightAnnouncerTimeout);
+            this._fightAnnouncerTimeout = setTimeout(() => {
+                this._startFightCall();
+            }, 2600);
+        }, delayMs);
+    }
+
+    _startFightCall() {
+        if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'ROUND_CALL') return;
+        if (this._fightAnnouncerTimeout) {
+            clearTimeout(this._fightAnnouncerTimeout);
+            this._fightAnnouncerTimeout = null;
+        }
+        this._fightAnnouncerTimeout = setTimeout(() => {
+            if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'ROUND_CALL') return;
+            this.introSubPhase = 'FIGHT_CALL';
+            this.introSubTimer = 0;
+            playAnnouncer(this.game.audioManager, 'fight');
+        }, 220);
     }
 
     preloadFighterSprites(char) {
@@ -142,10 +232,9 @@ export default class CombatState {
     }
 
     exit() {
-        if (this._fightAnnouncerTimeout) {
-            clearTimeout(this._fightAnnouncerTimeout);
-            this._fightAnnouncerTimeout = null;
-        }
+        this._clearIntroTimers();
+        this.game.audioManager.stopFighterVoice?.();
+        this.game.audioManager.stopAnnouncerVoice?.();
 
         const isFinalBoss = (this.arcadeIndex === ROSTER.length - 1);
         const wonBossFight = (isFinalBoss && this.winner === 'p1');
@@ -202,6 +291,7 @@ export default class CombatState {
         }
 
         if (this.inputCooldown > 0) this.inputCooldown--;
+        if (this.storyBannerTimer > 0) this.storyBannerTimer = Math.max(0, this.storyBannerTimer - dt);
 
         // ─── ONLINE GUEST: Receive & interpolate Host snapshots ───
         if (isOnlineGuest) {
@@ -209,12 +299,23 @@ export default class CombatState {
             return;
         }
 
-        // ─── FIGHT INTRO ("ROUND 1 — FIGHT!" banner) ───
+        // ─── FIGHT INTRO (Ordered: Story Dialogue -> ROUND 1 -> FIGHT!) ───
         if (this.matchPhase === 'FIGHT_INTRO') {
             this.introTimer += dt;
-            if (this.introTimer >= 1.8) {
-                this.matchPhase = 'FIGHTING';
+            this.introSubTimer = (this.introSubTimer || 0) + dt;
+
+            if (this.introSubPhase === 'STORY_DIALOGUE') {
+                // Allow skipping the Story Intro dialogue with Attack/Space after 0.55s if desired
+                if (this.introTimer > 0.55 && p1.skipJust) {
+                    this.game.audioManager.stopFighterVoice?.();
+                    this._startRoundCall(true);
+                }
+            } else if (this.introSubPhase === 'FIGHT_CALL') {
+                if (this.introSubTimer >= 1.35) {
+                    this.matchPhase = 'FIGHTING';
+                }
             }
+
             if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
@@ -243,7 +344,7 @@ export default class CombatState {
             this.postMatchTimer = (this.postMatchTimer || 0) + dt;
 
             if (this.autoAdvanceTimer === undefined) {
-                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 3.0 : 10.0;
+                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 7.2 : 10.0;
                 this.autoAdvanceTimer = this.autoAdvanceMax;
             }
 
@@ -381,6 +482,41 @@ export default class CombatState {
         }
 
         // ─── FIGHTING ───
+        // Smoothly decay Camera Punch-Zoom & Arcade Callout banner
+        if (this.cameraZoom > 1.001) {
+            this.cameraZoom += (1.0 - this.cameraZoom) * Math.min(1, dt * 8.5);
+        } else {
+            this.cameraZoom = 1.0;
+        }
+        if (this.callout && this.callout.timer > 0) {
+            this.callout.timer -= dt;
+            if (this.callout.timer <= 0) this.callout = null;
+        }
+
+        // Smoothly drain Street Fighter Red Trailing Damage Bars when fighter is out of Hitstun
+        if (this.p1.state !== 'HIT' && this.p1TrailHP > this.p1.hp) {
+            this.p1TrailHP = Math.max(this.p1.hp, this.p1TrailHP - 180 * dt);
+        }
+        if (this.p2.state !== 'HIT' && this.p2TrailHP > this.p2.hp) {
+            this.p2TrailHP = Math.max(this.p2.hp, this.p2TrailHP - 180 * dt);
+        }
+        if (this.ally && this.ally.state !== 'HIT' && this.allyTrailHP > this.ally.hp) {
+            this.allyTrailHP = Math.max(this.ally.hp, this.allyTrailHP - 180 * dt);
+        }
+
+        // ─── STREET FIGHTER SUPER COMBO FREEZE ───
+        if (this.superFreezeTimer > 0) {
+            this.superFreezeTimer -= dt;
+            this.updateParticles(dt);
+            if (this.shakeTimer > 0) this.shakeTimer -= dt;
+            if (this.superFreezeTimer <= 0) {
+                this.superFreezeTimer = 0;
+                this.superFreezeFighter = null;
+            }
+            if (isOnlineHost) this._broadcastHostSnapshot();
+            return;
+        }
+
         this.timer -= dt;
         if (this.timer <= 0) {
             this.timer = 0;
@@ -406,14 +542,47 @@ export default class CombatState {
         // Consume remote Guest input once per frame if connected
         const guestInput = (isOnlineHost && net.status === 'connected') ? net.consumeRemoteInput() : null;
 
-        // --- P1 Input & Special Move Processing ---
-        const p1InputCopy = { ...p1, sJust: false, s: false };
-        const isP1Special = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
+        // --- P1 Input, Motion Command Moves & Special Move Processing ---
+        const p1InputCopy = { ...p1, sJust: false, s: false, commandMove: null };
+        const im = this.game.inputManager;
+        const p1Dist = Math.abs(this.p1.x - this.p2.x);
 
-        if (this.p1.state !== 'KO' && isP1Special && this.tryExecuteSpecial(this.p1, 'p1')) {
-            this.game.inputManager.clearMotionHistory();
-            p1InputCopy.lJust = false;
-            p1InputCopy.hJust = false;
+        if (this.p1.state !== 'KO') {
+            const hasDP = im.hasDP(this.p1.facing);
+            const hasQCB = im.hasQCB(this.p1.facing);
+            const hasQCF = im.hasQCF(this.p1.facing);
+
+            if (p1.throwJust && p1Dist <= 165 && this.p1.isGrounded && this.p2.isGrounded) {
+                // L + H simultaneously at close range: Unblockable Street Fighter Throw!
+                p1InputCopy.commandMove = 'THROW';
+                p1InputCopy.lJust = false;
+                p1InputCopy.hJust = false;
+            } else if (((p1.lJust && hasDP) || (p1.sJust && p1.up)) && this.p1.specialMoveCooldown <= 0) {
+                // → ↓ ↘ + L or ↓ ↑ + L or ↑ + S: Rising Shoryuken Dragon Uppercut!
+                p1InputCopy.commandMove = 'DRAGON_UPPERCUT';
+                p1InputCopy.lJust = false;
+                im.clearMotionHistory();
+                playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+            } else if (((p1.hJust && hasQCB) || (p1.sJust && p1.down)) && this.p1.specialMoveCooldown <= 0) {
+                // ↓ ↙ ← + H or ↓ + S: Airborne Tatsumaki Hurricane Kick (3-hit cyclone)!
+                p1InputCopy.commandMove = 'HURRICANE_KICK';
+                p1InputCopy.hJust = false;
+                im.clearMotionHistory();
+                playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+            } else if (p1.sJust || ((p1.lJust || p1.hJust) && hasQCF)) {
+                if (this.tryExecuteSpecial(this.p1, 'p1')) {
+                    im.clearMotionHistory();
+                    p1InputCopy.lJust = false;
+                    p1InputCopy.hJust = false;
+                } else if (hasQCF && this.p1.specialMoveCooldown <= 0) {
+                    // Only explicit QCF motion (not raw neutral button mashing!) triggers physical special when Super Energy < 100
+                    p1InputCopy.commandMove = p1.lJust ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
+                    p1InputCopy.lJust = false;
+                    p1InputCopy.hJust = false;
+                    im.clearMotionHistory();
+                    playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+                }
+            }
         }
 
         // --- CO-OP ALLY (Player 2 in Co-Op Story) Input & Special Move Processing ---
@@ -446,14 +615,15 @@ export default class CombatState {
             }
         } else {
             p2Input = AIController.computeInput(this, dt);
-            if (p2Input.sJust) {
+            if ((p2Input.commandMove === 'DRAGON_UPPERCUT' || p2Input.commandMove === 'HURRICANE_KICK') && this.p2.specialMoveCooldown <= 0) {
+                playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
+            } else if (p2Input.sJust) {
                 const dist = Math.abs(this.p1.x - this.p2.x);
-                const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && Math.random() < 0.55;
+                const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && this.p2.specialMoveCooldown <= 0 && Math.random() < 0.55;
                 if (useMeleeSpecial) {
-                    if (this.p2.specialEnergy >= 100 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
-                        playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
-                        this.triggerShake(2, 0.08);
-                    }
+                    p2Input.sJust = false;
+                    p2Input.commandMove = (!this.p1.isGrounded || Math.random() < 0.5) ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
+                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
                 } else {
                     p2Input.sJust = false;
                     this.tryExecuteSpecial(this.p2, 'p2');
@@ -464,6 +634,24 @@ export default class CombatState {
         const p1WasDash = this.p1.state === 'DASH';
         const p2WasDash = this.p2.state === 'DASH';
         const allyWasDash = this.ally ? (this.ally.state === 'DASH') : false;
+        const p1WasGrounded = this.p1.isGrounded;
+        const p2WasGrounded = this.p2.isGrounded;
+
+        p1InputCopy.opponentThreat = Boolean(
+            (this.p2.state === 'ATTACK' && p1Dist <= 340) ||
+            this.projectiles.some(pr => pr.owner === 'p2' && pr.alive)
+        );
+        if (this.ally && allyInputCopy) {
+            allyInputCopy.opponentThreat = Boolean(
+                (this.p2.state === 'ATTACK' && Math.abs(this.ally.x - this.p2.x) <= 340) ||
+                this.projectiles.some(pr => pr.owner === 'p2' && pr.alive)
+            );
+        }
+        p2Input.opponentThreat = Boolean(
+            (this.p1.state === 'ATTACK' && p1Dist <= 340) ||
+            (this.ally && this.ally.state === 'ATTACK' && Math.abs(this.ally.x - this.p2.x) <= 340) ||
+            this.projectiles.some(pr => pr.owner === 'p1' && pr.alive)
+        );
 
         this.p1.update(dt, p1InputCopy);
         if (this.ally && allyInputCopy) {
@@ -471,15 +659,25 @@ export default class CombatState {
         }
         this.p2.update(dt, p2Input);
 
-        // Spawn ground dust burst on new dash start
-        if (!p1WasDash && this.p1.state === 'DASH') {
-            this.spawnSparks(this.p1.x, this.p1.y - 10, '#88ddff', '#ffffff', 6);
+        // Spawn ground dust burst on new dash start, jump takeoff, or landing
+        if ((!p1WasDash && this.p1.state === 'DASH') || (p1WasGrounded !== this.p1.isGrounded)) {
+            this.spawnGroundDust(this.p1.x, this.p1.groundY, '#88ddff');
         }
         if (this.ally && !allyWasDash && this.ally.state === 'DASH') {
-            this.spawnSparks(this.ally.x, this.ally.y - 10, '#cc88ff', '#ffffff', 6);
+            this.spawnGroundDust(this.ally.x, this.ally.groundY, '#cc88ff');
         }
-        if (!p2WasDash && this.p2.state === 'DASH') {
-            this.spawnSparks(this.p2.x, this.p2.y - 10, '#ffaa44', '#ffffff', 6);
+        if ((!p2WasDash && this.p2.state === 'DASH') || (p2WasGrounded !== this.p2.isGrounded)) {
+            this.spawnGroundDust(this.p2.x, this.p2.groundY, '#ffaa44');
+        }
+
+        // Street Fighter Triangle Wall-Jump shockwave sparks & callout at screen edge!
+        for (const [f, side] of [[this.p1, 'p1'], [this.ally, 'p1'], [this.p2, 'p2']]) {
+            if (f && f.justWallJumped) {
+                const wallX = f.justWallJumped === 1 ? 148 : (this.game.width - 148);
+                this.spawnSparks(wallX, f.y - 140, '#00ffcc', '#ffffff', 12, 'heavy');
+                this.triggerCallout('WALL JUMP!', '#00ffcc', side);
+                f.justWallJumped = 0;
+            }
         }
 
         // --- Boundaries & Pushbox Separation ---
@@ -511,31 +709,50 @@ export default class CombatState {
         this.stageObjects.checkCollisions(this.p1, this.p2);
         if (this.shakeTimer > 0) this.shakeTimer -= dt;
 
-        // --- Auto-Facing with Hysteresis ---
+        // --- Auto-Facing (Immediate flip on jump-over / cross-up & Co-Op wall protection) ---
         if (!this.game.settings || this.game.settings.autoFacingEnabled !== false) {
-            const dist = this.p1.x - this.p2.x;
-            if (Math.abs(dist) > 15) {
-                if (this.p1.state !== 'ATTACK' && this.p1.state !== 'DASH' && this.p1.state !== 'KO') {
-                    this.p1.facing = (dist > 0) ? -1 : 1;
+            const canTurn = (f) => {
+                if (!f || f.state === 'KO') return false;
+                if (f.state === 'DASH') return false;
+                if (f.state === 'ATTACK' && f.currentAttack) {
+                    const st = f.currentAttack.startup || 0.05;
+                    const act = f.currentAttack.active || 0.15;
+                    // Allow turning during very early startup OR once active frames end
+                    return f.stateTimer < st * 0.5 || f.stateTimer >= st + act;
                 }
-                if (this.p2.state !== 'ATTACK' && this.p2.state !== 'DASH' && this.p2.state !== 'KO') {
-                    // Face whichever alive hero is closer
-                    let targetHero = this.p1;
-                    if (this.ally && this.ally.state !== 'KO') {
-                        if (this.p1.state === 'KO' || Math.abs(this.ally.x - this.p2.x) < Math.abs(this.p1.x - this.p2.x)) {
-                            targetHero = this.ally;
-                        }
-                    }
-                    const d2 = targetHero.x - this.p2.x;
-                    if (Math.abs(d2) > 15) {
-                        this.p2.facing = (d2 > 0) ? 1 : -1;
-                    }
+                return true;
+            };
+
+            const distP1 = this.p1.x - this.p2.x;
+            if (Math.abs(distP1) > 2 && canTurn(this.p1)) {
+                this.p1.facing = (distP1 > 0) ? -1 : 1;
+            }
+
+            if (this.ally && canTurn(this.ally)) {
+                const allyDist = this.ally.x - this.p2.x;
+                if (Math.abs(allyDist) > 2) {
+                    this.ally.facing = (allyDist > 0) ? -1 : 1;
                 }
             }
-            if (this.ally && this.ally.state !== 'ATTACK' && this.ally.state !== 'DASH' && this.ally.state !== 'KO') {
-                const allyDist = this.ally.x - this.p2.x;
-                if (Math.abs(allyDist) > 15) {
-                    this.ally.facing = (allyDist > 0) ? -1 : 1;
+
+            if (this.p2 && this.p2.state !== 'KO') {
+                // Determine primary hero target for P2
+                let targetHero = this.p1;
+                if (this.ally && this.ally.state !== 'KO') {
+                    if (this.p1.state === 'KO' || Math.abs(this.ally.x - this.p2.x) + 40 < Math.abs(this.p1.x - this.p2.x)) {
+                        targetHero = this.ally;
+                    }
+                }
+                const d2 = targetHero.x - this.p2.x;
+                // If ALL alive heroes are on the same side of P2, P2 MUST face that side even mid-attack!
+                const allLeft = (this.p1.state === 'KO' || this.p1.x < this.p2.x - 4) && (!this.ally || this.ally.state === 'KO' || this.ally.x < this.p2.x - 4);
+                const allRight = (this.p1.state === 'KO' || this.p1.x > this.p2.x + 4) && (!this.ally || this.ally.state === 'KO' || this.ally.x > this.p2.x + 4);
+                if (allLeft) {
+                    this.p2.facing = -1;
+                } else if (allRight) {
+                    this.p2.facing = 1;
+                } else if (Math.abs(d2) > 2 && canTurn(this.p2)) {
+                    this.p2.facing = (d2 > 0) ? 1 : -1;
                 }
             }
         }
@@ -567,7 +784,7 @@ export default class CombatState {
 
     _separateFighters(fA, fB) {
         if (!fA || !fB || fA.state === 'KO' || fB.state === 'KO' || !fA.isGrounded || !fB.isGrounded) return;
-        const minDistance = 110;
+        const minDistance = 92;
         const dx = fB.x - fA.x;
         const dist = Math.abs(dx);
         if (dist < minDistance) {
@@ -657,6 +874,15 @@ export default class CombatState {
         this.updateParticles(dt);
         this.stageObjects.update(dt);
         if (this.shakeTimer > 0) this.shakeTimer -= dt;
+        if (this.cameraZoom > 1.001) {
+            this.cameraZoom += (1.0 - this.cameraZoom) * Math.min(1, dt * 8.5);
+        } else {
+            this.cameraZoom = 1.0;
+        }
+        if (this.callout && this.callout.timer > 0) {
+            this.callout.timer -= dt;
+            if (this.callout.timer <= 0) this.callout = null;
+        }
 
         const net = this.game.networkManager;
         if (!net) return;
@@ -664,7 +890,7 @@ export default class CombatState {
         while (net.pendingCombatEvents.length > 0) {
             const ev = net.pendingCombatEvents.shift();
             if (ev.sparks) {
-                this.spawnSparks(ev.sparks.x, ev.sparks.y, ev.sparks.c1, ev.sparks.c2, ev.sparks.count);
+                this.spawnSparks(ev.sparks.x, ev.sparks.y, ev.sparks.c1, ev.sparks.c2, ev.sparks.count, ev.sparks.kind || 'hit');
             }
             if (ev.shake) {
                 this.triggerShake(ev.shake.i, ev.shake.d);
@@ -695,6 +921,13 @@ export default class CombatState {
             this._applyFighterSnapshot(this.ally, snap.ally);
         }
 
+        if (this.p1.state !== 'HIT' && this.p1TrailHP > this.p1.hp) {
+            this.p1TrailHP = Math.max(this.p1.hp, this.p1TrailHP - 180 * dt);
+        }
+        if (this.p2.state !== 'HIT' && this.p2TrailHP > this.p2.hp) {
+            this.p2TrailHP = Math.max(this.p2.hp, this.p2TrailHP - 180 * dt);
+        }
+
         if (Array.isArray(snap.projectiles)) {
             this.projectiles = snap.projectiles.map(sp => {
                 const img = this.game.assetManager.images[`${sp.charId}_Cutin`];
@@ -710,7 +943,7 @@ export default class CombatState {
      * Properly consumes 100 Special Energy and supports Combo Canceling from connected attacks!
      */
     tryExecuteSpecial(fighter, ownerKey) {
-        const canCancelAttack = fighter.state === 'ATTACK' && fighter.attackHasHit;
+        const canCancelAttack = fighter.state === 'ATTACK' && fighter.attackHasHit && !fighter.attackWasBlocked;
         if (fighter.state !== 'IDLE' && fighter.state !== 'WALK' && fighter.state !== 'CROUCH' && fighter.state !== 'DASH' && !canCancelAttack) {
             return false;
         }
@@ -719,19 +952,32 @@ export default class CombatState {
 
         if (fighter.data.specialType === 'SPECIAL_DASH') {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
-            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+            this.superFreezeTimer = 0.26;
+            this.superFreezeFighter = fighter;
+            this.cameraZoom = 1.045;
+            this.cameraFocusX = fighter.x;
+            this.cameraFocusY = fighter.y - 160;
+            this.triggerCallout(fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!', '#ffd700', ownerKey);
+            playCombatSound(this.game.audioManager, 'super', fighter.data.id);
             this.triggerShake(5, 0.5);
-            this._emitNetEvent({ combatSound: { type: 'special', charId: fighter.data.id }, shake: { i: 5, d: 0.5 } });
+            this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 5, d: 0.5 } });
             return true;
         }
 
         if (!fighter.executeProjectileCast()) return false;
 
+        this.superFreezeTimer = 0.24;
+        this.superFreezeFighter = fighter;
+        this.cameraZoom = 1.04;
+        this.cameraFocusX = fighter.x;
+        this.cameraFocusY = fighter.y - 155;
+        this.triggerCallout(fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!', '#ffd700', ownerKey);
+
         const imgKey = `${fighter.data.id}_Cutin`;
         const img = this.game.assetManager.images[imgKey];
         const proj = new Projectile(
             fighter.x + fighter.facing * 80,
-            fighter.y - 180,
+            fighter.y - 145,
             fighter.facing,
             ownerKey,
             img,
@@ -741,10 +987,20 @@ export default class CombatState {
         proj.damage = Math.round(proj.damage * ((fighter.power || 100) / 100));
         this.projectiles.push(proj);
 
-        playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        playCombatSound(this.game.audioManager, 'super', fighter.data.id);
         this.triggerShake(2, 0.08);
-        this._emitNetEvent({ combatSound: { type: 'special', charId: fighter.data.id }, shake: { i: 2, d: 0.08 } });
+        this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 2, d: 0.08 } });
         return true;
+    }
+
+    triggerCallout(text, color, side = 'p1') {
+        this.callout = {
+            text,
+            color,
+            side,
+            timer: 1.15,
+            maxTimer: 1.15
+        };
     }
 
     _emitNetEvent(ev) {
@@ -767,9 +1023,9 @@ export default class CombatState {
         if (!attacker || !defender || !attacker.activeHitbox || defender.state === 'KO') return;
 
         // Grounded reeling defenders cannot be infinite-jabbed by repeated Light punches,
-        // but CAN be combo-linked into Heavy, Sweep, or Special attacks!
+        // but CAN be combo-linked into Heavy, Command Moves, Sweep, or Special attacks!
         const atkType = attacker.currentAttack ? attacker.currentAttack.type : '';
-        const isRepeatableJab = (atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT');
+        const isRepeatableJab = (atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT') && attacker.isGrounded;
         if (defender.state === 'HIT' && defender.isGrounded && isRepeatableJab) return;
 
         const hitR = attacker.activeHitbox.getWorldRect(attacker.x, attacker.y, attacker.facing);
@@ -777,12 +1033,39 @@ export default class CombatState {
 
         if (!Hitbox.checkCollision(hitR, hurtR)) return;
 
+        const wasDefenderAttacking = defender.state === 'ATTACK';
         const result = defender.takeDamage(attacker.currentAttack, attacker.facing);
         if (!result || result === 'IMMUNE') return;
 
-        attacker.attackHasHit = true;
-        attacker.hitStop = attacker.currentAttack.hitstop;
+        if (result === 'BLOCKED') {
+            attacker.attackWasBlocked = true;
+            attacker.attackHasHit = true;
+        } else {
+            // Multi-hit support (e.g. HURRICANE_KICK hits up to 3 times!)
+            const maxHits = attacker.currentAttack.maxHits || 1;
+            attacker.attackHitCount = (attacker.attackHitCount || 0) + 1;
+            if (attacker.attackHitCount < maxHits) {
+                attacker.multiHitCooldown = 0.11;
+                defender.hitImmunity = 0.08;
+            } else {
+                attacker.attackHasHit = true;
+            }
+        }
+
+        attacker.hitStop = result === 'BLOCKED'
+            ? Math.max(0.05, (attacker.currentAttack.hitstop || 0.06) * 0.75)
+            : attacker.currentAttack.hitstop;
         attacker.activeHitbox = null;
+
+        // Street Fighter Guard Pushback & Corner Recoil:
+        // Blocked grounded attacks push the attacker back so button-mashing into a guard leaves the masher minus and out of range!
+        if (result === 'BLOCKED' && attacker.isGrounded) {
+            const pb = attacker.currentAttack.pushback || 210;
+            attacker.vx = -attacker.facing * Math.max(195, pb * 0.68);
+        } else if (defender.isGrounded && (defender.x <= 175 || defender.x >= this.game.width - 175)) {
+            const pb = attacker.currentAttack.pushback || 220;
+            attacker.vx = -attacker.facing * pb * 0.68;
+        }
 
         // Award Special Energy
         const gain = result === 'BLOCKED' ? 5 : 15;
@@ -793,13 +1076,37 @@ export default class CombatState {
         const impactX = (attacker.x + defender.x) / 2;
         const impactY = defender.y - (atkType === 'SWEEP' || atkType === 'CROUCH_LIGHT' ? 60 : 150);
         if (result === 'BLOCKED') {
-            this.spawnSparks(impactX, impactY, '#00ccff', '#ffffff', 6);
+            const defenderSide = attackerKey === 'p1' ? 'p2' : 'p1';
+            if (!this.callout || this.callout.timer < 0.65) {
+                this.triggerCallout('GUARD!', '#00eeff', defenderSide);
+            }
+            this.spawnSparks(impactX, impactY, '#00eeff', '#ffffff', 14, 'block');
             playCombatSound(this.game.audioManager, 'block', defender.data.id);
             this._emitNetEvent({
-                sparks: { x: impactX, y: impactY, c1: '#00ccff', c2: '#ffffff', count: 6 },
+                sparks: { x: impactX, y: impactY, c1: '#00eeff', c2: '#ffffff', count: 14, kind: 'block' },
                 combatSound: { type: 'block', charId: defender.data.id }
             });
         } else {
+            // Street Fighter Arcade Callouts: FIRST ATTACK!, COUNTER HIT!, THROW SLAM!, Story Special Name!
+            if (!this.firstAttackAwarded) {
+                this.firstAttackAwarded = true;
+                this.triggerCallout('FIRST ATTACK!', '#00ffcc', attackerKey);
+            } else if (atkType === 'THROW') {
+                this.triggerCallout('THROW SLAM!', '#00ffcc', attackerKey);
+            } else if (atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'COMBO_FINISHER') {
+                this.triggerCallout(attacker.data.specialName || 'SPECIAL STRIKE!', '#00e5ff', attackerKey);
+                if (attacker.attackHitCount === 1) {
+                    playCombatSound(this.game.audioManager, 'special', attacker.data.id);
+                }
+            } else if (wasDefenderAttacking) {
+                const bonusDmg = Math.max(2, Math.round((attacker.currentAttack.damage || 10) * 0.2));
+                defender.hp = Math.max(0, defender.hp - bonusDmg);
+                if (defender.hp <= 0) defender.state = 'KO';
+                attacker.hitStop += 0.035;
+                defender.hitStop += 0.035;
+                this.triggerCallout('COUNTER HIT!', '#ffdd00', attackerKey);
+            }
+
             // Increment Combo Counter!
             if (attackerKey === 'p1') {
                 this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
@@ -809,20 +1116,35 @@ export default class CombatState {
                 this.p2ComboTimer = 1.45;
             }
 
-            this.spawnSparks(impactX, impactY, '#ffaa00', '#ff4400', 10);
-            playCombatSound(this.game.audioManager, 'hit', defender.data.id);
-            if (attacker.currentAttack.damage >= 12) this.triggerShake(3, 0.12);
+            const isSpecialHit = Boolean(attacker.currentAttack.isSpecialMove || atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'SPECIAL' || atkType === 'SPECIAL_DASH' || atkType === 'COMBO_FINISHER');
+            const isHeavyHit = (attacker.currentAttack.damage >= 26) || wasDefenderAttacking || isSpecialHit || atkType === 'AXE_KICK' || atkType === 'COMMAND_PUNCH';
+            const sparkKind = isHeavyHit ? 'heavy' : 'hit';
+            this.spawnSparks(impactX, impactY, '#ffaa00', '#ff3300', isHeavyHit ? 14 : 10, sparkKind);
+            if (atkType === 'SWEEP' || atkType === 'THROW') {
+                this.spawnGroundDust(defender.x, defender.groundY, '#ffcc66');
+            }
+            if (isHeavyHit) {
+                this.cameraZoom = 1.042;
+                this.cameraFocusX = impactX;
+                this.cameraFocusY = impactY;
+                this.triggerShake(isSpecialHit ? 4.5 : 3.5, 0.14);
+            }
+            if (atkType === 'THROW') {
+                playCombatSound(this.game.audioManager, 'throw', defender.data.id, true, true);
+            } else {
+                playCombatSound(this.game.audioManager, 'hit', defender.data.id, isHeavyHit, isSpecialHit);
+            }
             this._emitNetEvent({
-                sparks: { x: impactX, y: impactY, c1: '#ffaa00', c2: '#ff4400', count: 10 },
-                combatSound: { type: 'hit', charId: defender.data.id },
-                shake: attacker.currentAttack.damage >= 12 ? { i: 3, d: 0.12 } : null
+                sparks: { x: impactX, y: impactY, c1: '#ffaa00', c2: '#ff3300', count: isHeavyHit ? 14 : 10, kind: sparkKind },
+                combatSound: { type: atkType === 'THROW' ? 'throw' : 'hit', charId: defender.data.id },
+                shake: isHeavyHit ? { i: 3.5, d: 0.14 } : null
             });
             if (defender.hp <= 0 && !this._koAnnounced) {
                 const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
                 if (isFinalKO) {
                     this._koAnnounced = true;
                 }
-                playCombatSound(this.game.audioManager, 'ko', defender.data.id);
+                playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
                 this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
             }
         }
@@ -846,13 +1168,21 @@ export default class CombatState {
 
                     proj.alive = false;
                     if (result === 'BLOCKED') {
-                        this.spawnSparks(proj.x, proj.y, '#00ccff', '#ffffff', 8);
+                        const defenderSide = proj.owner === 'p1' ? 'p2' : 'p1';
+                        if (!this.callout || this.callout.timer < 0.65) {
+                            this.triggerCallout('GUARD!', '#00eeff', defenderSide);
+                        }
+                        this.spawnSparks(proj.x, proj.y, '#00eeff', '#ffffff', 14, 'block');
                         playCombatSound(this.game.audioManager, 'block', defender.data.id);
                         this._emitNetEvent({
-                            sparks: { x: proj.x, y: proj.y, c1: '#00ccff', c2: '#ffffff', count: 8 },
+                            sparks: { x: proj.x, y: proj.y, c1: '#00eeff', c2: '#ffffff', count: 14, kind: 'block' },
                             combatSound: { type: 'block', charId: defender.data.id }
                         });
                     } else {
+                        if (!this.firstAttackAwarded) {
+                            this.firstAttackAwarded = true;
+                            this.triggerCallout('FIRST ATTACK!', '#00ffcc', proj.owner);
+                        }
                         if (proj.owner === 'p1') {
                             this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
                             this.p1ComboTimer = 1.45;
@@ -861,20 +1191,23 @@ export default class CombatState {
                             this.p2ComboTimer = 1.45;
                         }
                         const hitColor = proj.owner === 'p1' ? '#ffaa00' : '#ff4400';
-                        this.spawnSparks(proj.x, proj.y, hitColor, '#ffffff', 8);
-                        playCombatSound(this.game.audioManager, 'hit', defender.data.id);
-                        this.triggerShake(2, 0.08);
+                        this.spawnSparks(proj.x, proj.y, hitColor, '#ffffff', 12, 'heavy');
+                        this.cameraZoom = 1.038;
+                        this.cameraFocusX = proj.x;
+                        this.cameraFocusY = proj.y;
+                        playCombatSound(this.game.audioManager, 'hit', defender.data.id, true, true);
+                        this.triggerShake(3, 0.12);
                         this._emitNetEvent({
-                            sparks: { x: proj.x, y: proj.y, c1: hitColor, c2: '#ffffff', count: 8 },
+                            sparks: { x: proj.x, y: proj.y, c1: hitColor, c2: '#ffffff', count: 12, kind: 'heavy' },
                             combatSound: { type: 'hit', charId: defender.data.id },
-                            shake: { i: 2, d: 0.08 }
+                            shake: { i: 3, d: 0.12 }
                         });
                         if (defender.hp <= 0 && !this._koAnnounced) {
                             const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
                             if (isFinalKO) {
                                 this._koAnnounced = true;
                             }
-                            playCombatSound(this.game.audioManager, 'ko', defender.data.id);
+                            playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
                             this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
                         }
                     }
@@ -889,12 +1222,41 @@ export default class CombatState {
         this.shakeTimer = duration;
     }
 
-    spawnSparks(x, y, color1, color2, count) {
+    spawnGroundDust(x, y, color = '#ffffff') {
+        this.shockwaves.push({
+            x,
+            y: y - 4,
+            color1: color,
+            color2: '#ffffff',
+            radius: 12,
+            maxRadius: 68,
+            life: 0.24,
+            maxLife: 0.24,
+            kind: 'dust',
+            angle: 0
+        });
+    }
+
+    spawnSparks(x, y, color1, color2, count, kind = 'hit') {
+        // Multi-ring Street Fighter impact starburst + shockwave ring
+        this.shockwaves.push({
+            x,
+            y,
+            color1,
+            color2,
+            radius: 8,
+            maxRadius: kind === 'heavy' ? 115 : (kind === 'block' ? 78 : 85),
+            life: kind === 'heavy' ? 0.24 : 0.18,
+            maxLife: kind === 'heavy' ? 0.24 : 0.18,
+            kind,
+            angle: Math.random() * Math.PI
+        });
+
         for (let i = 0; i < count; i++) {
             this.particles.push({
                 x, y,
-                vx: (Math.random() - 0.5) * 800,
-                vy: (Math.random() - 0.5) * 600 - 200,
+                vx: (Math.random() - 0.5) * 900,
+                vy: (Math.random() - 0.5) * 700 - 200,
                 life: 0.2 + Math.random() * 0.2,
                 maxLife: 0.4,
                 size: 3 + Math.random() * 5,
@@ -911,6 +1273,13 @@ export default class CombatState {
             p.vy += 1500 * dt;
             p.life -= dt;
             if (p.life <= 0) this.particles.splice(i, 1);
+        }
+        for (let i = this.shockwaves.length - 1; i >= 0; i--) {
+            const sw = this.shockwaves[i];
+            sw.life -= dt;
+            const prog = 1 - Math.max(0, sw.life / sw.maxLife);
+            sw.radius = 8 + (sw.maxRadius - 8) * Math.pow(prog, 0.55);
+            if (sw.life <= 0) this.shockwaves.splice(i, 1);
         }
     }
 
@@ -1045,6 +1414,15 @@ export default class CombatState {
     draw(ctx) {
         ctx.save();
 
+        // Street Fighter Camera Punch-Zoom
+        if (this.cameraZoom > 1.001) {
+            const zx = this.cameraFocusX || (this.game.width / 2);
+            const zy = this.cameraFocusY || (this.game.height * 0.65);
+            ctx.translate(zx, zy);
+            ctx.scale(this.cameraZoom, this.cameraZoom);
+            ctx.translate(-zx, -zy);
+        }
+
         // Screen Shake offset
         if (this.shakeTimer > 0) {
             const sx = (Math.random() - 0.5) * this.shakeIntensity * 2;
@@ -1062,8 +1440,69 @@ export default class CombatState {
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
 
+        // 1b. Street Fighter Alpha K.O. Sunburst Background Flash (during first 1.25s of KO_FREEZE)
+        if (this.matchPhase === 'KO_FREEZE' && this.koFreezeTimer < 1.25) {
+            ctx.save();
+            const koAlpha = Math.max(0, 1 - (this.koFreezeTimer / 1.25)) * 0.72;
+            ctx.globalAlpha = koAlpha;
+            const cx = this.game.width / 2;
+            const cy = this.game.height * 0.55;
+            const numRays = 20;
+            const rot = this.koFreezeTimer * 2.5;
+            for (let i = 0; i < numRays; i++) {
+                const a1 = rot + (i * Math.PI * 2) / numRays;
+                const a2 = a1 + (Math.PI / numRays) * 0.85;
+                ctx.fillStyle = i % 2 === 0 ? '#ff2200' : '#ffbb00';
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.cos(a1) * 1800, cy + Math.sin(a1) * 1800);
+                ctx.lineTo(cx + Math.cos(a2) * 1800, cy + Math.sin(a2) * 1800);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
         // 2. Destructible Stage Objects
         this.stageObjects.draw(ctx);
+
+        // 2b. Street Fighter Super Combo Screen Darkening & Sonic Aura Ring
+        if (this.superFreezeTimer > 0 && this.superFreezeFighter) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 6, 24, 0.72)';
+            ctx.fillRect(0, 0, this.game.width, this.game.height);
+
+            const sf = this.superFreezeFighter;
+            const prog = 1 - Math.max(0, this.superFreezeTimer / 0.26);
+            const fx = sf.x;
+            const fy = sf.y - 190;
+            const ringR = 35 + prog * 340;
+
+            ctx.globalCompositeOperation = 'screen';
+            const grad = ctx.createRadialGradient(fx, fy, 10, fx, fy, 240);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            grad.addColorStop(0.35, 'rgba(0, 229, 255, 0.65)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(fx, fy, 240, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#00ffff';
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 24;
+            ctx.lineWidth = Math.max(2, 16 * (1 - prog));
+            ctx.beginPath();
+            ctx.arc(fx, fy, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = Math.max(1.5, 8 * (1 - prog));
+            ctx.beginPath();
+            ctx.arc(fx, fy, ringR * 0.68, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // 3. Fighters (draw attacker on top)
         if (this.ally) {
@@ -1082,7 +1521,60 @@ export default class CombatState {
             proj.draw(ctx);
         }
 
-        // 5. Hit Sparks
+        // 5. Street Fighter Multi-Ring Impact Starbursts & Ground Dust Shockwaves
+        for (const sw of this.shockwaves) {
+            const alpha = Math.max(0, sw.life / sw.maxLife);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            if (sw.kind === 'dust') {
+                ctx.strokeStyle = sw.color1;
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.lineWidth = 4 * alpha;
+                ctx.beginPath();
+                ctx.ellipse(sw.x, sw.y, sw.radius * 1.35, sw.radius * 0.28, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                ctx.globalCompositeOperation = 'screen';
+                ctx.translate(sw.x, sw.y);
+                ctx.rotate(sw.angle);
+
+                // Expanding shockwave ring
+                ctx.strokeStyle = sw.color1;
+                ctx.shadowColor = sw.color1;
+                ctx.shadowBlur = 16;
+                ctx.lineWidth = (sw.kind === 'heavy' ? 8 : 5) * alpha;
+                ctx.beginPath();
+                ctx.arc(0, 0, sw.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 8-point Street Fighter cross starburst spikes
+                const spikes = sw.kind === 'heavy' ? 10 : 8;
+                const outerR = sw.radius * 1.25;
+                const innerR = sw.radius * 0.24;
+                ctx.fillStyle = sw.color2;
+                ctx.beginPath();
+                for (let i = 0; i < spikes * 2; i++) {
+                    const r = i % 2 === 0 ? outerR : innerR;
+                    const a = (i * Math.PI) / spikes;
+                    const px = Math.cos(a) * r;
+                    const py = Math.sin(a) * r;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.closePath();
+                ctx.fill();
+
+                // Hot white core
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(0, 0, sw.radius * 0.32, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        // 5b. Flying Hit Sparks
         for (const p of this.particles) {
             const alpha = Math.max(0, p.life / p.maxLife);
             ctx.globalAlpha = alpha;

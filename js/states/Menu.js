@@ -88,20 +88,47 @@ export default class MenuState {
         this._removeMenuTap(); // Clean up any previous listener
 
         this._onMenuTap = (e) => {
-            if (this.inOptions) return; // Options sub-menu uses controller
-
-            const rect = this.game.canvas.getBoundingClientRect();
-            const scaleX = this.game.canvas.width / rect.width;
-            const scaleY = this.game.canvas.height / rect.height;
-
-            // Use first touch
             const touch = e.changedTouches ? e.changedTouches[0] : e;
-            const tx = (touch.clientX - rect.left) * scaleX;
-            const ty = (touch.clientY - rect.top) * scaleY;
+            const pt = window.mapTouchToCanvas
+                ? window.mapTouchToCanvas(touch.clientX, touch.clientY, this.game.canvas)
+                : (() => {
+                    const rect = this.game.canvas.getBoundingClientRect();
+                    return {
+                        x: (touch.clientX - rect.left) * (this.game.canvas.width / rect.width),
+                        y: (touch.clientY - rect.top) * (this.game.canvas.height / rect.height)
+                    };
+                })();
+            const tx = pt.x;
+            const ty = pt.y;
 
             // Unlock audio on any tap
             if (this.game.audioManager.unlockAudio) {
                 this.game.audioManager.unlockAudio();
+            }
+
+            if (this.inOptions) {
+                // Tap bottom area or top-left to exit Options
+                if (ty >= this.game.height - 140 || (tx < 300 && ty < 130)) {
+                    this.inOptions = false;
+                    this.inputCooldown = 15;
+                    this.playBlip();
+                    return;
+                }
+                const startY = 250;
+                for (let i = 0; i < 8; i++) {
+                    const rowY = startY + i * 70;
+                    if (ty >= rowY - 35 && ty <= rowY + 25) {
+                        this.optionIndex = i;
+                        const dir = tx < this.game.width / 2 ? -1 : 1;
+                        this.updateOptions({
+                            up: false, down: false,
+                            left: dir < 0, right: dir > 0,
+                            lJust: true, hJust: false, sJust: false
+                        });
+                        return;
+                    }
+                }
+                return;
             }
 
             // INSERT COIN: if no credits, any tap adds coins
@@ -320,10 +347,12 @@ export default class MenuState {
                 s.bgmFilterEnabled = !s.bgmFilterEnabled;
                 break;
             case 7: // Fullscreen
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(() => { });
+                if (window.toggleGameFullscreen) {
+                    window.toggleGameFullscreen();
+                } else if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen?.().catch(() => { });
                 } else {
-                    document.exitFullscreen().catch(() => { });
+                    document.exitFullscreen?.().catch(() => { });
                 }
                 break;
         }

@@ -1,113 +1,254 @@
 import { ROSTER } from '../data.js';
 import { playAnnouncer } from '../core/AssetPreloader.js';
+import { STORY_DIALOGUES } from '../story_dialogues.js';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
  * (Fight Intro, KO, Post-Match menu, Victory screen, Pause menu).
  */
 export default class CombatHUD {
+    static _drawReactivePortrait(ctx, game, fighter, x, y, size, flip = false) {
+        ctx.save();
+        const isHit = fighter.state === 'HIT' || fighter.state === 'KO';
+        const jx = isHit ? (Math.random() - 0.5) * 6 : 0;
+        const jy = isHit ? (Math.random() - 0.5) * 6 : 0;
+
+        // Gold-beveled Street Fighter portrait frame
+        ctx.fillStyle = isHit ? '#440011' : '#0b0c24';
+        ctx.fillRect(x, y, size, size);
+
+        const imgKey = isHit
+            ? (game.assetManager.images[`${fighter.data.id}_hit.png`] ? `${fighter.data.id}_hit.png` : `${fighter.data.id}_front.png`)
+            : `${fighter.data.id}_front.png`;
+        const img = game.assetManager.images[imgKey] || game.assetManager.images[`${fighter.data.id}_right.png`];
+
+        if (img && img.naturalWidth && img.naturalHeight) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x + 3, y + 3, size - 6, size - 6);
+            ctx.clip();
+            ctx.translate(x + size / 2 + jx, y + size / 2 + jy);
+            if (flip) ctx.scale(-1, 1);
+            // Zoom onto upper torso/head
+            const scale = (size * 1.45) / img.naturalHeight;
+            const dw = img.naturalWidth * scale;
+            const dh = img.naturalHeight * scale;
+            ctx.drawImage(img, -dw / 2, -dh * 0.34, dw, dh);
+            if (isHit) {
+                ctx.fillStyle = 'rgba(255, 30, 30, 0.32)';
+                ctx.fillRect(-size, -size, size * 2, size * 2);
+            }
+            ctx.restore();
+        }
+
+        ctx.strokeStyle = isHit ? '#ff3344' : '#ffd700';
+        ctx.lineWidth = 3.5;
+        ctx.strokeRect(x, y, size, size);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 3, y + 3, size - 6, size - 6);
+        ctx.restore();
+    }
+
     static drawHUD(ctx, combat) {
         const game = combat.game;
         const cx = game.width / 2;
 
-        // Timer
-        ctx.fillStyle = '#fdbf00';
-        ctx.font = 'bold 80px "Press Start 2P"';
+        // ─── REACTIVE STREET FIGHTER MINI-PORTRAITS ───
+        const portSize = 78;
+        const portY = 64;
+        CombatHUD._drawReactivePortrait(ctx, game, combat.p1, 20, portY, portSize, false);
+        CombatHUD._drawReactivePortrait(ctx, game, combat.p2, game.width - 20 - portSize, portY, portSize, true);
+
+        // ─── CENTER "KO" EMBLEM & ARCADE TIMER ───
+        ctx.save();
+        ctx.fillStyle = '#2a0800';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 3;
+        ctx.fillRect(cx - 46, 42, 92, 30);
+        ctx.strokeRect(cx - 46, 42, 92, 30);
+        ctx.fillStyle = '#ff2200';
+        ctx.font = 'bold 18px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText(Math.ceil(combat.timer).toString(), cx, 120);
+        ctx.fillText('K.O.', cx, 64);
 
-        // Names
-        ctx.fillStyle = 'white';
-        ctx.font = '30px "Press Start 2P"';
+        ctx.fillStyle = combat.timer <= 15 ? '#ff3333' : '#fdbf00';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 10;
+        ctx.font = 'bold 64px "Press Start 2P"';
+        ctx.fillText(Math.ceil(combat.timer).toString().padStart(2, '0'), cx, 138);
+        ctx.restore();
+
+        // ─── FIGHTER NAMES & ROUND WIN STARS ───
+        const barW = 585, barH = 38, barY = 82;
+        const p1X = 108;
+        const p2X = game.width - 108 - barW;
+
+        ctx.save();
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 6;
+        ctx.font = 'bold 26px "Press Start 2P"';
         ctx.textAlign = 'left';
-        ctx.fillText(combat.p1.data.name.toUpperCase(), 100, 70);
+        ctx.fillText(combat.p1.data.name.toUpperCase(), p1X, 68);
         ctx.textAlign = 'right';
-        ctx.fillText(combat.p2.data.name.toUpperCase(), game.width - 100, 70);
+        ctx.fillText(combat.p2.data.name.toUpperCase(), p2X + barW, 68);
+        ctx.restore();
 
-        // Health Bars
-        const barW = 600, barH = 40, barY = 90;
-        const p1X = 100;
-        const p2X = game.width - 100 - barW;
-
-        // Backgrounds (red)
-        ctx.fillStyle = '#cc0000';
+        // ─── STREET FIGHTER GOLD-BEVELED LIFEBARS WITH TRAILING RED DAMAGE ───
+        // Dark outer trough
+        ctx.fillStyle = '#180614';
         ctx.fillRect(p1X, barY, barW, barH);
         ctx.fillRect(p2X, barY, barW, barH);
 
-        // P1 Health (green → yellow → red)
-        const p1Pct = Math.max(0, combat.p1.hp / combat.p1.maxHP);
-        ctx.fillStyle = p1Pct > 0.5 ? '#00ff00' : (p1Pct > 0.25 ? '#ffff00' : '#ff4400');
-        ctx.fillRect(p1X, barY, barW * p1Pct, barH);
+        // Trailing Red Damage Bar (shows combo damage before smoothly draining)
+        const p1Trail = combat.p1TrailHP !== undefined ? combat.p1TrailHP : combat.p1.hp;
+        const p2Trail = combat.p2TrailHP !== undefined ? combat.p2TrailHP : combat.p2.hp;
+        const p1TrailPct = Math.max(0, Math.min(1, p1Trail / combat.p1.maxHP));
+        const p2TrailPct = Math.max(0, Math.min(1, p2Trail / combat.p2.maxHP));
 
-        // P2 Health
-        const p2Pct = Math.max(0, combat.p2.hp / combat.p2.maxHP);
-        ctx.fillStyle = p2Pct > 0.5 ? '#00ff00' : (p2Pct > 0.25 ? '#ffff00' : '#ff4400');
+        ctx.fillStyle = '#e6192e';
+        ctx.fillRect(p1X + barW * (1 - p1TrailPct), barY, barW * p1TrailPct, barH);
+        ctx.fillRect(p2X, barY, barW * p2TrailPct, barH);
+
+        // Actual Health (Street Fighter drains toward the center KO badge!)
+        const p1Pct = Math.max(0, Math.min(1, combat.p1.hp / combat.p1.maxHP));
+        const p1Grad = ctx.createLinearGradient(0, barY, 0, barY + barH);
+        if (p1Pct > 0.5) {
+            p1Grad.addColorStop(0, '#99ff33');
+            p1Grad.addColorStop(0.5, '#00e640');
+            p1Grad.addColorStop(1, '#008822');
+        } else if (p1Pct > 0.25) {
+            p1Grad.addColorStop(0, '#ffff66');
+            p1Grad.addColorStop(0.5, '#ffcc00');
+            p1Grad.addColorStop(1, '#cc7700');
+        } else {
+            p1Grad.addColorStop(0, '#ff7733');
+            p1Grad.addColorStop(0.5, '#ff2200');
+            p1Grad.addColorStop(1, '#990000');
+        }
+        ctx.fillStyle = p1Grad;
+        const p1W = barW * p1Pct;
+        ctx.fillRect(p1X + (barW - p1W), barY, p1W, barH);
+
+        const p2Pct = Math.max(0, Math.min(1, combat.p2.hp / combat.p2.maxHP));
+        const p2Grad = ctx.createLinearGradient(0, barY, 0, barY + barH);
+        if (p2Pct > 0.5) {
+            p2Grad.addColorStop(0, '#99ff33');
+            p2Grad.addColorStop(0.5, '#00e640');
+            p2Grad.addColorStop(1, '#008822');
+        } else if (p2Pct > 0.25) {
+            p2Grad.addColorStop(0, '#ffff66');
+            p2Grad.addColorStop(0.5, '#ffcc00');
+            p2Grad.addColorStop(1, '#cc7700');
+        } else {
+            p2Grad.addColorStop(0, '#ff7733');
+            p2Grad.addColorStop(0.5, '#ff2200');
+            p2Grad.addColorStop(1, '#990000');
+        }
+        ctx.fillStyle = p2Grad;
         const p2W = barW * p2Pct;
-        ctx.fillRect(p2X + (barW - p2W), barY, p2W, barH);
+        ctx.fillRect(p2X, barY, p2W, barH);
 
-        // Bar outlines
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
+        // Glossy top bevel highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.fillRect(p1X, barY + 2, barW, 7);
+        ctx.fillRect(p2X, barY + 2, barW, 7);
+
+        // Gold Arcade Bar Borders
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 3.5;
         ctx.strokeRect(p1X, barY, barW, barH);
         ctx.strokeRect(p2X, barY, barW, barH);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p1X + 2, barY + 2, barW - 4, barH - 4);
+        ctx.strokeRect(p2X + 2, barY + 2, barW - 4, barH - 4);
 
         // Menu Pause Button
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(game.width - 150, 10, 140, 50);
-        ctx.strokeStyle = '#888';
-        ctx.strokeRect(game.width - 150, 10, 140, 50);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(game.width - 150, 8, 130, 42);
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(game.width - 150, 8, 130, 42);
         ctx.fillStyle = '#fff';
-        ctx.font = '20px "Press Start 2P"';
+        ctx.font = '18px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText('MENU', game.width - 80, 42);
+        ctx.fillText('MENU', game.width - 85, 35);
 
-        // ─── SPECIAL ENERGY METERS ───
-        const spH = 15;
-        const spY = barY + barH + 10;
+        // ─── 3-SEGMENT STREET FIGHTER SUPER COMBO METERS ───
+        const spH = 16;
+        const spY = barY + barH + 8;
 
-        // Background (dark blue)
-        ctx.fillStyle = '#001133';
+        ctx.fillStyle = '#050b24';
         ctx.fillRect(p1X, spY, barW, spH);
         ctx.fillRect(p2X, spY, barW, spH);
 
-        const flashOn = Math.floor((combat.time || 0) * 10) % 2 === 0;
+        const flashOn = Math.floor((combat.time || 0) * 12) % 2 === 0;
 
-        // P1 Special (Cyan)
-        const p1SpPct = Math.max(0, combat.p1.specialEnergy / combat.p1.maxSpecialEnergy);
+        // P1 Special (3-segment Super Combo gauge)
+        const p1SpPct = Math.max(0, Math.min(1, combat.p1.specialEnergy / combat.p1.maxSpecialEnergy));
         const p1SpReady = p1SpPct >= 1.0;
-        ctx.fillStyle = p1SpReady ? (flashOn ? '#ffffff' : '#00ffff') : '#0088cc';
+        ctx.fillStyle = p1SpReady ? (flashOn ? '#ffffff' : '#00ffff') : (p1SpPct >= 0.66 ? '#00ccff' : '#0077cc');
         ctx.fillRect(p1X, spY, barW * p1SpPct, spH);
 
-        // P2 Special (Cyan)
-        const p2SpPct = Math.max(0, combat.p2.specialEnergy / combat.p2.maxSpecialEnergy);
+        // P2 Special (3-segment Super Combo gauge)
+        const p2SpPct = Math.max(0, Math.min(1, combat.p2.specialEnergy / combat.p2.maxSpecialEnergy));
         const p2SpReady = p2SpPct >= 1.0;
-        ctx.fillStyle = p2SpReady ? (flashOn ? '#ffffff' : '#00ffff') : '#0088cc';
+        ctx.fillStyle = p2SpReady ? (flashOn ? '#ffffff' : '#00ffff') : (p2SpPct >= 0.66 ? '#00ccff' : '#0077cc');
         const p2SpW = barW * p2SpPct;
         ctx.fillRect(p2X + (barW - p2SpW), spY, p2SpW, spH);
 
-        // Special outlines
-        ctx.strokeStyle = '#00ffff';
+        // 3-Segment Dividers & Outline
+        ctx.strokeStyle = p1SpReady ? '#ffd700' : '#00ffff';
         ctx.lineWidth = 2;
         ctx.strokeRect(p1X, spY, barW, spH);
+        ctx.strokeStyle = p2SpReady ? '#ffd700' : '#00ffff';
         ctx.strokeRect(p2X, spY, barW, spH);
+
+        ctx.fillStyle = '#050b24';
+        for (let seg = 1; seg <= 2; seg++) {
+            const sx1 = p1X + (barW * seg) / 3;
+            const sx2 = p2X + (barW * seg) / 3;
+            ctx.fillRect(sx1 - 2, spY, 4, spH);
+            ctx.fillRect(sx2 - 2, spY, 4, spH);
+        }
+
+        if (p1SpReady) {
+            ctx.fillStyle = flashOn ? '#ffd700' : '#ffffff';
+            ctx.font = 'bold 12px "Press Start 2P"';
+            ctx.textAlign = 'left';
+            ctx.fillText('SUPER MAX!', p1X + 8, spY + 13);
+        }
+        if (p2SpReady) {
+            ctx.fillStyle = flashOn ? '#ffd700' : '#ffffff';
+            ctx.font = 'bold 12px "Press Start 2P"';
+            ctx.textAlign = 'right';
+            ctx.fillText('SUPER MAX!', p2X + barW - 8, spY + 13);
+        }
 
         // ─── CO-OP PARTNER (ALLY) HEALTH & SPECIAL BARS ───
         if (combat.coopMode && combat.ally) {
             const allyY = spY + 34;
             const allyBarW = 460;
-            const allyBarH = 24;
+            const allyBarH = 22;
             ctx.fillStyle = '#bb66ff';
-            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.font = 'bold 15px "Press Start 2P"';
             ctx.textAlign = 'left';
             ctx.fillText(`P2 TEAM: ${combat.ally.data.name.toUpperCase()}`, p1X, allyY - 6);
 
-            ctx.fillStyle = '#550022';
+            ctx.fillStyle = '#220018';
             ctx.fillRect(p1X, allyY, allyBarW, allyBarH);
+
+            const allyTrail = combat.allyTrailHP !== undefined ? combat.allyTrailHP : combat.ally.hp;
+            const allyTrailPct = Math.max(0, Math.min(1, allyTrail / combat.ally.maxHP));
+            ctx.fillStyle = '#e6192e';
+            ctx.fillRect(p1X, allyY, allyBarW * allyTrailPct, allyBarH);
 
             const allyPct = Math.max(0, combat.ally.hp / combat.ally.maxHP);
             ctx.fillStyle = allyPct > 0.5 ? '#bb55ff' : (allyPct > 0.25 ? '#ffaa00' : '#ff3355');
             ctx.fillRect(p1X, allyY, allyBarW * allyPct, allyBarH);
-            ctx.strokeStyle = '#ffffff';
+            ctx.strokeStyle = '#ffd700';
             ctx.lineWidth = 2;
             ctx.strokeRect(p1X, allyY, allyBarW, allyBarH);
 
@@ -135,18 +276,38 @@ export default class CombatHUD {
             ctx.fillText(
                 `${isConn ? '🟢' : '🟡'} ${modeTag} CODE ${game.networkManager.roomCode}`,
                 cx,
-                152
+                164
             );
             ctx.restore();
         }
 
+        // ─── STREET FIGHTER CALLOUT BANNERS (FIRST ATTACK! / COUNTER HIT!) ───
+        if (combat.callout && combat.callout.timer > 0) {
+            const c = combat.callout;
+            const alpha = Math.min(1, c.timer / 0.25);
+            const isP1 = c.side === 'p1';
+            const slide = Math.min(1, (c.maxTimer - c.timer) / 0.12);
+            const bx = isP1 ? (40 + slide * 68) : (game.width - 40 - slide * 68);
+            const by = (combat.coopMode && combat.ally && isP1) ? 235 : 192;
+
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.font = 'bold 22px "Press Start 2P"';
+            ctx.textAlign = isP1 ? 'left' : 'right';
+            ctx.fillStyle = c.color;
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 12;
+            ctx.fillText(c.text, bx, by);
+            ctx.restore();
+        }
+
         // ─── DYNAMIC ARCADE COMBO COUNTERS ───
-        const comboY = (combat.coopMode && combat.ally) ? 280 : 235;
+        const comboY = (combat.coopMode && combat.ally) ? 290 : 245;
         if (combat.p1ComboCount >= 2 && combat.p1ComboTimer > 0) {
             const pop = 1 + Math.min(0.28, (combat.p1ComboTimer - 1.0) * 0.6);
             const scale = Math.max(1.0, pop);
             ctx.save();
-            ctx.translate(180, comboY);
+            ctx.translate(108, comboY);
             ctx.scale(scale, scale);
             ctx.textAlign = 'left';
             ctx.font = 'bold 42px "Press Start 2P"';
@@ -164,7 +325,7 @@ export default class CombatHUD {
             const pop = 1 + Math.min(0.28, (combat.p2ComboTimer - 1.0) * 0.6);
             const scale = Math.max(1.0, pop);
             ctx.save();
-            ctx.translate(game.width - 180, 235);
+            ctx.translate(game.width - 108, 245);
             ctx.scale(scale, scale);
             ctx.textAlign = 'right';
             ctx.font = 'bold 42px "Press Start 2P"';
@@ -177,16 +338,86 @@ export default class CombatHUD {
             ctx.fillText(combat.p2ComboCount >= 3 ? 'SUPER COMBO!' : 'COMBO!', 0, 32);
             ctx.restore();
         }
+
+        // ─── STREET FIGHTER STORY DIALOGUE SUBTITLE BANNER ───
+        if (combat.storyDialogue && combat.storyBannerTimer > 0 && combat.matchPhase !== 'POST_MATCH' && combat.matchPhase !== 'VICTORY') {
+            const alpha = Math.min(1, combat.storyBannerTimer * 1.2);
+            const boxW = Math.min(1260, game.width - 120);
+            const boxH = 104;
+            const bx = cx - boxW / 2;
+            const by = game.height - boxH - 18;
+
+            ctx.save();
+            ctx.globalAlpha = alpha * 0.92;
+            ctx.fillStyle = 'rgba(8, 10, 26, 0.86)';
+            ctx.fillRect(bx, by, boxW, boxH);
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(bx, by, boxW, boxH);
+
+            // Dimension Header Pill
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 13px "Press Start 2P"';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(combat.storyDialogue.dimension || 'LORD OF THE LIGHT', cx, by + 24);
+
+            // Opponent Story Quote
+            ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+            ctx.fillStyle = '#ff7788';
+            ctx.fillText(`${combat.p2.data.name.toUpperCase()}: „${combat.storyDialogue.introQuote}“`, cx, by + 54);
+
+            // Hero (Keano / P1) Story Reply
+            ctx.fillStyle = '#66eeff';
+            ctx.fillText(`${combat.p1.data.name.toUpperCase()}: „${combat.storyDialogue.keanoReply}“`, cx, by + 84);
+            ctx.restore();
+        } else if (combat.matchPhase === 'FIGHTING') {
+            // Subtle Arcade Command Move Legend at bottom of screen
+            ctx.save();
+            ctx.globalAlpha = 0.78;
+            ctx.fillStyle = 'rgba(6, 10, 24, 0.72)';
+            const barW = 1120;
+            const barH = 28;
+            ctx.fillRect(cx - barW / 2, game.height - barH - 6, barW, barH);
+            ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(cx - barW / 2, game.height - barH - 6, barW, barH);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 11px "Press Start 2P"';
+            ctx.fillStyle = '#bfefff';
+            ctx.fillText('MOVES: [→+J] BACKFIST  [→+K] AXE KICK  [↓↑+J / ↑+L] DRAGON UPPERCUT  [↓←+K / ↓+L] HURRICANE KICK  [J+K] THROW', cx, game.height - 15);
+            ctx.restore();
+        }
     }
 
     static drawFightIntro(ctx, combat) {
         const cx = combat.game.width / 2;
         const cy = combat.game.height / 2;
         ctx.textAlign = 'center';
+        const subPhase = combat.introSubPhase || 'STORY_DIALOGUE';
+        const subT = combat.introSubTimer || 0;
 
-        if (combat.introTimer < 1.0) {
-            const t = combat.introTimer;
-            const scale = Math.min(1, t * 4);
+        if (subPhase === 'STORY_DIALOGUE') {
+            // Phase 1: Pre-fight Face-Off while Opponent speaks full Story Intro to the end
+            const alpha = Math.min(1, combat.introTimer * 2.5);
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, alpha);
+            ctx.font = 'bold 26px "Press Start 2P"';
+            ctx.fillStyle = '#00eeff';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 14;
+            ctx.fillText(combat.storyDialogue?.dimension || 'GET READY!', cx, cy - 55);
+            ctx.font = 'bold 42px "Press Start 2P"';
+            ctx.fillStyle = '#fdbf00';
+            ctx.fillText(`${combat.p1.data.name.toUpperCase()}  VS  ${combat.p2.data.name.toUpperCase()}`, cx, cy + 10);
+            if (combat.introTimer > 0.6) {
+                ctx.font = 'bold 12px "Press Start 2P"';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+                ctx.fillText('[SPACE / J ZUM ÜBERSPRINGEN]', cx, cy + 52);
+            }
+            ctx.restore();
+        } else if (subPhase === 'ROUND_CALL') {
+            // Phase 2: Announcer roars "ROUND 1!" (only after Story Intro finished!)
+            const scale = Math.min(1, subT * 4.5);
             ctx.save();
             ctx.translate(cx, cy);
             ctx.scale(scale, scale);
@@ -198,13 +429,13 @@ export default class CombatHUD {
             ctx.shadowBlur = 0;
             ctx.restore();
         } else {
-            const t = combat.introTimer - 1.0;
-            const flash = Math.max(0, 1 - t * 3);
+            // Phase 3: Announcer roars "FIGHT!" (only after ROUND 1 finished!)
+            const flash = Math.max(0, 1 - subT * 3.5);
             if (flash > 0) {
                 ctx.fillStyle = `rgba(255, 255, 255, ${flash * 0.4})`;
                 ctx.fillRect(0, 0, combat.game.width, combat.game.height);
             }
-            const bounce = 1 + Math.sin(t * 12) * 0.05;
+            const bounce = 1 + Math.sin(subT * 12) * 0.05;
             ctx.save();
             ctx.translate(cx, cy);
             ctx.scale(bounce, bounce);
@@ -268,6 +499,17 @@ export default class CombatHUD {
                 ctx.shadowBlur = 10;
                 ctx.fillText(winnerText, cx, cy + 60);
                 ctx.shadowBlur = 0;
+            }
+
+            const winDialog = STORY_DIALOGUES[winnerFighter.data.id];
+            if (winDialog && winDialog.winQuote) {
+                ctx.save();
+                ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 10;
+                ctx.fillText(`„${winDialog.winQuote}“`, cx, cy + 112);
+                ctx.restore();
             }
         }
     }

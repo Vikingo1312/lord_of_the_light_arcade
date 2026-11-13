@@ -141,6 +141,20 @@ export default class VersusIntro {
 
         ctx.globalCompositeOperation = 'source-over';
 
+        // Street Fighter Diagonal Speed-Lines across the VS Split Screen
+        ctx.save();
+        ctx.globalAlpha = 0.22 * Math.min(1, t / 0.4);
+        ctx.strokeStyle = '#ffffff';
+        for (let i = 0; i < 18; i++) {
+            const lineY = ((i * 68 + t * 900) % (h + 120)) - 60;
+            ctx.lineWidth = (i % 3 === 0) ? 4 : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, lineY);
+            ctx.lineTo(w, lineY - 90);
+            ctx.stroke();
+        }
+        ctx.restore();
+
         // Animate background particles upward
         for (const p of this.particles) {
             p.x += p.vx; p.y += p.vy;
@@ -166,39 +180,85 @@ export default class VersusIntro {
         // Uses easeOutExpo for a fast snap
         const easeSnap = (x) => x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
         const p1Slide = easeSnap(Math.min(1, t / 0.6));
-        const p1X = -500 + p1Slide * 500 + (this.allyData ? w * 0.14 : w * 0.18);
 
         if (this.allyData) {
-            const allyImg = this.game.assetManager.images[`${this.allyData.id}_front.png`];
+            // Side-by-side Co-Op Team layout so neither fighter is hidden behind an opaque card!
+            const p1X = -500 + p1Slide * 500 + w * 0.125;
+            const allyX = -500 + p1Slide * 500 + w * 0.305;
+            const cardTopY = h * 0.25;
+            const targetH = 420;
+
+            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
+            if (p1Img && p1Img.naturalHeight) {
+                const scale = targetH / p1Img.naturalHeight;
+                const dw = p1Img.naturalWidth * scale;
+                const dh = p1Img.naturalHeight * scale;
+                ctx.save();
+                ctx.globalAlpha = p1Slide;
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 28 + Math.sin(t * 10) * 12;
+                ctx.drawImage(p1Img, p1X - dw / 2, cardTopY, dw, dh);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(p1X - dw / 2, cardTopY, dw, dh);
+                ctx.restore();
+            }
+
+            // Draw Ally ON TOP / side-by-side with glowing purple Co-Op frame & facing right toward enemy
+            const allyImg = this.game.assetManager.images[`${this.allyData.id}_front.png`] || this.game.assetManager.images[`${this.allyData.id}_right.png`];
             if (allyImg && allyImg.naturalHeight) {
-                const scale = 470 / allyImg.naturalHeight;
+                const scale = targetH / allyImg.naturalHeight;
                 const dw = allyImg.naturalWidth * scale;
                 const dh = allyImg.naturalHeight * scale;
                 ctx.save();
-                ctx.globalAlpha = p1Slide * 0.92;
-                ctx.shadowColor = '#bb55ff';
-                ctx.shadowBlur = 25;
-                ctx.drawImage(allyImg, (p1X + 195) - dw / 2, h * 0.28, dw, dh);
+                ctx.globalAlpha = p1Slide;
+                ctx.shadowColor = '#cc55ff';
+                ctx.shadowBlur = 28 + Math.cos(t * 10) * 12;
+                ctx.fillStyle = 'rgba(20, 8, 38, 0.85)';
+                ctx.fillRect(allyX - dw / 2, cardTopY, dw, dh);
+                ctx.drawImage(allyImg, allyX - dw / 2, cardTopY, dw, dh);
+                ctx.strokeStyle = '#cc55ff';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(allyX - dw / 2, cardTopY, dw, dh);
+                ctx.restore();
+            }
+
+            // Prominent "★ CO-OP TEAM ★" badge above both heroes
+            ctx.save();
+            ctx.globalAlpha = p1Slide;
+            const badgeX = (p1X + allyX) / 2;
+            const badgeY = cardTopY - 32;
+            ctx.fillStyle = 'rgba(15, 20, 40, 0.9)';
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#00ffff';
+            ctx.shadowBlur = 16;
+            ctx.fillRect(badgeX - 190, badgeY - 26, 380, 38);
+            ctx.strokeRect(badgeX - 190, badgeY - 26, 380, 38);
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('★ 2P CO-OP TEAM ★', badgeX, badgeY);
+            ctx.restore();
+        } else {
+            const p1X = -500 + p1Slide * 500 + w * 0.18;
+            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
+            if (p1Img) {
+                const scale = 550 / p1Img.naturalHeight;
+                const dw = p1Img.naturalWidth * scale;
+                const dh = p1Img.naturalHeight * scale;
+                ctx.save();
+                ctx.globalAlpha = p1Slide;
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 30 + Math.sin(t * 10) * 15;
+                ctx.drawImage(p1Img, p1X - dw / 2, h * 0.25, dw, dh);
                 ctx.restore();
             }
         }
 
-        const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
-        if (p1Img) {
-            const scale = (this.allyData ? 510 : 550) / p1Img.naturalHeight;
-            const dw = p1Img.naturalWidth * scale;
-            const dh = p1Img.naturalHeight * scale;
-            ctx.save();
-            ctx.globalAlpha = p1Slide;
-            ctx.shadowColor = '#00ffff';
-            ctx.shadowBlur = 30 + Math.sin(t * 10) * 15;
-            ctx.drawImage(p1Img, p1X - dw / 2, h * 0.25, dw, dh);
-            ctx.restore();
-        }
-
         // P1 Name
         ctx.globalAlpha = p1Slide;
-        ctx.font = this.allyData ? 'bold 30px "Press Start 2P"' : 'bold 44px "Press Start 2P"';
+        ctx.font = this.allyData ? 'bold 28px "Press Start 2P"' : 'bold 44px "Press Start 2P"';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = '#00ffff';
@@ -241,7 +301,7 @@ export default class VersusIntro {
         ctx.fillText(this.p2Data.name.toUpperCase(), w - 50, h - 60);
         ctx.shadowBlur = 0;
 
-        // ─── IMPACT VS TEXT ───
+        // ─── IMPACT STREET FIGHTER "VS" EMBLEM ───
         if (t >= 0.5) {
             const vsIn = Math.min(1, (t - 0.5) / 0.2);
             // Starts huge (3x) and slams into place
@@ -256,14 +316,19 @@ export default class VersusIntro {
             const ty = vsIn < 1 ? (Math.random() - 0.5) * 10 : 0;
 
             ctx.font = 'bold 130px "Press Start 2P"';
-            ctx.fillStyle = '#ffffff';
-            ctx.shadowColor = '#fdbf00';
-            ctx.shadowBlur = 40;
+            const vsGrad = ctx.createLinearGradient(0, -70, 0, 70);
+            vsGrad.addColorStop(0, '#ffffff');
+            vsGrad.addColorStop(0.45, '#ffd700');
+            vsGrad.addColorStop(1, '#ff2200');
+            ctx.fillStyle = vsGrad;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = '#ff4400';
+            ctx.shadowBlur = 45;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            ctx.fillText('VS', tx, ty);
-            ctx.shadowBlur = 80;
+            ctx.strokeText('VS', tx, ty);
             ctx.fillText('VS', tx, ty);
             ctx.restore();
             ctx.shadowBlur = 0;

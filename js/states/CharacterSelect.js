@@ -40,13 +40,90 @@ export default class CharacterSelectState {
         // Play continuous main theme across menu and select screens
         this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.15);
         playAnnouncer(this.game.audioManager, 'select');
+        this._setupSelectTap();
     }
 
     exit() {
-        // Automatically handled by State transitions and AudioManager, 
-        // but since Combat will overwrite it anyway, we can leave it running or stop it.
-        // Combat has its own playStageMusic call.
+        this._removeSelectTap();
+        this.game.audioManager.stopFighterVoice?.();
+        this.game.audioManager.stopAnnouncerVoice?.();
         this.game.audioManager.stopBGM();
+    }
+
+    _setupSelectTap() {
+        this._removeSelectTap();
+        this._onSelectTap = (e) => {
+            if (this.loadingCombat) return;
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const pt = window.mapTouchToCanvas
+                ? window.mapTouchToCanvas(touch.clientX, touch.clientY, this.game.canvas)
+                : (() => {
+                    const rect = this.game.canvas.getBoundingClientRect();
+                    return {
+                        x: (touch.clientX - rect.left) * (this.game.canvas.width / rect.width),
+                        y: (touch.clientY - rect.top) * (this.game.canvas.height / rect.height)
+                    };
+                })();
+            const tx = pt.x;
+            const ty = pt.y;
+
+            // Top-left BACK / MENU button area (x: 40..280, y: 20..95)
+            if (tx >= 20 && tx <= 300 && ty >= 15 && ty <= 100) {
+                if (this.p1Locked && !this.p2Locked && !this.arcadeMode) {
+                    this.p1Locked = false;
+                    this.inputCooldown = 15;
+                } else {
+                    this.game.stateManager.switchState('Menu');
+                }
+                return;
+            }
+
+            // Fighter Grid cells (startX=60, startY=120, cellW=160, cellH=160, columns=8)
+            const startX = 60;
+            const startY = 120;
+            const cellW = 160;
+            const cellH = 160;
+            if (tx >= startX && tx <= startX + this.columns * cellW && ty >= startY) {
+                const col = Math.floor((tx - startX) / cellW);
+                const row = Math.floor((ty - startY) / cellH);
+                const idx = row * this.columns + col;
+                if (col >= 0 && col < this.columns && idx >= 0 && idx < this.allFighters.length) {
+                    const char = this.allFighters[idx];
+                    if (!isFighterUnlocked(char.id)) return;
+                    if (!this.p1Locked) {
+                        this.p1Index = idx;
+                        this.p1Locked = true;
+                        this.inputCooldown = 20;
+                        playFighterSound(this.game.audioManager, char.id, 'select');
+                        if (this.arcadeMode) {
+                            this.p2Index = 1;
+                            this.p2Locked = true;
+                            this.loadingCombat = true;
+                            this.preloadAndFight();
+                        } else {
+                            this.p2Index = this.p1Index;
+                        }
+                    } else if (!this.p2Locked && !this.arcadeMode) {
+                        this.p2Index = idx;
+                        this.p2Locked = true;
+                        this.inputCooldown = 60;
+                        this.loadingCombat = true;
+                        playFighterSound(this.game.audioManager, char.id, 'select');
+                        this.preloadAndFight();
+                    }
+                }
+            }
+        };
+        this.game.canvas.addEventListener('touchend', this._onSelectTap, { passive: true });
+        this.game.canvas.addEventListener('click', this._onSelectTap, { passive: true });
+    }
+
+    _removeSelectTap() {
+        if (this._onSelectTap) {
+            this.game.canvas.removeEventListener('touchend', this._onSelectTap);
+            this.game.canvas.removeEventListener('click', this._onSelectTap);
+            this._onSelectTap = null;
+        }
     }
 
     update(dt) {
@@ -165,6 +242,19 @@ export default class CharacterSelectState {
             ctx.fillStyle = '#0a0015';
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
+
+        // ─── TOP-LEFT BACK / MENU BUTTON (Touch & Mouse friendly) ───
+        ctx.save();
+        ctx.fillStyle = 'rgba(20, 25, 45, 0.85)';
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(60, 25, 190, 50);
+        ctx.strokeRect(60, 25, 190, 50);
+        ctx.fillStyle = '#00ffff';
+        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText(this.p1Locked && !this.p2Locked && !this.arcadeMode ? '← ZURÜCK' : '← MENU', 155, 58);
+        ctx.restore();
 
         // ─── TITLE ───
         ctx.fillStyle = '#ff00ff';
