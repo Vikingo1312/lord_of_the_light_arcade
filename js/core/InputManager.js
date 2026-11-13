@@ -5,11 +5,19 @@ export default class InputManager {
         this.pointerLatched = false;
 
         // P1 & P2 Buffer objects for input reading
-        this.p1 = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, menu: false, skipJust: false };
+        this.p1 = {
+            up: false, down: false, left: false, right: false,
+            l: false, h: false, s: false, dash: false, menu: false,
+            skipJust: false, dashLeftJust: false, dashRightJust: false, dashJust: false
+        };
         this.p2 = { up: false, down: false, left: false, right: false, l: false, h: false, s: false };
 
         // Just-pressed detection
-        this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, menu: false };
+        this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, menu: false };
+
+        // Double-tap dash timestamps (ms)
+        this._lastLeftTap = 0;
+        this._lastRightTap = 0;
 
         // Motion input history (stores last 15 directional states with timestamps)
         this.inputHistory = [];
@@ -57,6 +65,7 @@ export default class InputManager {
         this.p1Prev.l = this.p1.l;
         this.p1Prev.h = this.p1.h;
         this.p1Prev.s = this.p1.s;
+        this.p1Prev.dash = this.p1.dash;
         this.p1Prev.menu = this.p1.menu;
 
         this.p1.left = this._isKeyActive('KeyA') || this._isKeyActive('ArrowLeft') || (gp1 && (gp1.axes[0] < -0.5 || gp1.buttons[14]?.pressed));
@@ -67,6 +76,7 @@ export default class InputManager {
         this.p1.l = this._isKeyActive('KeyJ') || this._isKeyActive('Enter') || this._isKeyActive('Space') || (gp1 && (gp1.buttons[0]?.pressed || gp1.buttons[2]?.pressed));
         this.p1.h = this._isKeyActive('KeyK') || (gp1 && (gp1.buttons[1]?.pressed || gp1.buttons[3]?.pressed));
         this.p1.s = this._isKeyActive('KeyL') || (gp1 && gp1.buttons[5]?.pressed);
+        this.p1.dash = this._isKeyActive('ShiftLeft') || this._isKeyActive('ShiftRight') || this._isKeyActive('KeyI') || (gp1 && gp1.buttons[4]?.pressed);
         this.p1.menu = this._isKeyActive('Escape') || (gp1 && gp1.buttons[9]?.pressed);
 
         const pointerJust = this.pointerLatched;
@@ -83,11 +93,33 @@ export default class InputManager {
         this.p1.lJust = this.p1.l && !this.p1Prev.l;
         this.p1.hJust = this.p1.h && !this.p1Prev.h;
         this.p1.sJust = this.p1.s && !this.p1Prev.s;
+        this.p1.dashJust = this.p1.dash && !this.p1Prev.dash;
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
+        // Double-tap Left / Right detection (within 260ms window)
+        const now = performance.now();
+        this.p1.dashLeftJust = false;
+        this.p1.dashRightJust = false;
+        if (this.p1.leftJust) {
+            if (now - this._lastLeftTap < 260) {
+                this.p1.dashLeftJust = true;
+                this._lastLeftTap = 0;
+            } else {
+                this._lastLeftTap = now;
+            }
+        }
+        if (this.p1.rightJust) {
+            if (now - this._lastRightTap < 260) {
+                this.p1.dashRightJust = true;
+                this._lastRightTap = 0;
+            } else {
+                this._lastRightTap = now;
+            }
+        }
+
         // Record directional state for motion input detection
-        const dir = { down: this.p1.down, right: this.p1.right, left: this.p1.left, t: performance.now() };
+        const dir = { down: this.p1.down, right: this.p1.right, left: this.p1.left, t: now };
         this.inputHistory.push(dir);
         if (this.inputHistory.length > this.maxHistory) this.inputHistory.shift();
     }

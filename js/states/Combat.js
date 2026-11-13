@@ -83,6 +83,12 @@ export default class CombatState {
         this._koKnockbackApplied = false;
         this._newlyUnlocked = null;
 
+        // Combo Counter tracking
+        this.p1ComboCount = 0;
+        this.p1ComboTimer = 0;
+        this.p2ComboCount = 0;
+        this.p2ComboTimer = 0;
+
         // Pause State
         this.paused = false;
         this.pauseSelection = 0;
@@ -330,6 +336,16 @@ export default class CombatState {
             return;
         }
 
+        // Decay combo timers
+        if (this.p1ComboTimer > 0) {
+            this.p1ComboTimer -= dt;
+            if (this.p1ComboTimer <= 0) this.p1ComboCount = 0;
+        }
+        if (this.p2ComboTimer > 0) {
+            this.p2ComboTimer -= dt;
+            if (this.p2ComboTimer <= 0) this.p2ComboCount = 0;
+        }
+
         // --- P1 Input & Special Move Processing ---
         const p1InputCopy = { ...p1, sJust: false, s: false };
         const isP1Special = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
@@ -357,8 +373,18 @@ export default class CombatState {
             }
         }
 
+        const p1WasDash = this.p1.state === 'DASH';
+        const p2WasDash = this.p2.state === 'DASH';
         this.p1.update(dt, p1InputCopy);
         this.p2.update(dt, p2Input);
+
+        // Spawn ground dust burst on new dash start
+        if (!p1WasDash && this.p1.state === 'DASH') {
+            this.spawnSparks(this.p1.x, this.p1.y - 10, '#88ddff', '#ffffff', 6);
+        }
+        if (!p2WasDash && this.p2.state === 'DASH') {
+            this.spawnSparks(this.p2.x, this.p2.y - 10, '#ffaa44', '#ffffff', 6);
+        }
 
         // --- Boundaries & Pushbox Separation ---
         this.enforceBoundaries(this.p1);
@@ -403,10 +429,10 @@ export default class CombatState {
         if (!this.game.settings || this.game.settings.autoFacingEnabled !== false) {
             const dist = this.p1.x - this.p2.x;
             if (Math.abs(dist) > 15) {
-                if (this.p1.state !== 'ATTACK') {
+                if (this.p1.state !== 'ATTACK' && this.p1.state !== 'DASH') {
                     this.p1.facing = (dist > 0) ? -1 : 1;
                 }
-                if (this.p2.state !== 'ATTACK') {
+                if (this.p2.state !== 'ATTACK' && this.p2.state !== 'DASH') {
                     this.p2.facing = (dist > 0) ? 1 : -1;
                 }
             }
@@ -428,10 +454,13 @@ export default class CombatState {
 
     /**
      * Unified Special Attack execution for both P1 and P2 (Projectiles & Dash Specials).
-     * Properly consumes 100 Special Energy.
+     * Properly consumes 100 Special Energy and supports Combo Canceling from connected attacks!
      */
     tryExecuteSpecial(fighter, ownerKey) {
-        if (fighter.state !== 'IDLE' && fighter.state !== 'WALK') return false;
+        const canCancelAttack = fighter.state === 'ATTACK' && fighter.attackHasHit;
+        if (fighter.state !== 'IDLE' && fighter.state !== 'WALK' && fighter.state !== 'CROUCH' && fighter.state !== 'DASH' && !canCancelAttack) {
+            return false;
+        }
         if (fighter.specialEnergy < 100) return false;
         if (this.projectiles.some(p => p.owner === ownerKey && p.alive)) return false;
 
@@ -463,18 +492,18 @@ export default class CombatState {
     }
 
     checkCombatCollisions() {
-        this._resolveMeleeHit(this.p1, this.p2);
-        this._resolveMeleeHit(this.p2, this.p1);
+        this._resolveMeleeHit(this.p1, this.p2, 'p1');
+        this._resolveMeleeHit(this.p2, this.p1, 'p2');
     }
 
-    _resolveMeleeHit(attacker, defender) {
+    _resolveMeleeHit(attacker, defender, attackerKey) {
         if (!attacker.activeHitbox || defender.state === 'KO') return;
 
-        // Grounded reeling defenders cannot be chain-hit by non-lifting normal attacks
-        const reelingGrounded = defender.state === 'HIT' && defender.isGrounded &&
-            attacker.currentAttack && !attacker.currentAttack.lift &&
-            attacker.currentAttack.type !== 'SPECIAL' && attacker.currentAttack.type !== 'SPECIAL_DASH';
-        if (reelingGrounded) return;
+        // Grounded reeling defenders cannot be infinite-jabbed by repeated Light punches,
+        // but CAN be combo-linked into Heavy, Sweep, or Special attacks!
+        const atkType = attacker.currentAttack ? attacker.currentAttack.type : '';
+        const isRepeatableJab = (atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT');
+        if (defender.state === 'HIT' && defender.isGrounded && isRepeatableJab) return;
 
         const hitR = attacker.activeHitbox.getWorldRect(attacker.x, attacker.y, attacker.facing);
         const hurtR = defender.hurtbox.getWorldRect(defender.x, defender.y, defender.facing);
@@ -495,11 +524,20 @@ export default class CombatState {
         defender.specialEnergy = Math.min(defender.maxSpecialEnergy, defender.specialEnergy + 10);
 
         const impactX = (attacker.x + defender.x) / 2;
-        const impactY = defender.y - 150;
+        const impactY = defender.y - (atkType === 'SWEEP' || atkType === 'CROUCH_LIGHT' ? 60 : 150);
         if (result === 'BLOCKED') {
             this.spawnSparks(impactX, impactY, '#00ccff', '#ffffff', 6);
             playCombatSound(this.game.audioManager, 'block', defender.data.id);
         } else {
+            // Increment Combo Counter!
+            if (attackerKey === 'p1') {
+                this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
+                this.p1ComboTimer = 1.45;
+            } else {
+                this.p2ComboCount = (this.p2ComboTimer > 0) ? this.p2ComboCount + 1 : 1;
+                this.p2ComboTimer = 1.45;
+            }
+
             this.spawnSparks(impactX, impactY, '#ffaa00', '#ff4400', 10);
             playCombatSound(this.game.audioManager, 'hit', defender.data.id);
             if (attacker.currentAttack.damage >= 12) this.triggerShake(3, 0.12);
@@ -527,6 +565,13 @@ export default class CombatState {
                     this.spawnSparks(proj.x, proj.y, '#00ccff', '#ffffff', 8);
                     playCombatSound(this.game.audioManager, 'block', defender.data.id);
                 } else {
+                    if (proj.owner === 'p1') {
+                        this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
+                        this.p1ComboTimer = 1.45;
+                    } else {
+                        this.p2ComboCount = (this.p2ComboTimer > 0) ? this.p2ComboCount + 1 : 1;
+                        this.p2ComboTimer = 1.45;
+                    }
                     const hitColor = proj.owner === 'p1' ? '#ffaa00' : '#ff4400';
                     this.spawnSparks(proj.x, proj.y, hitColor, '#ffffff', 8);
                     playCombatSound(this.game.audioManager, 'hit', defender.data.id);

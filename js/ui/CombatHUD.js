@@ -90,6 +90,43 @@ export default class CombatHUD {
         ctx.lineWidth = 2;
         ctx.strokeRect(p1X, spY, barW, spH);
         ctx.strokeRect(p2X, spY, barW, spH);
+
+        // ─── DYNAMIC ARCADE COMBO COUNTERS ───
+        if (combat.p1ComboCount >= 2 && combat.p1ComboTimer > 0) {
+            const pop = 1 + Math.min(0.28, (combat.p1ComboTimer - 1.0) * 0.6);
+            const scale = Math.max(1.0, pop);
+            ctx.save();
+            ctx.translate(180, 235);
+            ctx.scale(scale, scale);
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 42px "Press Start 2P"';
+            ctx.fillStyle = combat.p1ComboCount >= 3 ? '#ffdd00' : '#00eeff';
+            ctx.shadowColor = combat.p1ComboCount >= 3 ? '#ff4400' : '#0088ff';
+            ctx.shadowBlur = 18;
+            ctx.fillText(`${combat.p1ComboCount} HIT`, 0, 0);
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(combat.p1ComboCount >= 3 ? 'SUPER COMBO!' : 'COMBO!', 0, 32);
+            ctx.restore();
+        }
+
+        if (combat.p2ComboCount >= 2 && combat.p2ComboTimer > 0) {
+            const pop = 1 + Math.min(0.28, (combat.p2ComboTimer - 1.0) * 0.6);
+            const scale = Math.max(1.0, pop);
+            ctx.save();
+            ctx.translate(game.width - 180, 235);
+            ctx.scale(scale, scale);
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 42px "Press Start 2P"';
+            ctx.fillStyle = combat.p2ComboCount >= 3 ? '#ffdd00' : '#ff3366';
+            ctx.shadowColor = '#ff0044';
+            ctx.shadowBlur = 18;
+            ctx.fillText(`${combat.p2ComboCount} HIT`, 0, 0);
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(combat.p2ComboCount >= 3 ? 'SUPER COMBO!' : 'COMBO!', 0, 32);
+            ctx.restore();
+        }
     }
 
     static drawFightIntro(ctx, combat) {
