@@ -9,8 +9,15 @@ export default class AIController {
             lJust: false, hJust: false, sJust: false
         };
 
-        const p1 = combat.p1;
+        let p1 = combat.p1;
         const p2 = combat.p2;
+        if (combat.ally && combat.ally.state !== 'KO') {
+            if (!p1 || p1.state === 'KO') {
+                p1 = combat.ally;
+            } else if (Math.abs(combat.ally.x - p2.x) < Math.abs(p1.x - p2.x)) {
+                p1 = combat.ally;
+            }
+        }
         if (!p1 || !p2 || p2.state === 'KO' || p1.state === 'KO') {
             return ai;
         }
@@ -196,6 +203,56 @@ export default class AIController {
             }
         }
 
+        return ai;
+    }
+
+    /**
+     * AI Partner logic for Co-Op Mode when playing with AI Ally (or if remote player is offline).
+     */
+    static computeAllyInput(combat, dt) {
+        const ai = {
+            up: false, down: false, left: false, right: false,
+            l: false, h: false, s: false,
+            lJust: false, hJust: false, sJust: false
+        };
+        const ally = combat.ally;
+        const p2 = combat.p2;
+        if (!ally || !p2 || ally.state === 'KO' || p2.state === 'KO') return ai;
+
+        if (typeof ally.aiWaitTimer === 'undefined') ally.aiWaitTimer = 0;
+        if (ally.aiWaitTimer > 0) {
+            ally.aiWaitTimer -= dt;
+            return ai;
+        }
+
+        const dist = Math.abs(p2.x - ally.x);
+        const dirToEnemy = p2.x > ally.x ? 'right' : 'left';
+        const dirAway = p2.x > ally.x ? 'left' : 'right';
+
+        if (p2.state === 'ATTACK' && dist < 210 && Math.random() < 0.35) {
+            ai[dirAway] = true;
+            ally.aiWaitTimer = 0.22;
+            return ai;
+        }
+
+        if (dist > 210) {
+            ai[dirToEnemy] = true;
+            if (dist > 340 && ally.specialEnergy >= 100 && Math.random() < 0.02) {
+                ai.sJust = true;
+                ally.aiWaitTimer = 0.45;
+            }
+            return ai;
+        }
+
+        if (ally.state === 'IDLE' || ally.state === 'WALK') {
+            if (Math.random() < 0.48) {
+                const r = Math.random();
+                if (r < 0.15 && ally.specialEnergy >= 100) ai.sJust = true;
+                else if (r < 0.45) ai.hJust = true;
+                else ai.lJust = true;
+                ally.aiWaitTimer = 0.35 + Math.random() * 0.25;
+            }
+        }
         return ai;
     }
 }

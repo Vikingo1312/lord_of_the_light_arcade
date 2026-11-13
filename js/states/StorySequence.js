@@ -61,13 +61,16 @@ export default class StorySequence {
         this.nextState = (data && data.nextState) || 'Menu';
         this.nextData = (data && data.nextData) || null;
         this.unlockedFighter = (data && data.unlockedFighter) || null;
+        this.allyUnlockedFighter = (data && data.allyUnlockedFighter) || null;
 
-        if (this.unlockedFighter) {
-            const key = `${this.unlockedFighter.id}_front.png`;
-            if (!this.game.assetManager.images[key]) {
-                const path = `assets/CHARACTERS/${this.unlockedFighter.folder}/_front.png`;
-                this.game.assetManager.queueImage(key, path);
-                this.game.assetManager.loadAll(); // Kick off lazy-load
+        for (const uf of [this.unlockedFighter, this.allyUnlockedFighter]) {
+            if (uf) {
+                const key = `${uf.id}_front.png`;
+                if (!this.game.assetManager.images[key]) {
+                    const path = `assets/CHARACTERS/${uf.folder}/_front.png`;
+                    this.game.assetManager.queueImage(key, path);
+                    this.game.assetManager.loadAll(); // Kick off lazy-load
+                }
             }
         }
 
@@ -208,10 +211,18 @@ export default class StorySequence {
         // Smooth fade-out transition
         if (this.fading) {
             const p1 = this.game.inputManager.p1;
+            const net = this.game.networkManager;
             // Pressing skip again during fade cuts immediately
             this.fadeOut += dt * 2.5; // fast 0.4s fade
             if ((this.fadeOut >= 1 || p1.skipJust) && !this._advanced) {
                 this._advanced = true;
+                if (net && net.active && net.role === 'host') {
+                    net.send({
+                        type: 'STATE_SWITCH',
+                        stateName: this.nextState,
+                        stateData: this.nextData
+                    });
+                }
                 this.game.stateManager.switchState(this.nextState, this.nextData);
             }
             return; // Stop all other updates during fade
@@ -342,6 +353,8 @@ export default class StorySequence {
         // Check for advancement (only fire once)
         if (this._advanced) return;
         const p1 = this.game.inputManager.p1;
+        const net = this.game.networkManager;
+        const remoteSkip = (net && net.active && net.role === 'host') ? net.consumeRemoteInput().skipJust : false;
 
         // Voiceover ended → auto-advance with smooth fade (but NOT for Birthday!)
         if (this.finished && !this.fading && !this.isBirthdayScene) {
@@ -352,9 +365,11 @@ export default class StorySequence {
         }
 
         // Allow skip anytime after 0.3s with any button press, Enter, Space, Escape, or click
-        if (this.time > 0.3 && p1.skipJust && !this.fading) {
-            this.game.audioManager.stopVoice();
-            this.fading = true;
+        if (this.time > 0.3 && (p1.skipJust || remoteSkip) && !this.fading) {
+            if (!net || !net.active || net.role === 'host' || this.isBirthdayScene) {
+                this.game.audioManager.stopVoice();
+                this.fading = true;
+            }
         }
     }
 
@@ -445,9 +460,12 @@ export default class StorySequence {
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
 
-        // Draw unlocked character card if present — BEHIND text for birthday, ON TOP for others
+        // Draw unlocked character card(s) if present — BEHIND text for birthday, ON TOP for others
         if (this.unlockedFighter && !this.isBirthdayScene) {
-            this._drawUnlockCard(ctx, w, h);
+            this._drawUnlockCard(ctx, w, h, this.unlockedFighter, w * 0.83, '#00ff00');
+        }
+        if (this.allyUnlockedFighter && !this.isBirthdayScene) {
+            this._drawUnlockCard(ctx, w, h, this.allyUnlockedFighter, w * 0.17, '#bb66ff');
         }
 
         // Skip hint — Birthday shows "HAUPTMENÜ", others show "SKIP"
@@ -472,9 +490,9 @@ export default class StorySequence {
         }
     }
 
-    /** Draw the unlocked character card (used by non-birthday scenes) */
-    _drawUnlockCard(ctx, w, h) {
-        const cx = w * 0.83;
+    /** Draw an unlocked character card (used by non-birthday scenes) */
+    _drawUnlockCard(ctx, w, h, fighter = this.unlockedFighter, cx = w * 0.83, borderColor = '#00ff00') {
+        if (!fighter) return;
         const cy = h * 0.45;
         ctx.globalAlpha = this.fadeIn;
 
@@ -488,16 +506,16 @@ export default class StorySequence {
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 24px "Press Start 2P"';
-        ctx.fillText(this.unlockedFighter.name.toUpperCase(), cx, cy - 90);
+        ctx.fillText(fighter.name.toUpperCase(), cx, cy - 90);
         ctx.shadowBlur = 0;
 
         // Portrait
-        const portraitKey = `${this.unlockedFighter.id}_front.png`;
+        const portraitKey = `${fighter.id}_front.png`;
         const portrait = this.game.assetManager.images[portraitKey];
 
         // Draw box background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.shadowColor = '#00ff00';
+        ctx.shadowColor = borderColor;
         ctx.shadowBlur = 40;
         ctx.fillRect(cx - 150, cy - 60, 300, 420);
 
@@ -510,7 +528,7 @@ export default class StorySequence {
         }
 
         // Glowing border
-        ctx.strokeStyle = '#00ff00';
+        ctx.strokeStyle = borderColor;
         ctx.lineWidth = 6;
         ctx.strokeRect(cx - 150, cy - 60, 300, 420);
         ctx.shadowBlur = 0;

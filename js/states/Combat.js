@@ -46,10 +46,13 @@ export default class CombatState {
         console.log("Entering Combat State");
         this.combatData = data;
 
-        // Arcade Mode tracking
+        // Arcade & Online / Co-Op Mode tracking
         this.arcadeMode = Boolean(data && data.arcadeMode);
+        this.coopMode = Boolean(data && data.coopMode);
+        this.onlineMode = (data && data.onlineMode) || null;
         this.arcadeIndex = (data && data.arcadeIndex !== undefined) ? data.arcadeIndex : 1;
         this.arcadeWins = (data && data.arcadeWins) || 0;
+        this._netSyncTick = 0;
 
         // Preserve FULL fighter stats & metadata from data.js (HP, speed, power, largeAura, specialType, multiFrameAnim)
         const baseP1 = (data && data.p1) ? data.p1 : ROSTER[0];
@@ -58,8 +61,20 @@ export default class CombatState {
         const p2Data = { ...baseP2, color: 'red' };
         this.stageId = (data && data.stageId) ? data.stageId : (p2Data.stageId || 'Japan');
 
-        this.p1 = new Fighter(this.game, p1Data, this.game.width * 0.25, this.game.height * 0.9, 1);
-        this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
+        if (this.coopMode && data && data.ally) {
+            const allyData = { ...data.ally, color: 'purple' };
+            this.p1 = new Fighter(this.game, p1Data, this.game.width * 0.19, this.game.height * 0.9, 1);
+            this.ally = new Fighter(this.game, allyData, this.game.width * 0.32, this.game.height * 0.9, 1);
+            this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.78, this.game.height * 0.9, -1);
+            // Boost Boss HP by 1.55x in 2-player Co-Op so team battles feel epic
+            this.p2.maxHP = Math.round(this.p2.maxHP * 1.55);
+            this.p2.hp = this.p2.maxHP;
+            preloadFighterSprites(this.game.assetManager, allyData);
+        } else {
+            this.ally = null;
+            this.p1 = new Fighter(this.game, p1Data, this.game.width * 0.25, this.game.height * 0.9, 1);
+            this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
+        }
 
         // Reset match timers & flags cleanly for every round/fight
         this.time = 0;
@@ -162,6 +177,9 @@ export default class CombatState {
     update(dt) {
         this.time += dt;
         const p1 = this.game.inputManager.p1;
+        const net = this.game.networkManager;
+        const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
+        const isOnlineGuest = Boolean(net && net.active && net.role === 'guest' && this.onlineMode);
 
         if (p1.menuJust) {
             this.paused = !this.paused;
@@ -176,6 +194,7 @@ export default class CombatState {
                 if (this.pauseSelection === 0) {
                     this.paused = false;
                 } else {
+                    if (net && net.active) net.disconnect();
                     this.game.stateManager.switchState('Menu');
                 }
             }
@@ -184,20 +203,28 @@ export default class CombatState {
 
         if (this.inputCooldown > 0) this.inputCooldown--;
 
+        // ─── ONLINE GUEST: Receive & interpolate Host snapshots ───
+        if (isOnlineGuest) {
+            this._updateAsGuest(dt);
+            return;
+        }
+
         // ─── FIGHT INTRO ("ROUND 1 — FIGHT!" banner) ───
         if (this.matchPhase === 'FIGHT_INTRO') {
             this.introTimer += dt;
             if (this.introTimer >= 1.8) {
                 this.matchPhase = 'FIGHTING';
             }
+            if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
 
         // Keep gravity running for airborne KO characters during POST_MATCH and VICTORY
         if (this.matchPhase === 'POST_MATCH' || this.matchPhase === 'VICTORY') {
             const floorY = this.game.height * 0.9;
-            for (const f of [this.p1, this.p2]) {
-                if (f.state === 'KO' && f.y < floorY) {
+            const fighters = this.ally ? [this.p1, this.ally, this.p2] : [this.p1, this.p2];
+            for (const f of fighters) {
+                if (f && f.state === 'KO' && f.y < floorY) {
                     f.vy += f.gravity * dt;
                     f.y += f.vy * dt;
                     f.x += f.vx * dt;
@@ -239,8 +266,14 @@ export default class CombatState {
                         } else if (confirmPressed || timeOut) {
                             this._transitioning = true;
                             if (this.postMatchIndex === 0) {
+                                if (isOnlineHost) {
+                                    net.send({ type: 'STATE_SWITCH', stateName: 'Combat', stateData: this.combatData });
+                                }
                                 this.game.stateManager.switchState('Combat', this.combatData);
                             } else {
+                                if (isOnlineHost) {
+                                    net.send({ type: 'STATE_SWITCH', stateName: 'Menu', stateData: null });
+                                }
                                 this.game.stateManager.switchState('Menu');
                             }
                         }
@@ -259,15 +292,26 @@ export default class CombatState {
                     } else if (confirmPressed || timeOut) {
                         this._transitioning = true;
                         if (this.postMatchIndex === 0) {
+                            if (isOnlineHost) {
+                                net.send({ type: 'STATE_SWITCH', stateName: 'Combat', stateData: this.combatData });
+                            }
                             this.game.stateManager.switchState('Combat', this.combatData);
                         } else if (this.postMatchIndex === 1) {
-                            this.game.stateManager.switchState('CharSelect');
+                            const nextSt = this.onlineMode ? 'OnlineLobby' : 'CharSelect';
+                            if (isOnlineHost) {
+                                net.send({ type: 'STATE_SWITCH', stateName: nextSt, stateData: { step: 'room' } });
+                            }
+                            this.game.stateManager.switchState(nextSt, this.onlineMode ? { step: 'room' } : undefined);
                         } else {
+                            if (isOnlineHost) {
+                                net.send({ type: 'STATE_SWITCH', stateName: 'Menu', stateData: null });
+                            }
                             this.game.stateManager.switchState('Menu');
                         }
                     }
                 }
             }
+            if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
 
@@ -275,12 +319,17 @@ export default class CombatState {
         if (this.matchPhase === 'VICTORY') {
             if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust)) {
                 this._transitioning = true;
-                this.game.stateManager.switchState('Story', {
+                const bdayPayload = {
                     ...STORY_BIRTHDAY,
                     nextState: 'Menu',
                     nextData: null,
-                });
+                };
+                if (isOnlineHost) {
+                    net.send({ type: 'STATE_SWITCH', stateName: 'Story', stateData: bdayPayload });
+                }
+                this.game.stateManager.switchState('Story', bdayPayload);
             }
+            if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
 
@@ -319,9 +368,15 @@ export default class CombatState {
                 this.shakeTimer = 0;
                 this.shakeIntensity = 0;
                 const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
-                winnerFighter.state = 'WIN';
+                if (winnerFighter.state !== 'KO') {
+                    winnerFighter.state = 'WIN';
+                }
+                if (this.winner === 'p1' && this.ally && this.ally.state !== 'KO') {
+                    this.ally.state = 'WIN';
+                }
                 playFighterSound(this.game.audioManager, winnerFighter.data.id, 'win');
             }
+            if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
 
@@ -329,10 +384,12 @@ export default class CombatState {
         this.timer -= dt;
         if (this.timer <= 0) {
             this.timer = 0;
-            this.winner = (this.p1.hp >= this.p2.hp) ? 'p1' : 'p2';
+            const teamP1HP = this.p1.hp + (this.ally ? this.ally.hp : 0);
+            this.winner = (teamP1HP >= this.p2.hp) ? 'p1' : 'p2';
             this.matchPhase = 'KO_FREEZE';
             this.koFreezeTimer = 0;
             this._koKnockbackApplied = false;
+            if (isOnlineHost) this._broadcastHostSnapshot();
             return;
         }
 
@@ -346,41 +403,80 @@ export default class CombatState {
             if (this.p2ComboTimer <= 0) this.p2ComboCount = 0;
         }
 
+        // Consume remote Guest input once per frame if connected
+        const guestInput = (isOnlineHost && net.status === 'connected') ? net.consumeRemoteInput() : null;
+
         // --- P1 Input & Special Move Processing ---
         const p1InputCopy = { ...p1, sJust: false, s: false };
         const isP1Special = p1.sJust || ((p1.lJust || p1.hJust) && this.game.inputManager.hasQCF(this.p1.facing));
 
-        if (isP1Special && this.tryExecuteSpecial(this.p1, 'p1')) {
+        if (this.p1.state !== 'KO' && isP1Special && this.tryExecuteSpecial(this.p1, 'p1')) {
             this.game.inputManager.clearMotionHistory();
             p1InputCopy.lJust = false;
             p1InputCopy.hJust = false;
         }
 
-        // --- P2 AI Input & Special Move Processing ---
-        const p2Input = AIController.computeInput(this, dt);
-        if (p2Input.sJust) {
-            const dist = Math.abs(this.p1.x - this.p2.x);
-            const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && Math.random() < 0.55;
-            if (useMeleeSpecial) {
-                // Keep sJust = true so Fighter.update executes the 45-damage close-range SPECIAL attack
-                if (this.p2.specialEnergy >= 100 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
-                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
-                    this.triggerShake(2, 0.08);
+        // --- CO-OP ALLY (Player 2 in Co-Op Story) Input & Special Move Processing ---
+        let allyInputCopy = null;
+        if (this.coopMode && this.ally) {
+            if (this.ally.state !== 'KO') {
+                const rawAlly = guestInput || AIController.computeAllyInput(this, dt);
+                allyInputCopy = { ...rawAlly, sJust: false, s: false };
+                const hasAllyQCF = this.ally.facing === 1 ? Boolean(rawAlly.qcfRight) : Boolean(rawAlly.qcfLeft);
+                const isAllySpecial = rawAlly.sJust || ((rawAlly.lJust || rawAlly.hJust) && hasAllyQCF);
+
+                if (isAllySpecial && this.tryExecuteSpecial(this.ally, 'p1')) {
+                    allyInputCopy.lJust = false;
+                    allyInputCopy.hJust = false;
                 }
             } else {
-                p2Input.sJust = false;
-                this.tryExecuteSpecial(this.p2, 'p2');
+                allyInputCopy = { up: false, down: false, left: false, right: false, l: false, h: false, s: false };
+            }
+        }
+
+        // --- P2 Input (Online 1v1 Guest OR AI Opponent) ---
+        let p2Input = null;
+        if (this.onlineMode === 'duel' && guestInput) {
+            p2Input = { ...guestInput, sJust: false, s: false };
+            const hasP2QCF = this.p2.facing === 1 ? Boolean(guestInput.qcfRight) : Boolean(guestInput.qcfLeft);
+            const isP2Special = guestInput.sJust || ((guestInput.lJust || guestInput.hJust) && hasP2QCF);
+            if (isP2Special && this.tryExecuteSpecial(this.p2, 'p2')) {
+                p2Input.lJust = false;
+                p2Input.hJust = false;
+            }
+        } else {
+            p2Input = AIController.computeInput(this, dt);
+            if (p2Input.sJust) {
+                const dist = Math.abs(this.p1.x - this.p2.x);
+                const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && Math.random() < 0.55;
+                if (useMeleeSpecial) {
+                    if (this.p2.specialEnergy >= 100 && (this.p2.state === 'IDLE' || this.p2.state === 'WALK')) {
+                        playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
+                        this.triggerShake(2, 0.08);
+                    }
+                } else {
+                    p2Input.sJust = false;
+                    this.tryExecuteSpecial(this.p2, 'p2');
+                }
             }
         }
 
         const p1WasDash = this.p1.state === 'DASH';
         const p2WasDash = this.p2.state === 'DASH';
+        const allyWasDash = this.ally ? (this.ally.state === 'DASH') : false;
+
         this.p1.update(dt, p1InputCopy);
+        if (this.ally && allyInputCopy) {
+            this.ally.update(dt, allyInputCopy);
+        }
         this.p2.update(dt, p2Input);
 
         // Spawn ground dust burst on new dash start
         if (!p1WasDash && this.p1.state === 'DASH') {
             this.spawnSparks(this.p1.x, this.p1.y - 10, '#88ddff', '#ffffff', 6);
+        }
+        if (this.ally && !allyWasDash && this.ally.state === 'DASH') {
+            this.spawnSparks(this.ally.x, this.ally.y - 10, '#cc88ff', '#ffffff', 6);
         }
         if (!p2WasDash && this.p2.state === 'DASH') {
             this.spawnSparks(this.p2.x, this.p2.y - 10, '#ffaa44', '#ffffff', 6);
@@ -388,26 +484,16 @@ export default class CombatState {
 
         // --- Boundaries & Pushbox Separation ---
         this.enforceBoundaries(this.p1);
+        if (this.ally) this.enforceBoundaries(this.ally);
         this.enforceBoundaries(this.p2);
 
-        if (this.p1.state !== 'KO' && this.p2.state !== 'KO' && this.p1.isGrounded && this.p2.isGrounded) {
-            const minDistance = 110;
-            const dx = this.p2.x - this.p1.x;
-            const dist = Math.abs(dx);
-
-            if (dist < minDistance) {
-                const overlap = (minDistance - dist) / 2;
-                if (dx >= 0) {
-                    this.p1.x -= overlap;
-                    this.p2.x += overlap;
-                } else {
-                    this.p1.x += overlap;
-                    this.p2.x -= overlap;
-                }
-            }
+        this._separateFighters(this.p1, this.p2);
+        if (this.ally) {
+            this._separateFighters(this.ally, this.p2);
         }
 
         this.enforceBoundaries(this.p1);
+        if (this.ally) this.enforceBoundaries(this.ally);
         this.enforceBoundaries(this.p2);
 
         // --- Combat & Projectile Collisions ---
@@ -429,17 +515,37 @@ export default class CombatState {
         if (!this.game.settings || this.game.settings.autoFacingEnabled !== false) {
             const dist = this.p1.x - this.p2.x;
             if (Math.abs(dist) > 15) {
-                if (this.p1.state !== 'ATTACK' && this.p1.state !== 'DASH') {
+                if (this.p1.state !== 'ATTACK' && this.p1.state !== 'DASH' && this.p1.state !== 'KO') {
                     this.p1.facing = (dist > 0) ? -1 : 1;
                 }
-                if (this.p2.state !== 'ATTACK' && this.p2.state !== 'DASH') {
-                    this.p2.facing = (dist > 0) ? 1 : -1;
+                if (this.p2.state !== 'ATTACK' && this.p2.state !== 'DASH' && this.p2.state !== 'KO') {
+                    // Face whichever alive hero is closer
+                    let targetHero = this.p1;
+                    if (this.ally && this.ally.state !== 'KO') {
+                        if (this.p1.state === 'KO' || Math.abs(this.ally.x - this.p2.x) < Math.abs(this.p1.x - this.p2.x)) {
+                            targetHero = this.ally;
+                        }
+                    }
+                    const d2 = targetHero.x - this.p2.x;
+                    if (Math.abs(d2) > 15) {
+                        this.p2.facing = (d2 > 0) ? 1 : -1;
+                    }
+                }
+            }
+            if (this.ally && this.ally.state !== 'ATTACK' && this.ally.state !== 'DASH' && this.ally.state !== 'KO') {
+                const allyDist = this.ally.x - this.p2.x;
+                if (Math.abs(allyDist) > 15) {
+                    this.ally.facing = (allyDist > 0) ? -1 : 1;
                 }
             }
         }
 
         // --- Check K.O. ---
-        if (this.p1.state === 'KO') {
+        const teamP1Defeated = this.coopMode && this.ally
+            ? (this.p1.state === 'KO' && this.ally.state === 'KO')
+            : (this.p1.state === 'KO');
+
+        if (teamP1Defeated) {
             this.winner = 'p2';
             this.matchPhase = 'KO_FREEZE';
             this.koFreezeTimer = 0;
@@ -450,10 +556,157 @@ export default class CombatState {
             this.koFreezeTimer = 0;
             this._koKnockbackApplied = false;
         }
+
+        if (isOnlineHost) {
+            this._netSyncTick++;
+            if (this._netSyncTick % 2 === 0 || this.matchPhase !== 'FIGHTING') {
+                this._broadcastHostSnapshot();
+            }
+        }
+    }
+
+    _separateFighters(fA, fB) {
+        if (!fA || !fB || fA.state === 'KO' || fB.state === 'KO' || !fA.isGrounded || !fB.isGrounded) return;
+        const minDistance = 110;
+        const dx = fB.x - fA.x;
+        const dist = Math.abs(dx);
+        if (dist < minDistance) {
+            const overlap = (minDistance - dist) / 2;
+            if (dx >= 0) {
+                fA.x -= overlap;
+                fB.x += overlap;
+            } else {
+                fA.x += overlap;
+                fB.x -= overlap;
+            }
+        }
+    }
+
+    _serializeFighter(f) {
+        if (!f) return null;
+        return {
+            x: Math.round(f.x),
+            y: Math.round(f.y),
+            vx: Math.round(f.vx),
+            vy: Math.round(f.vy),
+            hp: f.hp,
+            maxHP: f.maxHP,
+            sp: Math.round(f.specialEnergy),
+            state: f.state,
+            stTimer: Number((f.stateTimer || 0).toFixed(3)),
+            anTimer: Number((f.animTimer || 0).toFixed(3)),
+            facing: f.facing,
+            grounded: f.isGrounded,
+            blocking: f.isBlocking,
+            atkType: f.currentAttack ? f.currentAttack.type : null
+        };
+    }
+
+    _applyFighterSnapshot(f, snap) {
+        if (!f || !snap) return;
+        f.x += (snap.x - f.x) * 0.6;
+        f.y += (snap.y - f.y) * 0.6;
+        f.vx = snap.vx;
+        f.vy = snap.vy;
+        f.hp = snap.hp;
+        f.maxHP = snap.maxHP;
+        f.specialEnergy = snap.sp;
+        f.state = snap.state;
+        f.stateTimer = snap.stTimer;
+        f.animTimer = snap.anTimer;
+        f.facing = snap.facing;
+        f.isGrounded = snap.grounded;
+        f.isBlocking = snap.blocking;
+        if (snap.atkType) {
+            f.currentAttack = { type: snap.atkType, startup: 0.05, active: 0.15, recovery: 0.18 };
+        } else {
+            f.currentAttack = null;
+        }
+    }
+
+    _broadcastHostSnapshot() {
+        const net = this.game.networkManager;
+        if (!net || !net.active || net.role !== 'host') return;
+        net.send({
+            type: 'COMBAT_SNAPSHOT',
+            matchPhase: this.matchPhase,
+            timer: this.timer,
+            introTimer: this.introTimer,
+            koFreezeTimer: this.koFreezeTimer,
+            winner: this.winner,
+            postMatchIndex: this.postMatchIndex,
+            autoAdvanceTimer: this.autoAdvanceTimer,
+            p1ComboCount: this.p1ComboCount,
+            p1ComboTimer: this.p1ComboTimer,
+            p2ComboCount: this.p2ComboCount,
+            p2ComboTimer: this.p2ComboTimer,
+            p1: this._serializeFighter(this.p1),
+            p2: this._serializeFighter(this.p2),
+            ally: this._serializeFighter(this.ally),
+            projectiles: this.projectiles.map(p => ({
+                x: Math.round(p.x),
+                y: Math.round(p.y),
+                facing: p.facing,
+                owner: p.owner,
+                charId: p.charId || this.p1.data.id
+            }))
+        });
+    }
+
+    _updateAsGuest(dt) {
+        this.updateParticles(dt);
+        this.stageObjects.update(dt);
+        if (this.shakeTimer > 0) this.shakeTimer -= dt;
+
+        const net = this.game.networkManager;
+        if (!net) return;
+
+        while (net.pendingCombatEvents.length > 0) {
+            const ev = net.pendingCombatEvents.shift();
+            if (ev.sparks) {
+                this.spawnSparks(ev.sparks.x, ev.sparks.y, ev.sparks.c1, ev.sparks.c2, ev.sparks.count);
+            }
+            if (ev.shake) {
+                this.triggerShake(ev.shake.i, ev.shake.d);
+            }
+            if (ev.combatSound) {
+                playCombatSound(this.game.audioManager, ev.combatSound.type, ev.combatSound.charId);
+            }
+        }
+
+        const snap = net.latestSnapshot;
+        if (!snap) return;
+
+        this.matchPhase = snap.matchPhase;
+        this.timer = snap.timer;
+        this.introTimer = snap.introTimer;
+        this.koFreezeTimer = snap.koFreezeTimer;
+        this.winner = snap.winner;
+        this.postMatchIndex = snap.postMatchIndex;
+        this.autoAdvanceTimer = snap.autoAdvanceTimer;
+        this.p1ComboCount = snap.p1ComboCount;
+        this.p1ComboTimer = snap.p1ComboTimer;
+        this.p2ComboCount = snap.p2ComboCount;
+        this.p2ComboTimer = snap.p2ComboTimer;
+
+        this._applyFighterSnapshot(this.p1, snap.p1);
+        this._applyFighterSnapshot(this.p2, snap.p2);
+        if (this.ally && snap.ally) {
+            this._applyFighterSnapshot(this.ally, snap.ally);
+        }
+
+        if (Array.isArray(snap.projectiles)) {
+            this.projectiles = snap.projectiles.map(sp => {
+                const img = this.game.assetManager.images[`${sp.charId}_Cutin`];
+                const pr = new Projectile(sp.x, sp.y, sp.facing, sp.owner, img, this.game);
+                pr.charId = sp.charId;
+                return pr;
+            });
+        }
     }
 
     /**
-     * Unified Special Attack execution for both P1 and P2 (Projectiles & Dash Specials).
+     * Unified Special Attack execution for P1, Ally, and P2 (Projectiles & Dash Specials).
      * Properly consumes 100 Special Energy and supports Combo Canceling from connected attacks!
      */
     tryExecuteSpecial(fighter, ownerKey) {
@@ -462,12 +715,13 @@ export default class CombatState {
             return false;
         }
         if (fighter.specialEnergy < 100) return false;
-        if (this.projectiles.some(p => p.owner === ownerKey && p.alive)) return false;
+        if (this.projectiles.some(p => p.owner === ownerKey && p.charId === fighter.data.id && p.alive)) return false;
 
         if (fighter.data.specialType === 'SPECIAL_DASH') {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
             playCombatSound(this.game.audioManager, 'special', fighter.data.id);
             this.triggerShake(5, 0.5);
+            this._emitNetEvent({ combatSound: { type: 'special', charId: fighter.data.id }, shake: { i: 5, d: 0.5 } });
             return true;
         }
 
@@ -483,21 +737,34 @@ export default class CombatState {
             img,
             this.game
         );
+        proj.charId = fighter.data.id;
         proj.damage = Math.round(proj.damage * ((fighter.power || 100) / 100));
         this.projectiles.push(proj);
 
         playCombatSound(this.game.audioManager, 'special', fighter.data.id);
         this.triggerShake(2, 0.08);
+        this._emitNetEvent({ combatSound: { type: 'special', charId: fighter.data.id }, shake: { i: 2, d: 0.08 } });
         return true;
+    }
+
+    _emitNetEvent(ev) {
+        const net = this.game.networkManager;
+        if (net && net.active && net.role === 'host' && this.onlineMode) {
+            net.send({ type: 'COMBAT_EVENT', ...ev });
+        }
     }
 
     checkCombatCollisions() {
         this._resolveMeleeHit(this.p1, this.p2, 'p1');
+        if (this.ally) {
+            this._resolveMeleeHit(this.ally, this.p2, 'p1');
+            this._resolveMeleeHit(this.p2, this.ally, 'p2');
+        }
         this._resolveMeleeHit(this.p2, this.p1, 'p2');
     }
 
     _resolveMeleeHit(attacker, defender, attackerKey) {
-        if (!attacker.activeHitbox || defender.state === 'KO') return;
+        if (!attacker || !defender || !attacker.activeHitbox || defender.state === 'KO') return;
 
         // Grounded reeling defenders cannot be infinite-jabbed by repeated Light punches,
         // but CAN be combo-linked into Heavy, Sweep, or Special attacks!
@@ -528,6 +795,10 @@ export default class CombatState {
         if (result === 'BLOCKED') {
             this.spawnSparks(impactX, impactY, '#00ccff', '#ffffff', 6);
             playCombatSound(this.game.audioManager, 'block', defender.data.id);
+            this._emitNetEvent({
+                sparks: { x: impactX, y: impactY, c1: '#00ccff', c2: '#ffffff', count: 6 },
+                combatSound: { type: 'block', charId: defender.data.id }
+            });
         } else {
             // Increment Combo Counter!
             if (attackerKey === 'p1') {
@@ -541,9 +812,18 @@ export default class CombatState {
             this.spawnSparks(impactX, impactY, '#ffaa00', '#ff4400', 10);
             playCombatSound(this.game.audioManager, 'hit', defender.data.id);
             if (attacker.currentAttack.damage >= 12) this.triggerShake(3, 0.12);
+            this._emitNetEvent({
+                sparks: { x: impactX, y: impactY, c1: '#ffaa00', c2: '#ff4400', count: 10 },
+                combatSound: { type: 'hit', charId: defender.data.id },
+                shake: attacker.currentAttack.damage >= 12 ? { i: 3, d: 0.12 } : null
+            });
             if (defender.hp <= 0 && !this._koAnnounced) {
-                this._koAnnounced = true;
+                const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                if (isFinalKO) {
+                    this._koAnnounced = true;
+                }
                 playCombatSound(this.game.audioManager, 'ko', defender.data.id);
+                this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
             }
         }
     }
@@ -552,34 +832,53 @@ export default class CombatState {
         for (const proj of this.projectiles) {
             if (!proj.alive) continue;
             const pRect = proj.getHitRect();
-            const defender = proj.owner === 'p1' ? this.p2 : this.p1;
-            if (!defender || defender.state === 'KO') continue;
+            const targets = proj.owner === 'p1'
+                ? [this.p2]
+                : (this.ally ? [this.p1, this.ally] : [this.p1]);
 
-            const hurtR = defender.hurtbox.getWorldRect(defender.x, defender.y, defender.facing);
-            if (Hitbox.checkCollision(pRect, hurtR)) {
-                const result = defender.takeDamage(proj.getAttackDef(), proj.facing);
-                if (!result || result === 'IMMUNE') continue;
+            for (const defender of targets) {
+                if (!defender || defender.state === 'KO') continue;
 
-                proj.alive = false;
-                if (result === 'BLOCKED') {
-                    this.spawnSparks(proj.x, proj.y, '#00ccff', '#ffffff', 8);
-                    playCombatSound(this.game.audioManager, 'block', defender.data.id);
-                } else {
-                    if (proj.owner === 'p1') {
-                        this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
-                        this.p1ComboTimer = 1.45;
+                const hurtR = defender.hurtbox.getWorldRect(defender.x, defender.y, defender.facing);
+                if (Hitbox.checkCollision(pRect, hurtR)) {
+                    const result = defender.takeDamage(proj.getAttackDef(), proj.facing);
+                    if (!result || result === 'IMMUNE') continue;
+
+                    proj.alive = false;
+                    if (result === 'BLOCKED') {
+                        this.spawnSparks(proj.x, proj.y, '#00ccff', '#ffffff', 8);
+                        playCombatSound(this.game.audioManager, 'block', defender.data.id);
+                        this._emitNetEvent({
+                            sparks: { x: proj.x, y: proj.y, c1: '#00ccff', c2: '#ffffff', count: 8 },
+                            combatSound: { type: 'block', charId: defender.data.id }
+                        });
                     } else {
-                        this.p2ComboCount = (this.p2ComboTimer > 0) ? this.p2ComboCount + 1 : 1;
-                        this.p2ComboTimer = 1.45;
+                        if (proj.owner === 'p1') {
+                            this.p1ComboCount = (this.p1ComboTimer > 0) ? this.p1ComboCount + 1 : 1;
+                            this.p1ComboTimer = 1.45;
+                        } else {
+                            this.p2ComboCount = (this.p2ComboTimer > 0) ? this.p2ComboCount + 1 : 1;
+                            this.p2ComboTimer = 1.45;
+                        }
+                        const hitColor = proj.owner === 'p1' ? '#ffaa00' : '#ff4400';
+                        this.spawnSparks(proj.x, proj.y, hitColor, '#ffffff', 8);
+                        playCombatSound(this.game.audioManager, 'hit', defender.data.id);
+                        this.triggerShake(2, 0.08);
+                        this._emitNetEvent({
+                            sparks: { x: proj.x, y: proj.y, c1: hitColor, c2: '#ffffff', count: 8 },
+                            combatSound: { type: 'hit', charId: defender.data.id },
+                            shake: { i: 2, d: 0.08 }
+                        });
+                        if (defender.hp <= 0 && !this._koAnnounced) {
+                            const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                            if (isFinalKO) {
+                                this._koAnnounced = true;
+                            }
+                            playCombatSound(this.game.audioManager, 'ko', defender.data.id);
+                            this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
+                        }
                     }
-                    const hitColor = proj.owner === 'p1' ? '#ffaa00' : '#ff4400';
-                    this.spawnSparks(proj.x, proj.y, hitColor, '#ffffff', 8);
-                    playCombatSound(this.game.audioManager, 'hit', defender.data.id);
-                    this.triggerShake(2, 0.08);
-                    if (defender.hp <= 0 && !this._koAnnounced) {
-                        this._koAnnounced = true;
-                        playCombatSound(this.game.audioManager, 'ko', defender.data.id);
-                    }
+                    break;
                 }
             }
         }
@@ -617,6 +916,8 @@ export default class CombatState {
 
     advanceArcadeLadder() {
         const nextIdx = this.arcadeIndex + 1;
+        const net = this.game.networkManager;
+        const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
 
         // Story Mode Midpoint Check
         if (nextIdx === 7 && this.combatData && this.combatData.storyMode) {
@@ -624,19 +925,26 @@ export default class CombatState {
             const nextOpponent = ROSTER[7];
             preloadFighterSprites(this.game.assetManager, nextOpponent);
             preloadStageAssets(this.game.assetManager, nextOpponent.stageId);
-            this.game.stateManager.switchState('Story', {
+            const reflexionPayload = {
                 ...STORY_REFLEXION,
                 nextState: 'VersusIntro',
                 nextData: {
                     p1: this.p1.data,
+                    ally: this.combatData ? this.combatData.ally : null,
                     p2: { ...nextOpponent, rosterIndex: 7 },
                     stageId: nextOpponent.stageId,
                     arcadeMode: true,
                     storyMode: true,
+                    coopMode: this.coopMode,
+                    onlineMode: this.onlineMode,
                     arcadeIndex: 7,
                     arcadeWins: this.arcadeWins + 1,
                 }
-            });
+            };
+            if (isOnlineHost) {
+                net.send({ type: 'STATE_SWITCH', stateName: 'Story', stateData: reflexionPayload });
+            }
+            this.game.stateManager.switchState('Story', reflexionPayload);
             return;
         }
 
@@ -645,15 +953,27 @@ export default class CombatState {
             try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
 
             const newlyUnlocked = unlockFighter(this.p1.data.id);
+            const allyUnlocked = (this.coopMode && this.ally) ? unlockFighter(this.ally.data.id) : null;
             if (newlyUnlocked) {
                 console.log(`%c[UNLOCK] You unlocked ${newlyUnlocked.name}!`, 'color: #00ff00; font-size: 16px; font-weight: bold;');
+            }
+            if (allyUnlocked) {
+                console.log(`%c[CO-OP UNLOCK] Partner unlocked ${allyUnlocked.name}!`, 'color: #bb66ff; font-size: 16px; font-weight: bold;');
+            }
+
+            if (isOnlineHost) {
+                net.send({
+                    type: 'UNLOCK_FIGHTERS',
+                    fighterIds: [this.p1.data.id, this.ally ? this.ally.data.id : null].filter(Boolean)
+                });
             }
 
             if (this.combatData && this.combatData.storyMode) {
                 this._transitioning = true;
-                this.game.stateManager.switchState('Story', {
+                const epiloguePayload = {
                     ...STORY_EPILOGUE,
-                    unlockedFighter: newlyUnlocked,
+                    unlockedFighter: newlyUnlocked || allyUnlocked,
+                    allyUnlockedFighter: (newlyUnlocked && allyUnlocked) ? allyUnlocked : null,
                     nextState: 'Story',
                     nextData: {
                         ...STORY_OUTRO,
@@ -664,12 +984,17 @@ export default class CombatState {
                             nextData: null,
                         },
                     },
-                });
+                };
+                if (isOnlineHost) {
+                    net.send({ type: 'STATE_SWITCH', stateName: 'Story', stateData: epiloguePayload });
+                }
+                this.game.stateManager.switchState('Story', epiloguePayload);
             } else {
-                this._newlyUnlocked = newlyUnlocked;
+                this._newlyUnlocked = newlyUnlocked || allyUnlocked;
                 this.matchPhase = 'VICTORY';
                 this.inputCooldown = 60;
                 this.game.audioManager.stopBGM();
+                if (isOnlineHost) this._broadcastHostSnapshot();
             }
             return;
         }
@@ -680,21 +1005,36 @@ export default class CombatState {
 
     startArcadeFight(nextIdx, wins) {
         const player1 = this.combatData ? this.combatData.p1 : ROSTER[0];
+        const allyChar = this.combatData ? this.combatData.ally : null;
         const opponent = ROSTER[nextIdx];
         const stageId = opponent.stageId;
 
         preloadFighterSprites(this.game.assetManager, opponent);
         preloadStageAssets(this.game.assetManager, stageId);
 
-        this.game.stateManager.switchState('VersusIntro', {
+        const nextCombatData = {
             p1: player1,
+            ally: allyChar,
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
             storyMode: this.combatData ? this.combatData.storyMode : false,
+            coopMode: this.coopMode,
+            onlineMode: this.onlineMode,
             arcadeIndex: nextIdx,
             arcadeWins: wins,
-        });
+        };
+
+        const net = this.game.networkManager;
+        if (net && net.active && net.role === 'host' && this.onlineMode) {
+            net.send({
+                type: 'STATE_SWITCH',
+                stateName: 'VersusIntro',
+                stateData: nextCombatData
+            });
+        }
+
+        this.game.stateManager.switchState('VersusIntro', nextCombatData);
     }
 
     enforceBoundaries(f) {
@@ -726,6 +1066,9 @@ export default class CombatState {
         this.stageObjects.draw(ctx);
 
         // 3. Fighters (draw attacker on top)
+        if (this.ally) {
+            this.ally.draw(ctx);
+        }
         if (this.p1.state === 'ATTACK') {
             this.p2.draw(ctx);
             this.p1.draw(ctx);

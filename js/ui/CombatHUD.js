@@ -91,12 +91,62 @@ export default class CombatHUD {
         ctx.strokeRect(p1X, spY, barW, spH);
         ctx.strokeRect(p2X, spY, barW, spH);
 
+        // ─── CO-OP PARTNER (ALLY) HEALTH & SPECIAL BARS ───
+        if (combat.coopMode && combat.ally) {
+            const allyY = spY + 34;
+            const allyBarW = 460;
+            const allyBarH = 24;
+            ctx.fillStyle = '#bb66ff';
+            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.textAlign = 'left';
+            ctx.fillText(`P2 TEAM: ${combat.ally.data.name.toUpperCase()}`, p1X, allyY - 6);
+
+            ctx.fillStyle = '#550022';
+            ctx.fillRect(p1X, allyY, allyBarW, allyBarH);
+
+            const allyPct = Math.max(0, combat.ally.hp / combat.ally.maxHP);
+            ctx.fillStyle = allyPct > 0.5 ? '#bb55ff' : (allyPct > 0.25 ? '#ffaa00' : '#ff3355');
+            ctx.fillRect(p1X, allyY, allyBarW * allyPct, allyBarH);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(p1X, allyY, allyBarW, allyBarH);
+
+            // Ally Special bar
+            const allySpY = allyY + allyBarH + 5;
+            const allySpH = 10;
+            const allySpPct = Math.max(0, combat.ally.specialEnergy / combat.ally.maxSpecialEnergy);
+            ctx.fillStyle = '#110033';
+            ctx.fillRect(p1X, allySpY, allyBarW, allySpH);
+            ctx.fillStyle = allySpPct >= 1.0 ? (flashOn ? '#ffffff' : '#ff66ff') : '#9933ff';
+            ctx.fillRect(p1X, allySpY, allyBarW * allySpPct, allySpH);
+            ctx.strokeStyle = '#bb66ff';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(p1X, allySpY, allyBarW, allySpH);
+        }
+
+        // ─── ONLINE ROOM STATUS BADGE ───
+        if (game.networkManager && game.networkManager.active) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 14px "Press Start 2P"';
+            const isConn = game.networkManager.status === 'connected';
+            ctx.fillStyle = isConn ? '#00ff88' : '#ffcc00';
+            const modeTag = combat.coopMode ? 'KOOP' : '1V1';
+            ctx.fillText(
+                `${isConn ? '🟢' : '🟡'} ${modeTag} CODE ${game.networkManager.roomCode}`,
+                cx,
+                152
+            );
+            ctx.restore();
+        }
+
         // ─── DYNAMIC ARCADE COMBO COUNTERS ───
+        const comboY = (combat.coopMode && combat.ally) ? 280 : 235;
         if (combat.p1ComboCount >= 2 && combat.p1ComboTimer > 0) {
             const pop = 1 + Math.min(0.28, (combat.p1ComboTimer - 1.0) * 0.6);
             const scale = Math.max(1.0, pop);
             ctx.save();
-            ctx.translate(180, 235);
+            ctx.translate(180, comboY);
             ctx.scale(scale, scale);
             ctx.textAlign = 'left';
             ctx.font = 'bold 42px "Press Start 2P"';
@@ -208,12 +258,15 @@ export default class CombatHUD {
                     playAnnouncer(combat.game.audioManager, 'perfect');
                 }
             } else {
-                const winnerName = combat.winner === 'p1' ? combat.p1.data.name : combat.p2.data.name;
-                ctx.font = 'bold 60px "Press Start 2P"';
+                const isCoopWin = combat.winner === 'p1' && combat.coopMode && combat.ally;
+                const winnerText = isCoopWin
+                    ? `${combat.p1.data.name.toUpperCase()} & ${combat.ally.data.name.toUpperCase()} WIN!`
+                    : `${(combat.winner === 'p1' ? combat.p1.data.name : combat.p2.data.name).toUpperCase()} WINS!`;
+                ctx.font = isCoopWin ? 'bold 42px "Press Start 2P"' : 'bold 60px "Press Start 2P"';
                 ctx.fillStyle = '#fdbf00';
                 ctx.shadowColor = '#000';
                 ctx.shadowBlur = 10;
-                ctx.fillText(`${winnerName.toUpperCase()} WINS!`, cx, cy + 60);
+                ctx.fillText(winnerText, cx, cy + 60);
                 ctx.shadowBlur = 0;
             }
         }

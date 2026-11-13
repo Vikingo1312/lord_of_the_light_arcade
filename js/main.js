@@ -6,6 +6,7 @@ import CharacterSelectState from './states/CharacterSelect.js';
 import CombatState from './states/Combat.js';
 import StorySequence from './states/StorySequence.js';
 import VersusIntro from './states/VersusIntro.js';
+import OnlineLobbyState from './states/OnlineLobby.js';
 
 // V2.0 Entry Point
 window.onload = () => {
@@ -26,6 +27,7 @@ window.onload = () => {
     game.stateManager.addState('Combat', new CombatState(game));
     game.stateManager.addState('Story', new StorySequence(game));
     game.stateManager.addState('VersusIntro', new VersusIntro(game));
+    game.stateManager.addState('OnlineLobby', new OnlineLobbyState(game));
 
     // Start at Boot to preload massive assets
     game.stateManager.switchState('Boot');

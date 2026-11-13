@@ -5,7 +5,7 @@ import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloade
 export default class MenuState {
     constructor(game) {
         this.game = game;
-        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'OPTIONS'];
+        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'OPTIONS'];
         this.selectedIndex = 0;
         this.inputCooldown = 0;
         this.time = 0;
@@ -112,9 +112,9 @@ export default class MenuState {
             }
 
             // Check if tap hits a menu item
-            const menuStartY = this.game.height * 0.65;
-            const itemHeight = 65;
-            const hitPadding = 35; // vertical hit area around each item
+            const menuStartY = this.game.height * 0.61;
+            const itemHeight = 56;
+            const hitPadding = 28; // vertical hit area around each item
 
             for (let i = 0; i < this.options.length; i++) {
                 const itemY = menuStartY + (i * itemHeight);
@@ -239,6 +239,14 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
                 }, 500);
             } else if (this.selectedIndex === 3) {
+                // ONLINE / KOOP — always available so Keano & Jayden can play together immediately!
+                this.playConfirm();
+                this.inputCooldown = 30;
+                this.isTransitioning = true;
+                setTimeout(() => {
+                    this.game.stateManager.switchState('OnlineLobby');
+                }, 250);
+            } else if (this.selectedIndex === 4) {
                 // OPTIONS
                 this.playConfirm();
                 this.inOptions = true;
@@ -588,18 +596,19 @@ export default class MenuState {
         ctx.shadowBlur = 0;
 
         // ─── Menu Options ───
-        ctx.font = 'bold 36px "Press Start 2P"';
-        const menuStartY = this.game.height * 0.65; // Pushed down
+        ctx.font = 'bold 34px "Press Start 2P"';
+        const menuStartY = this.game.height * 0.61;
         for (let i = 0; i < this.options.length; i++) {
-            const y = menuStartY + (i * 65);
+            const y = menuStartY + (i * 56);
             const isLocked = (i === 1 || i === 2) && !this.storyCompleted;
+            const isOnline = (i === 3);
 
             if (i === this.selectedIndex) {
-                ctx.fillStyle = isLocked ? '#663333' : '#00ffff';
+                ctx.fillStyle = isLocked ? '#663333' : (isOnline ? '#00ff88' : '#00ffff');
                 const label = isLocked ? `🔒 ${this.options[i]}` : `> ${this.options[i]} <`;
                 ctx.fillText(label, cx, y);
             } else {
-                ctx.fillStyle = isLocked ? '#444444' : '#aaaaaa';
+                ctx.fillStyle = isLocked ? '#444444' : (isOnline ? '#88ffbb' : '#aaaaaa');
                 const label = isLocked ? `🔒 ${this.options[i]}` : this.options[i];
                 ctx.fillText(label, cx, y);
             }

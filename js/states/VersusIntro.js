@@ -32,6 +32,7 @@ export default class VersusIntro {
         this.time = 0;
         this.combatData = data;
         this.p1Data = data.p1;
+        this.allyData = data.ally || null;
         this.p2Data = data.p2;
         this.stageNum = data.arcadeIndex || 1;
         this._advanced = false;
@@ -57,9 +58,27 @@ export default class VersusIntro {
         this.time += dt;
         if (this._advanced) return;
         const p1 = this.game.inputManager.p1;
+        const net = this.game.networkManager;
+        const remoteSkip = (net && net.active && net.role === 'host') ? net.consumeRemoteInput().skipJust : false;
 
-        if (this.time > 4 || (this.time > 0.2 && p1.skipJust)) {
+        if (net && net.active && net.role === 'guest') {
+            // Guest waits for Host STATE_SWITCH, with a 6.0s fallback
+            if (this.time > 6.0) {
+                this._advanced = true;
+                this.game.stateManager.switchState('Combat', this.combatData);
+            }
+            return;
+        }
+
+        if (this.time > 4 || (this.time > 0.2 && (p1.skipJust || remoteSkip))) {
             this._advanced = true;
+            if (net && net.active && net.role === 'host') {
+                net.send({
+                    type: 'STATE_SWITCH',
+                    stateName: 'Combat',
+                    stateData: this.combatData
+                });
+            }
             this.game.stateManager.switchState('Combat', this.combatData);
         }
     }
@@ -143,15 +162,30 @@ export default class VersusIntro {
         ctx.fillText(`STAGE ${this.stageNum}`, w / 2, 80);
         ctx.shadowBlur = 0;
 
-        // ─── P1 PORTRAIT (Slides in aggressive from left) ───
+        // ─── P1 (+ CO-OP ALLY) PORTRAIT (Slides in aggressive from left) ───
         // Uses easeOutExpo for a fast snap
         const easeSnap = (x) => x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
         const p1Slide = easeSnap(Math.min(1, t / 0.6));
-        const p1X = -500 + p1Slide * 500 + w * 0.18;
+        const p1X = -500 + p1Slide * 500 + (this.allyData ? w * 0.14 : w * 0.18);
+
+        if (this.allyData) {
+            const allyImg = this.game.assetManager.images[`${this.allyData.id}_front.png`];
+            if (allyImg && allyImg.naturalHeight) {
+                const scale = 470 / allyImg.naturalHeight;
+                const dw = allyImg.naturalWidth * scale;
+                const dh = allyImg.naturalHeight * scale;
+                ctx.save();
+                ctx.globalAlpha = p1Slide * 0.92;
+                ctx.shadowColor = '#bb55ff';
+                ctx.shadowBlur = 25;
+                ctx.drawImage(allyImg, (p1X + 195) - dw / 2, h * 0.28, dw, dh);
+                ctx.restore();
+            }
+        }
 
         const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
         if (p1Img) {
-            const scale = 550 / p1Img.naturalHeight; // Bigger
+            const scale = (this.allyData ? 510 : 550) / p1Img.naturalHeight;
             const dw = p1Img.naturalWidth * scale;
             const dh = p1Img.naturalHeight * scale;
             ctx.save();
@@ -164,12 +198,15 @@ export default class VersusIntro {
 
         // P1 Name
         ctx.globalAlpha = p1Slide;
-        ctx.font = 'bold 44px "Press Start 2P"';
+        ctx.font = this.allyData ? 'bold 30px "Press Start 2P"' : 'bold 44px "Press Start 2P"';
         ctx.textAlign = 'left';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 15;
-        ctx.fillText(this.p1Data.name.toUpperCase(), 50, h - 60);
+        const leftName = this.allyData
+            ? `${this.p1Data.name.toUpperCase()} & ${this.allyData.name.toUpperCase()}`
+            : this.p1Data.name.toUpperCase();
+        ctx.fillText(leftName, 50, h - 60);
 
         // ─── P2 PORTRAIT (Slides in aggressive from right) ───
         const p2Slide = easeSnap(Math.min(1, Math.max(0, t - 0.2) / 0.6)); // Slight delay

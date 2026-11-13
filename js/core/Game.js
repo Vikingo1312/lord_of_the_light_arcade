@@ -3,6 +3,7 @@ import InputManager from './InputManager.js';
 import AssetManager from './AssetManager.js';
 import AudioManager from './AudioManager.js';
 import TouchPad from './TouchPad.js';
+import NetworkManager from './NetworkManager.js';
 
 export default class Game {
     constructor(canvas) {
@@ -17,6 +18,7 @@ export default class Game {
         this.assetManager = new AssetManager(this);
         this.audioManager = new AudioManager(this);
         this.touchPad = new TouchPad(this);
+        this.networkManager = new NetworkManager(this);
 
         // Game settings (modified by Options menu)
         let savedSettings = {};
@@ -78,6 +80,9 @@ export default class Game {
 
                 const speedMul = (this.settings && this.settings.speed) ? this.settings.speed : 1.0;
                 const dt = (this.timestep / 1000) * speedMul;
+                if (this.networkManager) {
+                    this.networkManager.update(dt);
+                }
                 this.stateManager.update(dt);
                 this.accumulator -= this.timestep;
             }
