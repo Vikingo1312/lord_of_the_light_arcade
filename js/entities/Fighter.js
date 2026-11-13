@@ -53,10 +53,12 @@ export default class Fighter {
         this.ghosts = [];
         this._ghostSpawnAccum = 0;
 
-        // Continuous procedural animation clock & landing squash timer
-        this.animTime = Math.random() * 6.28;
+        // Continuous animation clock & combo chain state
+        this.animTime = 0;
         this.landingTimer = 0;
         this.dashCooldown = 0;
+        this.comboChainStep = 0;
+        this.comboChainTimer = 0;
 
         // Reusable offscreen canvas for hit-flash effect (prevents 60fps DOM allocation leak)
         this._flashCanvas = null;
@@ -67,6 +69,10 @@ export default class Fighter {
         this.animTime += dt;
         if (this.landingTimer > 0) this.landingTimer = Math.max(0, this.landingTimer - dt);
         if (this.dashCooldown > 0) this.dashCooldown = Math.max(0, this.dashCooldown - dt);
+        if (this.comboChainTimer > 0) {
+            this.comboChainTimer -= dt;
+            if (this.comboChainTimer <= 0) this.comboChainStep = 0;
+        }
 
         // 1. Process Hitstop
         if (this.hitStop > 0) {
@@ -133,6 +139,23 @@ export default class Fighter {
             return false;
         };
 
+        // Trigger next step in the 3-step visual combo (Punch -> Kick -> Special Finisher)
+        const triggerLightCombo = () => {
+            if (this.comboChainTimer > 0 && this.comboChainStep === 1) {
+                this.comboChainStep = 2;
+                this.comboChainTimer = 0.75;
+                this.executeAttack('COMBO_KICK');
+            } else if (this.comboChainTimer > 0 && this.comboChainStep === 2) {
+                this.comboChainStep = 0;
+                this.comboChainTimer = 0;
+                this.executeAttack('COMBO_FINISHER');
+            } else {
+                this.comboChainStep = 1;
+                this.comboChainTimer = 0.75;
+                this.executeAttack('LIGHT');
+            }
+        };
+
         // 2. State Machine Logic
         switch (this.state) {
             case 'IDLE':
@@ -146,7 +169,7 @@ export default class Fighter {
                     if (inputQueue.lJust) this.executeAttack('CROUCH_LIGHT');
                     else if (inputQueue.hJust) this.executeAttack('SWEEP');
                 } else if (inputQueue.lJust) {
-                    this.executeAttack('LIGHT');
+                    triggerLightCombo();
                 } else if (inputQueue.hJust) {
                     this.executeAttack('HEAVY');
                 } else if (inputQueue.sJust) {
@@ -188,7 +211,7 @@ export default class Fighter {
                     if (inputQueue.lJust) this.executeAttack('CROUCH_LIGHT');
                     else if (inputQueue.hJust) this.executeAttack('SWEEP');
                 } else if (inputQueue.lJust) {
-                    this.executeAttack('LIGHT');
+                    triggerLightCombo();
                 } else if (inputQueue.hJust) {
                     this.executeAttack('HEAVY');
                 } else if (inputQueue.sJust) {
@@ -222,7 +245,7 @@ export default class Fighter {
                     this.executeJump(inputQueue);
                     break;
                 } else if (inputQueue.lJust) {
-                    this.executeAttack(inputQueue.down ? 'CROUCH_LIGHT' : 'LIGHT');
+                    triggerLightCombo();
                     break;
                 } else if (inputQueue.hJust) {
                     this.executeAttack(inputQueue.down ? 'SWEEP' : 'HEAVY');
@@ -258,14 +281,27 @@ export default class Fighter {
                     break;
                 }
 
-                // ─── 3-HIT TARGET COMBO CANCEL (Light -> Heavy/Sweep -> Special) ───
-                if (this.attackHasHit) {
-                    const atkType = this.currentAttack.type;
-                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT') && inputQueue.hJust) {
+                // ─── FLUID COMBO CANCEL (Chain Punch -> Kick -> Special Finisher) ───
+                const atkType = this.currentAttack.type;
+                const canChainNow = this.attackHasHit || (this.stateTimer >= this.currentAttack.startup + this.currentAttack.active * 0.6);
+                if (canChainNow && this.isGrounded) {
+                    if (atkType === 'LIGHT' && inputQueue.lJust) {
+                        this.comboChainStep = 2;
+                        this.comboChainTimer = 0.75;
+                        this.executeAttack('COMBO_KICK');
+                        break;
+                    }
+                    if (atkType === 'COMBO_KICK' && inputQueue.lJust) {
+                        this.comboChainStep = 0;
+                        this.comboChainTimer = 0;
+                        this.executeAttack('COMBO_FINISHER');
+                        break;
+                    }
+                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK') && inputQueue.hJust) {
                         this.executeAttack(inputQueue.down ? 'SWEEP' : 'HEAVY');
                         break;
                     }
-                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'HEAVY' || atkType === 'SWEEP') && inputQueue.sJust) {
+                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK' || atkType === 'HEAVY' || atkType === 'SWEEP') && inputQueue.sJust) {
                         this.executeAttack('SPECIAL');
                         break;
                     }
@@ -342,7 +378,7 @@ export default class Fighter {
             this.vy = 0;
             if (!this.isGrounded) {
                 this.isGrounded = true;
-                this.landingTimer = 0.14; // Trigger landing knee-bend squash!
+                this.landingTimer = 0.14;
                 if (this.state === 'JUMP' || this.state === 'DASH') {
                     this.state = inputQueue.down ? 'CROUCH' : 'IDLE'; // Landed!
                     this.vx = 0;
@@ -389,7 +425,7 @@ export default class Fighter {
         this.attackHasHit = false;
         this.activeHitbox = null;
         this.currentAttack = {
-            startup: 0.10, active: 0.05, recovery: 0.30,
+            startup: 0.08, active: 0.18, recovery: 0.20,
             damage: 0, pushback: 0, hitstop: 0,
             box: null,
             type: 'SPECIAL'
@@ -412,10 +448,27 @@ export default class Fighter {
         if (type === 'LIGHT') {
             if (this.isGrounded) this.vx = this.facing * 260; // Forward step lunge!
             this.currentAttack = {
-                startup: 0.05, active: 0.15, recovery: 0.20,
-                damage: Math.round(15 * pwrMul), pushback: 180, hitstop: 0.08,
+                startup: 0.04, active: 0.15, recovery: 0.18,
+                damage: Math.round(15 * pwrMul), pushback: 160, hitstop: 0.07,
                 box: new Hitbox(0, 190, 185, 65),
                 type: 'LIGHT'
+            };
+        } else if (type === 'COMBO_KICK') {
+            if (this.isGrounded) this.vx = this.facing * 320;
+            this.currentAttack = {
+                startup: 0.05, active: 0.16, recovery: 0.20,
+                damage: Math.round(22 * pwrMul), pushback: 220, hitstop: 0.10,
+                box: new Hitbox(10, 150, 200, 80),
+                type: 'COMBO_KICK'
+            };
+        } else if (type === 'COMBO_FINISHER') {
+            if (this.isGrounded) this.vx = this.facing * 420;
+            this.currentAttack = {
+                startup: 0.07, active: 0.20, recovery: 0.26,
+                damage: Math.round(32 * pwrMul), pushback: 420, hitstop: 0.14,
+                lift: -220,
+                box: new Hitbox(15, 110, 210, 95),
+                type: 'COMBO_FINISHER'
             };
         } else if (type === 'CROUCH_LIGHT') {
             if (this.isGrounded) this.vx = this.facing * 220;
@@ -428,7 +481,7 @@ export default class Fighter {
         } else if (type === 'HEAVY') {
             if (this.isGrounded) this.vx = this.facing * 380; // Dynamic forward kick lunge!
             this.currentAttack = {
-                startup: 0.13, active: 0.16, recovery: 0.32,
+                startup: 0.10, active: 0.18, recovery: 0.28,
                 damage: Math.round(35 * pwrMul), pushback: 400, hitstop: 0.15,
                 lift: -160,
                 box: new Hitbox(20, 140, 205, 85),
@@ -437,7 +490,7 @@ export default class Fighter {
         } else if (type === 'SWEEP') {
             if (this.isGrounded) this.vx = this.facing * 560; // Low sliding sweep!
             this.currentAttack = {
-                startup: 0.10, active: 0.18, recovery: 0.28,
+                startup: 0.08, active: 0.18, recovery: 0.26,
                 damage: Math.round(28 * pwrMul), pushback: 320, hitstop: 0.14,
                 lift: -280, // Launches opponent off their feet!
                 box: new Hitbox(10, 0, 215, 95),
@@ -446,7 +499,7 @@ export default class Fighter {
         } else if (type === 'SPECIAL') {
             if (this.isGrounded) this.vx = this.facing * 300;
             this.currentAttack = {
-                startup: 0.10, active: 0.15, recovery: 0.22,
+                startup: 0.08, active: 0.18, recovery: 0.22,
                 damage: Math.round(45 * pwrMul), pushback: 250, hitstop: 0.12,
                 lift: -100,
                 box: new Hitbox(10, 80, 190, 90),
@@ -532,8 +585,8 @@ export default class Fighter {
             if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP' || this.state === 'CROUCH' || this.state === 'DASH') {
                 suffix = '_right.png';
             } else if (this.state === 'ATTACK') {
-                if (this.currentAttack && this.currentAttack.type === 'SPECIAL') suffix = '_special.png';
-                else if (this.currentAttack && (this.currentAttack.type === 'HEAVY' || this.currentAttack.type === 'SWEEP')) suffix = '_kick.png';
+                if (this.currentAttack && (this.currentAttack.type === 'SPECIAL' || this.currentAttack.type === 'COMBO_FINISHER')) suffix = '_special.png';
+                else if (this.currentAttack && (this.currentAttack.type === 'HEAVY' || this.currentAttack.type === 'SWEEP' || this.currentAttack.type === 'COMBO_KICK')) suffix = '_kick.png';
                 else suffix = '_punch.png';
             } else if (this.state === 'HIT') suffix = '_hit.png';
             else if (this.state === 'KO') suffix = '_ko.png';
@@ -582,26 +635,25 @@ export default class Fighter {
             if (this.data.multiFrameAnim && suffix !== '__CUSTOM__') {
                 const imgs = this.game.assetManager.images;
 
-                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'CROUCH' || this.state === 'DASH') {
-                    const breathFrame = Math.floor(this.stateTimer / 0.6) % 2;
-                    suffix = breathFrame === 0 ? '_right.png' : '_left.png';
+                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'CROUCH') {
+                    suffix = '_right.png';
+                } else if (this.state === 'DASH') {
+                    const isForwardDash = (this.vx * this.facing >= 0);
+                    suffix = isForwardDash ? '_punch.png' : '_right.png';
                 } else if (this.state === 'JUMP') {
-                    if (this.currentAttack) {
-                        const diveImg = imgs[`${this.data.id}_${this.data.spritePrefix}_dive_kick`];
-                        if (diveImg) {
-                            suffix = '__CUSTOM__';
-                            spriteImage = diveImg;
-                        } else {
-                            suffix = '_kick.png';
-                        }
+                    const diveImg = imgs[`${this.data.id}_${this.data.spritePrefix}_dive_kick`];
+                    if (diveImg) {
+                        suffix = '__CUSTOM__';
+                        spriteImage = diveImg;
                     } else {
-                        suffix = '_right.png';
+                        suffix = '_kick.png';
                     }
                 } else if (this.state === 'ATTACK') {
                     const phase = this.stateTimer;
                     const startup = this.currentAttack ? this.currentAttack.startup : 0.05;
                     const active = this.currentAttack ? this.currentAttack.active : 0.15;
-                    const totalActive = startup + active;
+                    const recovery = this.currentAttack ? this.currentAttack.recovery : 0.18;
+                    const retractStart = startup + active + recovery * 0.55;
                     const atkType = this.currentAttack ? this.currentAttack.type : 'LIGHT';
 
                     if (atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT') {
@@ -609,12 +661,12 @@ export default class Fighter {
                             const hookImg = imgs[`${this.data.id}_${this.data.spritePrefix}_hook_punch`];
                             if (hookImg) { suffix = '__CUSTOM__'; spriteImage = hookImg; }
                             else suffix = '_right.png';
-                        } else if (phase < totalActive) {
+                        } else if (phase < retractStart) {
                             suffix = '_punch.png';
                         } else {
                             suffix = '_right.png';
                         }
-                    } else if (atkType === 'HEAVY' || atkType === 'SWEEP') {
+                    } else if (atkType === 'HEAVY' || atkType === 'SWEEP' || atkType === 'COMBO_KICK') {
                         const lowImg = imgs[`${this.data.id}_${this.data.spritePrefix}_low_kick`];
                         if (atkType === 'SWEEP' && lowImg) {
                             suffix = '__CUSTOM__';
@@ -622,12 +674,12 @@ export default class Fighter {
                         } else if (phase < startup) {
                             if (lowImg) { suffix = '__CUSTOM__'; spriteImage = lowImg; }
                             else suffix = '_right.png';
-                        } else if (phase < totalActive) {
+                        } else if (phase < retractStart) {
                             suffix = '_kick.png';
                         } else {
                             suffix = '_right.png';
                         }
-                    } else if (atkType === 'SPECIAL') {
+                    } else if (atkType === 'SPECIAL' || atkType === 'COMBO_FINISHER') {
                         suffix = '_special.png';
                     } else if (atkType === 'SPECIAL_DASH') {
                         suffix = '_kick.png';
@@ -649,14 +701,37 @@ export default class Fighter {
                 }
 
             } else if (suffix !== '__CUSTOM__') {
-                // ─── STANDARD CHARACTERS: Single image per state ───
-                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'JUMP' || this.state === 'CROUCH' || this.state === 'DASH') {
+                // ─── ALL STANDARD CHARACTERS: Dynamic multi-pose switching across moves & combos ───
+                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'CROUCH') {
                     suffix = '_right.png';
+                } else if (this.state === 'DASH') {
+                    // Forward dash uses aggressive lunging punch pose; backdash uses guard stance
+                    const isForwardDash = (this.vx * this.facing >= 0);
+                    suffix = isForwardDash ? '_punch.png' : '_right.png';
+                } else if (this.state === 'JUMP') {
+                    // Show dynamic flying kick pose around the peak of the jump!
+                    suffix = (Math.abs(this.vy) < 750) ? '_kick.png' : '_right.png';
                 } else if (this.state === 'ATTACK') {
+                    const phase = this.stateTimer;
+                    const startup = this.currentAttack ? this.currentAttack.startup : 0.05;
+                    const active = this.currentAttack ? this.currentAttack.active : 0.15;
+                    const recovery = this.currentAttack ? this.currentAttack.recovery : 0.18;
+                    const retractStart = startup + active + recovery * 0.65;
                     const atkType = this.currentAttack ? this.currentAttack.type : 'LIGHT';
-                    if (atkType === 'SPECIAL') suffix = '_special.png';
-                    else if (atkType === 'HEAVY' || atkType === 'SWEEP') suffix = '_kick.png';
-                    else suffix = '_punch.png';
+
+                    if (phase < startup * 0.7) {
+                        // Brief windup frame before the strike snaps out
+                        suffix = '_right.png';
+                    } else if (phase > retractStart && atkType !== 'SPECIAL' && atkType !== 'COMBO_FINISHER') {
+                        // Clean retract frame back to stance at the end of punch/kick
+                        suffix = '_right.png';
+                    } else if (atkType === 'SPECIAL' || atkType === 'COMBO_FINISHER') {
+                        suffix = '_special.png';
+                    } else if (atkType === 'HEAVY' || atkType === 'SWEEP' || atkType === 'COMBO_KICK') {
+                        suffix = '_kick.png';
+                    } else {
+                        suffix = '_punch.png';
+                    }
                 } else if (this.state === 'HIT') {
                     suffix = '_hit.png';
                 } else if (this.state === 'KO') {
@@ -669,11 +744,14 @@ export default class Fighter {
                 spriteImage = this.game.assetManager.images[exactKey] || this.game.assetManager.images[fallbackKey];
             }
 
-            // Fallbacks if specific sprite is missing
+            // Fallbacks if specific sprite is missing (e.g. characters without _special.png use _kick.png or _punch.png)
             if (!spriteImage && this.state === 'ATTACK') {
+                const kickKey = `${this.data.id}_kick.png`;
                 const punchKey = `${this.data.id}_punch.png`;
-                const punchFallback = `${this.data.id}_punch.png_fallback`;
-                spriteImage = this.game.assetManager.images[punchKey] || this.game.assetManager.images[punchFallback];
+                spriteImage = this.game.assetManager.images[kickKey] ||
+                    this.game.assetManager.images[`${kickKey}_fallback`] ||
+                    this.game.assetManager.images[punchKey] ||
+                    this.game.assetManager.images[`${punchKey}_fallback`];
             }
             if (!spriteImage && (this.state === 'ATTACK' || this.state === 'HIT' || this.state === 'KO' || this.state === 'WIN')) {
                 const idleKey = `${this.data.id}_right.png`;
@@ -737,8 +815,6 @@ export default class Fighter {
                         ctx.translate(0, -drawH / 2);
                         ctx.rotate(g.timer * 25.0 * g.facing);
                         ctx.translate(0, drawH / 2);
-                    } else {
-                        ctx.scale(1.08, 0.92);
                     }
 
                     ctx.globalAlpha = g.age * (g.isDashGhost ? 0.55 : 0.7);
@@ -749,63 +825,12 @@ export default class Fighter {
                 ctx.restore();
             }
 
-            // ─── PROCEDURAL "LIQUID" BODY ANIMATION (Breathing, Walk Stride, Crouch, Lunge, Squash) ───
-            let procScaleX = 1.0;
-            let procScaleY = 1.0;
-            let procTilt = 0.0;
-            let procOffsetY = 0.0;
-
-            if (this.state === 'IDLE') {
-                const breath = Math.sin(this.animTime * 4.8);
-                procScaleY = 1.0 + breath * 0.024;
-                procScaleX = 1.0 - breath * 0.014;
-                procTilt = Math.sin(this.animTime * 2.4) * 0.016;
-            } else if (this.state === 'WALK') {
-                const moveDir = (this.vx * this.facing >= 0) ? 1 : -1;
-                const stride = Math.sin(this.animTime * 13.5);
-                procOffsetY = -Math.abs(stride) * 11;
-                procScaleY = 1.0 + Math.abs(stride) * 0.028 - (1 - Math.abs(stride)) * 0.018;
-                procScaleX = 1.0 - Math.abs(stride) * 0.015;
-                procTilt = moveDir * 0.065 + stride * 0.022;
-            } else if (this.state === 'CROUCH') {
-                const breath = Math.sin(this.animTime * 5.5) * 0.015;
-                procScaleY = 0.74 + breath;
-                procScaleX = 1.12 - breath * 0.5;
-                procTilt = 0.05;
-            } else if (this.state === 'DASH') {
-                const dashDir = (this.vx * this.facing >= 0) ? 1 : -1;
-                procScaleX = 1.12;
-                procScaleY = 0.90;
-                procTilt = dashDir * 0.15;
-            } else if (this.state === 'ATTACK' && this.currentAttack) {
-                const atkType = this.currentAttack.type;
-                const startup = this.currentAttack.startup || 0.05;
-                const active = this.currentAttack.active || 0.15;
-                if (atkType === 'SWEEP') {
-                    procScaleY = 0.76;
-                    procScaleX = 1.16;
-                    procTilt = 0.14;
-                } else if (atkType === 'CROUCH_LIGHT') {
-                    procScaleY = 0.78;
-                    procScaleX = 1.12;
-                    procTilt = 0.08;
-                } else if (this.stateTimer < startup) {
-                    // Anticipation coil
-                    procScaleX = 0.95;
-                    procScaleY = 0.97;
-                    procTilt = -0.04;
-                } else if (this.stateTimer < startup + active) {
-                    // Impact extension
-                    procScaleX = 1.08;
-                    procScaleY = 0.96;
-                    procTilt = 0.06;
-                }
-            }
-
-            if (this.landingTimer > 0 && this.isGrounded) {
-                const lPct = this.landingTimer / 0.14;
-                procScaleY *= (1.0 - 0.14 * lPct);
-                procScaleX *= (1.0 + 0.10 * lPct);
+            // ─── CLEAN CROUCH / SWEEP POSE ADJUSTMENT (No jittery breathing/walk distortion!) ───
+            let poseScaleX = 1.0;
+            let poseScaleY = 1.0;
+            if (this.state === 'CROUCH' || (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'SWEEP' || this.currentAttack.type === 'CROUCH_LIGHT'))) {
+                poseScaleY = 0.76;
+                poseScaleX = 1.06;
             }
 
             // ─── SIMULATE STREET FIGHTER JUMP ROLL OR SPECIAL DASH SPIN ───
@@ -827,11 +852,8 @@ export default class Fighter {
                 ctx.translate(0, -drawH / 2);
                 ctx.rotate(currentRotation);
                 ctx.translate(0, drawH / 2);
-            } else {
-                // Apply procedural foot-anchored bounce, tilt, and squash/stretch
-                ctx.translate(0, procOffsetY);
-                ctx.rotate(procTilt);
-                ctx.scale(procScaleX, procScaleY);
+            } else if (poseScaleY !== 1.0) {
+                ctx.scale(poseScaleX, poseScaleY);
             }
 
             // Draw relative to bottom-center (0,0 is now the character's feet)
