@@ -6,7 +6,7 @@
 // ─── MAIN ROSTER (Arcade/Story Mode Order) ───
 // Keano is the hero. The 14 opponents follow in story order.
 export const ROSTER = [
-    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 450, speed: 540, power: 105, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
+    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 450, speed: 540, power: 105, multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
     { id: 'Hattori', folder: '1.Hattori_Japan', name: 'Hattori', nickname: 'The Silent Blade', country: 'Japan', stageId: 'Japan', hp: 340, speed: 460, power: 70, spritePrefix: 'hattori', cutinFile: 'proj_hattori.png' },
     { id: 'Raheel', folder: '2.Raheel', name: 'Raheel', nickname: 'Desert Storm', country: 'India', stageId: 'India', hp: 355, speed: 470, power: 75, spritePrefix: 'raheel', cutinFile: 'proj_raheel.png' },
     { id: 'Pablo', folder: '3.Pablo', name: 'Pablo', nickname: 'Capoeira King', country: 'Brazil', stageId: 'Brazil', hp: 370, speed: 485, power: 80, spritePrefix: 'pablo', cutinFile: 'proj_pablo.png' },
@@ -18,7 +18,7 @@ export const ROSTER = [
     { id: 'Paco', folder: '9.Paco_el_Taco', name: 'Paco el Taco', nickname: 'Lucha Libre', country: 'Mexico', stageId: 'Mexico', hp: 440, speed: 520, power: 100, spritePrefix: 'paco', cutinFile: 'proj_paco.png' },
     { id: 'Juan', folder: '10.Juan', name: 'Juan', nickname: 'Matador', country: 'Spain', stageId: 'Spain', hp: 450, speed: 530, power: 105, spritePrefix: 'juan', cutinFile: 'proj_juan.png' },
     { id: 'Lee', folder: '11.Lee', name: 'Lee', nickname: 'Fist of Fury', country: 'Japan', stageId: 'Japan_Night', hp: 450, speed: 580, power: 105, spritePrefix: 'lee', cutinFile: 'proj_lee.png' },
-    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 470, speed: 550, power: 110, largeAura: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
+    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 470, speed: 550, power: 110, largeAura: true, multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
     { id: 'Putin', folder: '13.Putin', name: 'Putin', nickname: 'Cold War', country: 'Russia', stageId: 'Russia', hp: 500, speed: 430, power: 115, largeAura: true, spritePrefix: 'putin', cutinFile: 'proj_putin.png' },
     { id: 'VikingoRaw', folder: '14.1.vikingo_shirtless', name: 'Dark Vikingo', nickname: 'God of War', country: 'Valhalla', stageId: 'Valhalla', hp: 540, speed: 560, power: 125, largeAura: true, spritePrefix: 'vikingo_shirtless', cutinFile: 'proj_dark_vikingo.png' },
 ];

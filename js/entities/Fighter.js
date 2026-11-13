@@ -631,47 +631,81 @@ export default class Fighter {
                 }
             }
 
-            // ─── LEGACY CHARACTERS WITH HARDCODED MULTI-FRAME ANIMATIONS (e.g. Supreme Keano) ───
+            // ─── MULTI-FRAME ANIMATION CHARACTERS (Keano, JJ Dark, Supreme Keano) ───
             if (this.data.multiFrameAnim && suffix !== '__CUSTOM__') {
                 const imgs = this.game.assetManager.images;
+                const diveImg = imgs[`${this.data.id}_${this.data.spritePrefix}_dive_kick`];
+                const lowImg = imgs[`${this.data.id}_${this.data.spritePrefix}_low_kick`];
+                const hookImg = imgs[`${this.data.id}_${this.data.spritePrefix}_hook_punch`];
+                const walkImg = imgs[`${this.data.id}_walk.png`];
 
-                if (this.state === 'IDLE' || this.state === 'WALK' || this.state === 'CROUCH') {
+                if (this.state === 'IDLE') {
                     suffix = '_right.png';
+                } else if (this.state === 'WALK') {
+                    if (walkImg && Math.floor(this.animTimer * 7.5) % 2 === 1) {
+                        suffix = '__CUSTOM__';
+                        spriteImage = walkImg;
+                    } else {
+                        suffix = '_right.png';
+                    }
+                } else if (this.state === 'CROUCH') {
+                    if (lowImg) {
+                        suffix = '__CUSTOM__';
+                        spriteImage = lowImg;
+                    } else {
+                        suffix = '_right.png';
+                    }
                 } else if (this.state === 'DASH') {
                     const isForwardDash = (this.vx * this.facing >= 0);
                     suffix = isForwardDash ? '_punch.png' : '_right.png';
                 } else if (this.state === 'JUMP') {
-                    const diveImg = imgs[`${this.data.id}_${this.data.spritePrefix}_dive_kick`];
-                    if (diveImg) {
+                    if (diveImg && Math.abs(this.vy) < 950) {
                         suffix = '__CUSTOM__';
                         spriteImage = diveImg;
-                    } else {
+                    } else if (Math.abs(this.vy) < 750) {
                         suffix = '_kick.png';
+                    } else {
+                        suffix = '_right.png';
                     }
                 } else if (this.state === 'ATTACK') {
                     const phase = this.stateTimer;
                     const startup = this.currentAttack ? this.currentAttack.startup : 0.05;
                     const active = this.currentAttack ? this.currentAttack.active : 0.15;
                     const recovery = this.currentAttack ? this.currentAttack.recovery : 0.18;
-                    const retractStart = startup + active + recovery * 0.55;
+                    const retractStart = startup + active + recovery * 0.65;
                     const atkType = this.currentAttack ? this.currentAttack.type : 'LIGHT';
 
-                    if (atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT') {
-                        if (phase < startup) {
-                            const hookImg = imgs[`${this.data.id}_${this.data.spritePrefix}_hook_punch`];
-                            if (hookImg) { suffix = '__CUSTOM__'; spriteImage = hookImg; }
-                            else suffix = '_right.png';
+                    if (atkType === 'LIGHT') {
+                        if (phase < startup * 0.7) {
+                            suffix = '_right.png';
                         } else if (phase < retractStart) {
                             suffix = '_punch.png';
                         } else {
                             suffix = '_right.png';
                         }
-                    } else if (atkType === 'HEAVY' || atkType === 'SWEEP' || atkType === 'COMBO_KICK') {
-                        const lowImg = imgs[`${this.data.id}_${this.data.spritePrefix}_low_kick`];
-                        if (atkType === 'SWEEP' && lowImg) {
+                    } else if (atkType === 'COMBO_KICK') {
+                        // 2nd hit of J -> J -> J combo: Uppercut / Hook Punch!
+                        if (phase < startup * 0.6) {
+                            suffix = '_punch.png';
+                        } else if (phase < retractStart && hookImg) {
+                            suffix = '__CUSTOM__';
+                            spriteImage = hookImg;
+                        } else if (phase < retractStart) {
+                            suffix = '_kick.png';
+                        } else {
+                            suffix = '_right.png';
+                        }
+                    } else if (atkType === 'CROUCH_LIGHT' || atkType === 'SWEEP') {
+                        if (lowImg && phase < retractStart) {
                             suffix = '__CUSTOM__';
                             spriteImage = lowImg;
-                        } else if (phase < startup) {
+                        } else if (phase < retractStart) {
+                            suffix = '_kick.png';
+                        } else {
+                            suffix = '_right.png';
+                        }
+                    } else if (atkType === 'HEAVY') {
+                        if (phase < startup) {
                             if (lowImg) { suffix = '__CUSTOM__'; spriteImage = lowImg; }
                             else suffix = '_right.png';
                         } else if (phase < retractStart) {
@@ -682,7 +716,12 @@ export default class Fighter {
                     } else if (atkType === 'SPECIAL' || atkType === 'COMBO_FINISHER') {
                         suffix = '_special.png';
                     } else if (atkType === 'SPECIAL_DASH') {
-                        suffix = '_kick.png';
+                        if (diveImg) {
+                            suffix = '__CUSTOM__';
+                            spriteImage = diveImg;
+                        } else {
+                            suffix = '_kick.png';
+                        }
                     } else {
                         suffix = '_punch.png';
                     }

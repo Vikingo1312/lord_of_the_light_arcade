@@ -48,7 +48,13 @@ export function preloadFighterSprites(assetManager, char) {
                 assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${char.spritePrefix}_${frame}.png`);
             }
         }
-        if (!assetManager.images[`${char.id}_Cutin2`]) {
+        if (char.hasWalkSprite) {
+            const walkKey = `${char.id}_walk.png`;
+            if (!assetManager.images[walkKey]) {
+                assetManager.queueImage(walkKey, `assets/CHARACTERS/${char.folder}/_walk.png`);
+            }
+        }
+        if ((char.cutinFile2 || char.id === 'SupremeKeano') && !assetManager.images[`${char.id}_Cutin2`]) {
             const proj2 = char.cutinFile2 || 'proj_supreme_keano_2.png';
             assetManager.queueImage(`${char.id}_Cutin2`, `assets/fx/char_projectiles/${proj2}`);
         }
