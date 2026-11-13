@@ -20,29 +20,30 @@ export default class AIController {
         const dirToP1 = p1.x > p2.x ? 'right' : 'left';
         const dirAwayFromP1 = p1.x > p2.x ? 'left' : 'right';
 
-        // Difficulty scales with roster position (Stage 1 starts at 0.75, Boss reaches 1.5)
-        const rosterIdx = combat.combatData?.p2?.rosterIndex ?? 1;
-        let diff = Math.min(1.5, 0.70 + (rosterIdx / 14) * 0.80);
+        // Progressive stage index: Stage 1 (Hattori, rosterIdx=1) -> progress = 0.0
+        // Stage 14 (Dark Vikingo, rosterIdx=14) -> progress = 1.0
+        const rosterIdx = Math.max(1, Math.min(14, combat.combatData?.p2?.rosterIndex ?? 1));
+        let progress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 stages
 
-        if (difficultySetting === 'EASY') diff *= 0.65;
-        else if (difficultySetting === 'HARD') diff *= 1.35;
+        if (difficultySetting === 'EASY') progress *= 0.55;
+        else if (difficultySetting === 'HARD') progress = Math.min(1.15, progress * 1.25 + 0.15);
 
         // Initialize AI state timers on p2
         if (typeof p2.aiWaitTimer === 'undefined') p2.aiWaitTimer = 0;
         if (typeof p2.aiBlockTimer === 'undefined') p2.aiBlockTimer = 0;
         if (typeof p2._lastSeenP1Attack === 'undefined') p2._lastSeenP1Attack = null;
 
-        // ─── 1. SUSTAINED BLOCKING (commit to holding back for the entire enemy attack) ───
+        // ─── 1. SUSTAINED BLOCKING ───
         if (p2.aiBlockTimer > 0) {
             p2.aiBlockTimer -= dt;
             ai[dirAwayFromP1] = true;
-            // Counter-attack immediately when P1 enters recovery frames in close range!
-            if (p1.state === 'ATTACK' && p1.currentAttack &&
+            // Only late-game fighters (Stage 10+) know how to instant block-counter
+            if (progress > 0.68 && p1.state === 'ATTACK' && p1.currentAttack &&
                 p1.stateTimer >= (p1.currentAttack.startup + p1.currentAttack.active) &&
-                dist <= 210) {
+                dist <= 200 && Math.random() < (progress - 0.5) * 0.5) {
                 p2.aiBlockTimer = 0;
                 ai[dirAwayFromP1] = false;
-                ai.hJust = true;
+                ai.lJust = true;
                 return ai;
             }
             return ai;
@@ -51,58 +52,41 @@ export default class AIController {
         // ─── 2. REACT TO INCOMING PROJECTILES ───
         const incomingProj = combat.projectiles.find(
             proj => proj.owner === 'p1' && proj.alive &&
-                Math.abs(proj.x - p2.x) < 420 &&
+                Math.abs(proj.x - p2.x) < 380 &&
                 ((proj.facing === 1 && proj.x < p2.x) || (proj.facing === -1 && proj.x > p2.x))
         );
         if (incomingProj && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            if (Math.random() < Math.min(0.85, 0.45 * diff)) {
-                // Jump forward over the projectile and kick!
-                ai[dirToP1] = true;
-                ai.up = true;
-                if (dist < 320) ai.hJust = true;
-                p2.aiWaitTimer = 0.15;
-                return ai;
-            } else {
-                // Commit to blocking the projectile
-                p2.aiBlockTimer = 0.40;
-                ai[dirAwayFromP1] = true;
-                return ai;
+            // Early stages rarely react to projectiles (10% on Stage 1 -> 60% on Stage 14)
+            const reactChance = 0.10 + progress * 0.50;
+            if (Math.random() < reactChance) {
+                if (Math.random() < 0.35 + progress * 0.35) {
+                    ai[dirToP1] = true;
+                    ai.up = true;
+                    p2.aiWaitTimer = 0.35;
+                    return ai;
+                } else {
+                    p2.aiBlockTimer = 0.35;
+                    ai[dirAwayFromP1] = true;
+                    return ai;
+                }
             }
         }
 
         // ─── 3. REACT TO P1 MELEE ATTACK (One decision per P1 attack, not per frame!) ───
-        if (p1.state === 'ATTACK' && dist < 260) {
-            // Check if P1 is in recovery (whiff punish window!)
-            const inRecovery = p1.currentAttack &&
-                p1.stateTimer >= (p1.currentAttack.startup + p1.currentAttack.active);
-
-            if (inRecovery && dist <= 210 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                ai[dirToP1] = true;
-                if (p2.specialEnergy >= 100 && Math.random() < 0.45) ai.sJust = true;
-                else ai.hJust = true;
-                p2.aiWaitTimer = 0.15;
-                return ai;
-            }
-
+        if (p1.state === 'ATTACK' && dist < 240) {
             if (p2._lastSeenP1Attack !== p1.currentAttack) {
                 p2._lastSeenP1Attack = p1.currentAttack;
-                const blockProb = Math.min(0.82, 0.42 * diff);
+                // Stage 1 blocks only 8% of attacks; Stage 7 blocks ~29%; Stage 14 blocks ~52%
+                const blockProb = 0.08 + progress * 0.44;
                 const roll = Math.random();
                 if (roll < blockProb) {
-                    // Hold block for the duration of P1's attack
-                    p2.aiBlockTimer = 0.32;
+                    p2.aiBlockTimer = 0.25 + progress * 0.12;
                     ai[dirAwayFromP1] = true;
                     return ai;
-                } else if (roll < blockProb + 0.22 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                    // Counter-poke with fast light attack or jump kick!
-                    if (Math.random() < 0.65) {
-                        ai.lJust = true;
-                    } else if (p2.isGrounded) {
-                        ai[dirToP1] = true;
-                        ai.up = true;
-                        ai.hJust = true;
-                    }
-                    p2.aiWaitTimer = 0.15;
+                } else if (progress > 0.45 && roll < blockProb + (progress * 0.16) && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+                    // Mid-to-late stages occasionally counter-poke with a fast jab
+                    ai.lJust = true;
+                    p2.aiWaitTimer = 0.45;
                     return ai;
                 }
             }
@@ -110,30 +94,30 @@ export default class AIController {
             p2._lastSeenP1Attack = null;
         }
 
-        // ─── 4. BRIEF ACTION COOLDOWN (keeps pacing natural without freezing AI) ───
+        // ─── 4. ACTION COOLDOWN / BREATHING ROOM FOR PLAYER ───
+        // Early stages pause significantly between attacks so the player can land combos!
         if (p2.aiWaitTimer > 0) {
             p2.aiWaitTimer -= dt;
-            // Keep moving or guarding during brief cooldown instead of standing dead still
-            if (dist > 210) {
+            // On early stages, AI stands still or backs off slightly during wait timer (leaving an opening)
+            if (progress > 0.65 && dist > 230) {
                 ai[dirToP1] = true;
-            } else if (p1.state === 'ATTACK') {
-                ai[dirAwayFromP1] = true;
             }
             return ai;
         }
 
         const applyCooldown = () => {
             if (ai.lJust || ai.hJust || ai.sJust) {
-                if (difficultySetting === 'EASY') p2.aiWaitTimer = 0.45 + Math.random() * 0.25;
-                else if (difficultySetting === 'NORMAL') p2.aiWaitTimer = 0.12 + Math.random() * 0.16;
-                else p2.aiWaitTimer = 0.05 + Math.random() * 0.08;
+                // Stage 1 waits 0.90s - 1.30s after every attack; Stage 7 waits ~0.55s; Stage 14 waits ~0.24s - 0.38s
+                const minWait = Math.max(0.20, 0.90 - progress * 0.66);
+                const randWait = Math.max(0.14, 0.40 - progress * 0.26);
+                p2.aiWaitTimer = minWait + Math.random() * randWait;
             }
             return ai;
         };
 
-        // ─── 5. AIRBORNE ATTACKS (If AI is jumping near P1, throw jump kicks!) ───
-        if (!p2.isGrounded && p2.state === 'JUMP' && dist < 260) {
-            if (Math.random() < 0.18 * diff) {
+        // ─── 5. AIRBORNE ATTACKS ───
+        if (!p2.isGrounded && p2.state === 'JUMP' && dist < 240) {
+            if (Math.random() < (0.04 + progress * 0.14)) {
                 ai.hJust = true;
             }
             return ai;
@@ -141,18 +125,22 @@ export default class AIController {
 
         // ─── 6. APPROACH ZONE (far away: dist > 300) ───
         if (dist > 300) {
-            ai[dirToP1] = true;
+            // Early stages walk in at a relaxed pace (not holding forward 100% of frames)
+            if (Math.random() < (0.55 + progress * 0.45)) {
+                ai[dirToP1] = true;
+            }
 
-            // Fire projectile / dash special from range when meter is full
+            // Fire projectile / dash special from range when meter is full (scales with stage)
             if (p2.specialEnergy >= 100 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                if (Math.random() < 0.035 * diff) {
+                if (Math.random() < (0.006 + progress * 0.025)) {
                     ai.sJust = true;
                     return applyCooldown();
                 }
             }
 
-            // Aggressive jump-in approach
-            if (Math.random() < 0.025 * diff && p2.isGrounded) {
+            // Jump-in approach (rare on early stages)
+            if (Math.random() < (0.004 + progress * 0.018) && p2.isGrounded) {
+                ai[dirToP1] = true;
                 ai.up = true;
             }
             return ai;
@@ -161,46 +149,45 @@ export default class AIController {
         // ─── 7. STRIKE ZONE (close range: dist <= 195) ───
         if (dist <= 195) {
             if (p2.state === 'IDLE' || p2.state === 'WALK') {
-                const attackChance = Math.min(0.95, 0.58 * diff);
+                // Stage 1 attacks 28% of checks when ready; Stage 14 attacks 75% of checks
+                const attackChance = 0.28 + progress * 0.47;
                 if (Math.random() < attackChance) {
                     const mixup = Math.random();
-                    if (mixup < 0.25 && p2.specialEnergy >= 100) {
+                    // Early opponents mostly use Light attacks; later opponents mix in Heavy & Specials
+                    const specialThreshold = 0.05 + progress * 0.20;
+                    const heavyThreshold = specialThreshold + (0.20 + progress * 0.28);
+
+                    if (mixup < specialThreshold && p2.specialEnergy >= 100) {
                         ai.sJust = true;
-                    } else if (mixup < 0.65) {
-                        ai.hJust = true; // Heavy attack (35 dmg + launcher)
+                    } else if (mixup < heavyThreshold) {
+                        ai.hJust = true;
                     } else {
-                        ai.lJust = true; // Fast Light jab (15 dmg)
+                        ai.lJust = true;
                     }
                     return applyCooldown();
                 } else {
-                    // Keep walking into P1 to pressure or jump-kick crossup
-                    if (Math.random() < 0.12 * diff && p2.isGrounded) {
-                        ai[dirToP1] = true;
-                        ai.up = true;
-                        ai.hJust = true;
-                    } else {
-                        ai[dirToP1] = true;
-                    }
+                    // Pause briefly so player has first-strike advantage on early stages!
+                    p2.aiWaitTimer = Math.max(0.12, 0.45 - progress * 0.30);
                 }
             }
             return applyCooldown();
         }
 
         // ─── 8. FOOTSIES ZONE (mid-range: 195 < dist <= 300) ───
-        // Relentlessly close the gap and poke!
-        ai[dirToP1] = true;
+        if (Math.random() < (0.50 + progress * 0.48)) {
+            ai[dirToP1] = true;
+        }
 
         if (p2.state === 'IDLE' || p2.state === 'WALK') {
             const roll = Math.random();
-            if (roll < 0.035 * diff && p2.specialEnergy >= 100) {
+            if (roll < (0.005 + progress * 0.022) && p2.specialEnergy >= 100) {
                 ai.sJust = true;
                 return applyCooldown();
-            } else if (roll < 0.09 * diff) {
-                // Advancing poke or jump-in heavy kick
-                if (Math.random() < 0.35 && p2.isGrounded) {
+            } else if (roll < (0.015 + progress * 0.055)) {
+                if (progress > 0.35 && Math.random() < 0.30 && p2.isGrounded) {
                     ai.up = true;
                     ai.hJust = true;
-                } else if (Math.random() < 0.6) {
+                } else if (Math.random() < (0.25 + progress * 0.35)) {
                     ai.hJust = true;
                 } else {
                     ai.lJust = true;

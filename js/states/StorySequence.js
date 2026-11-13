@@ -46,6 +46,7 @@ export default class StorySequence {
         this.finished = false;
         this.finishTimer = 0;
         this._advanced = false;
+        this._hasGoodSpeed = false;
         this.shootingStars = [];
         this.shootingStarTimer = 0;
         this.isBirthdayScene = false;
@@ -70,15 +71,32 @@ export default class StorySequence {
             }
         }
 
-        // Start text from bottom of screen
-        this.scrollY = this.game.height + 50;
-
         // Check if this is the Birthday scene
         if (this.lines.length > 0 && this.lines[0].includes('HAPPY BIRTHDAY')) {
             this.isBirthdayScene = true;
-            // Birthday: text scrolls up from bottom at gentle speed, stops when centered
-            this.scrollSpeed = 40;
         }
+
+        // Compute startY and target endY so text is immediately visible when voice starts
+        // and all lines scroll fully onto the screen well before the voice ends.
+        const totalTextHeight = this.lines.length * this.lineHeight;
+        if (this.isBirthdayScene) {
+            this.scrollY = this.game.height + 30;
+            this.targetEndY = (this.game.height - totalTextHeight) / 2 + 30;
+            this.scrollSpeed = 45;
+        } else if (totalTextHeight <= this.game.height * 0.72) {
+            // Short/medium scenes (Prologue: 15 lines, Outro: 10 lines):
+            // Start with the first lines already visible in the lower-middle of the screen
+            // and scroll smoothly until the entire text block sits centered on screen!
+            this.scrollY = this.game.height * 0.55;
+            this.targetEndY = Math.max(120, (this.game.height - totalTextHeight) / 2);
+        } else {
+            // Long scenes (Reflexion: 35 lines, Epilogue: 28 lines):
+            // Start with the first ~10 lines already visible on screen,
+            // and scroll until the final lines sit centered in the middle of the screen.
+            this.scrollY = this.game.height * 0.45;
+            this.targetEndY = (this.game.height * 0.72) - totalTextHeight;
+        }
+        this.initialScrollY = this.scrollY;
 
         // Generate stars
         this.stars = [];
@@ -118,19 +136,23 @@ export default class StorySequence {
             this.startedOwnBGM = false;
         }
 
-        // Calculate base total height
-        const totalHeight = this.lines.length * this.lineHeight + this.game.height * 0.5; // Allow text to scroll to center before stopping
+        // Known exact voice durations (seconds) so scroll speed is accurate from frame 1
+        let fallbackDuration = 35;
+        if (this.voicePath.includes('prologue')) fallbackDuration = 46.4;
+        else if (this.voicePath.includes('reflexion')) fallbackDuration = 99.5;
+        else if (this.voicePath.includes('epilogue')) fallbackDuration = 76.1;
+        else if (this.voicePath.includes('outro')) fallbackDuration = 24.8;
+
+        const scrollDist = Math.max(100, this.initialScrollY - this.targetEndY);
 
         if (this.voicePath) {
             this.game.audioManager.playVoice(this.voicePath, () => {
                 this.finished = true;
             });
-            // Default arbitrary speed until duration loads
-            this.scrollSpeed = totalHeight / 70;
-        } else {
-            this.scrollSpeed = totalHeight / 15;
-            // We now handle auto-finishing dynamically in the update loop 
-            // once the text reaches the center of the screen.
+            // Reach targetEndY ~6 seconds before the voiceover ends so the final lines remain on screen to read
+            this.scrollSpeed = scrollDist / Math.max(8, fallbackDuration - 6);
+        } else if (!this.isBirthdayScene) {
+            this.scrollSpeed = scrollDist / 12;
         }
 
         // Fade-out state for smooth transitions
@@ -181,7 +203,7 @@ export default class StorySequence {
 
     update(dt) {
         this.time += dt;
-        this.fadeIn = Math.min(1, this.time / 2);
+        this.fadeIn = Math.min(1, this.time / 1.2);
 
         // Smooth fade-out transition
         if (this.fading) {
@@ -195,45 +217,32 @@ export default class StorySequence {
             return; // Stop all other updates during fade
         }
 
-        // Sync text scroll speed to audio duration if playing
+        // Refine text scroll speed once HTML5 Audio reports exact duration
         if (this.voicePath && !this._hasGoodSpeed && this.game.audioManager.voiceChannel) {
             const actualDuration = this.game.audioManager.voiceChannel.duration;
-            const totalHeight = this.lines.length * this.lineHeight + this.game.height * 0.5;
-            if (!isNaN(actualDuration) && actualDuration > 1 && actualDuration !== Infinity) {
-                // Add a small 2-second buffer so text finishes slightly after voice ends naturally
-                this.scrollSpeed = totalHeight / (actualDuration + 2);
-                this._hasGoodSpeed = true;
-            } else if (this.time > 2.0) {
-                // If 2 seconds have passed and duration is STILL broken/NaN, 
-                // Safari or macOS has 100% blocked the audio. Fallback to a safe reading speed!
-                console.warn("Audio duration unavailable/blocked. Using 15s fallback speed.");
-                this.scrollSpeed = totalHeight / 15;
+            const scrollDist = Math.max(100, this.initialScrollY - this.targetEndY);
+            if (!isNaN(actualDuration) && actualDuration > 5 && actualDuration !== Infinity) {
+                this.scrollSpeed = scrollDist / Math.max(8, actualDuration - 6);
                 this._hasGoodSpeed = true;
             }
         }
 
-        // Scroll text upward
+        // Scroll text upward until it reaches targetEndY (where the final lines stay clearly centered)
         if (!this.finished) {
-            const lastLineY = this.scrollY + (this.lines.length * this.lineHeight);
-            // Birthday: stop when the text block is vertically centered (not too high!)
-            const totalTextHeight = this.lines.length * this.lineHeight;
-            const centeredY = (this.game.height - totalTextHeight) / 2 + 30; // +30 to sit slightly lower
-            if (this.isBirthdayScene && this.scrollY <= centeredY) {
-                // BIRTHDAY CARD: Freeze text permanently centered. Never auto-advance.
-                this.scrollY = centeredY;
+            if (this.scrollY <= this.targetEndY) {
+                this.scrollY = this.targetEndY;
                 this.scrollSpeed = 0;
-                // Don't set finished — birthday stays on screen forever until manual exit
-            } else if (!this.voicePath && lastLineY <= this.game.height / 2) {
-                // UNVOICED NON-BIRTHDAY: Freeze at center + start reading timer
-                this.scrollSpeed = 0;
-                if (!this._unvoicedReadTimerStarted) {
+                if (!this.voicePath && !this.isBirthdayScene && !this._unvoicedReadTimerStarted) {
                     this._unvoicedReadTimerStarted = true;
-                    setTimeout(() => {
+                    this.autoFinishTimer = setTimeout(() => {
                         this.finished = true;
-                    }, 10000); // 10 seconds reading time
+                    }, 8000);
                 }
             } else {
                 this.scrollY -= this.scrollSpeed * dt;
+                if (this.scrollY < this.targetEndY) {
+                    this.scrollY = this.targetEndY;
+                }
             }
         }
 
@@ -422,7 +431,7 @@ export default class StorySequence {
             const y = this.scrollY + i * this.lineHeight;
 
             if (y > -40 && y < h + 40) {
-                const fadeZone = 150;
+                const fadeZone = 70;
                 let alpha = this.fadeIn;
                 if (y < fadeZone) alpha *= y / fadeZone;
                 else if (y > h - fadeZone) alpha *= (h - y) / fadeZone;
@@ -465,20 +474,20 @@ export default class StorySequence {
 
     /** Draw the unlocked character card (used by non-birthday scenes) */
     _drawUnlockCard(ctx, w, h) {
-        const cx = w / 2;
-        const cy = h * 0.4;
+        const cx = w * 0.83;
+        const cy = h * 0.45;
         ctx.globalAlpha = this.fadeIn;
 
         // "BLOODLINE UNLOCKED" Title
         ctx.fillStyle = '#ff0055';
         ctx.textAlign = 'center';
-        ctx.font = 'bold 24px "Press Start 2P"';
+        ctx.font = 'bold 20px "Press Start 2P"';
         ctx.shadowColor = '#ff0055';
         ctx.shadowBlur = 10;
-        ctx.fillText("BLOODLINE UNLOCKED:", cx, cy - 140);
+        ctx.fillText("BLOODLINE UNLOCKED:", cx, cy - 135);
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 30px "Press Start 2P"';
+        ctx.font = 'bold 24px "Press Start 2P"';
         ctx.fillText(this.unlockedFighter.name.toUpperCase(), cx, cy - 90);
         ctx.shadowBlur = 0;
 
@@ -487,7 +496,7 @@ export default class StorySequence {
         const portrait = this.game.assetManager.images[portraitKey];
 
         // Draw box background
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         ctx.shadowColor = '#00ff00';
         ctx.shadowBlur = 40;
         ctx.fillRect(cx - 150, cy - 60, 300, 420);

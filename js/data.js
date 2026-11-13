@@ -6,21 +6,21 @@
 // ─── MAIN ROSTER (Arcade/Story Mode Order) ───
 // Keano is the hero. The 14 opponents follow in story order.
 export const ROSTER = [
-    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 420, speed: 520, power: 100, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
-    { id: 'Hattori', folder: '1.Hattori_Japan', name: 'Hattori', nickname: 'The Silent Blade', country: 'Japan', stageId: 'Japan', hp: 420, speed: 600, power: 100, spritePrefix: 'hattori', cutinFile: 'proj_hattori.png' },
-    { id: 'Raheel', folder: '2.Raheel', name: 'Raheel', nickname: 'Desert Storm', country: 'India', stageId: 'India', hp: 430, speed: 520, power: 105, spritePrefix: 'raheel', flipPunchOnly: true, cutinFile: 'proj_raheel.png' },
-    { id: 'Pablo', folder: '3.Pablo', name: 'Pablo', nickname: 'Capoeira King', country: 'Brazil', stageId: 'Brazil', hp: 430, speed: 580, power: 105, spritePrefix: 'pablo', cutinFile: 'proj_pablo.png' },
-    { id: 'Tzubaza', folder: '4.Tzubaza', name: 'Tzubaza', nickname: 'The Dragon', country: 'China', stageId: 'China', hp: 450, speed: 500, power: 110, largeAura: true, spritePrefix: 'tzubaza', cutinFile: 'proj_tzubaza.png' },
-    { id: 'AlCapone', folder: '5.Al_Capone', name: 'Al Capone', nickname: 'Mob Boss', country: 'Italy', stageId: 'Italy', hp: 460, speed: 480, power: 110, spritePrefix: 'capone', cutinFile: 'proj_al_capone.png' },
-    { id: 'Gargamel', folder: '6.C_Gargamel', name: 'C. Gargamel', nickname: 'Dark Alchemist', country: 'Germany', stageId: 'Germany', hp: 450, speed: 500, power: 115, flipStance: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
-    { id: 'Marley', folder: '7.Marley_Jamaica', name: 'Marley', nickname: 'Rasta Warrior', country: 'Jamaica', stageId: 'Jamaica', hp: 450, speed: 560, power: 110, spritePrefix: 'marley', cutinFile: 'proj_marley.png' },
-    { id: 'Kowalski', folder: '8.Kowalski_Poland', name: 'Kowalski', nickname: 'Iron Bear', country: 'Poland', stageId: 'Poland', hp: 500, speed: 440, power: 125, largeAura: true, spritePrefix: 'kowalski', cutinFile: 'proj_kowalski.png' },
-    { id: 'Paco', folder: '9.Paco_el_Taco', name: 'Paco el Taco', nickname: 'Lucha Libre', country: 'Mexico', stageId: 'Mexico', hp: 470, speed: 540, power: 115, spritePrefix: 'paco', cutinFile: 'proj_paco.png' },
-    { id: 'Juan', folder: '10.Juan', name: 'Juan', nickname: 'Matador', country: 'Spain', stageId: 'Spain', hp: 470, speed: 560, power: 115, spritePrefix: 'juan', cutinFile: 'proj_juan.png' },
-    { id: 'Lee', folder: '11.Lee', name: 'Lee', nickname: 'Fist of Fury', country: 'Japan', stageId: 'Japan_Night', hp: 460, speed: 650, power: 120, flipPunchOnly: true, spritePrefix: 'lee', cutinFile: 'proj_lee.png' },
-    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 500, speed: 580, power: 125, largeAura: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
-    { id: 'Putin', folder: '13.Putin', name: 'Putin', nickname: 'Cold War', country: 'Russia', stageId: 'Russia', hp: 550, speed: 440, power: 135, largeAura: true, spritePrefix: 'putin', cutinFile: 'proj_putin.png' },
-    { id: 'VikingoRaw', folder: '14.1.vikingo_shirtless', name: 'Dark Vikingo', nickname: 'God of War', country: 'Valhalla', stageId: 'Valhalla', hp: 600, speed: 600, power: 150, largeAura: true, flipPunchOnly: true, spritePrefix: 'vikingo_shirtless', cutinFile: 'proj_dark_vikingo.png' },
+    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 450, speed: 540, power: 105, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
+    { id: 'Hattori', folder: '1.Hattori_Japan', name: 'Hattori', nickname: 'The Silent Blade', country: 'Japan', stageId: 'Japan', hp: 340, speed: 460, power: 70, spritePrefix: 'hattori', cutinFile: 'proj_hattori.png' },
+    { id: 'Raheel', folder: '2.Raheel', name: 'Raheel', nickname: 'Desert Storm', country: 'India', stageId: 'India', hp: 355, speed: 470, power: 75, spritePrefix: 'raheel', flipPunchOnly: true, cutinFile: 'proj_raheel.png' },
+    { id: 'Pablo', folder: '3.Pablo', name: 'Pablo', nickname: 'Capoeira King', country: 'Brazil', stageId: 'Brazil', hp: 370, speed: 485, power: 80, spritePrefix: 'pablo', cutinFile: 'proj_pablo.png' },
+    { id: 'Tzubaza', folder: '4.Tzubaza', name: 'Tzubaza', nickname: 'The Dragon', country: 'China', stageId: 'China', hp: 385, speed: 480, power: 85, largeAura: true, spritePrefix: 'tzubaza', cutinFile: 'proj_tzubaza.png' },
+    { id: 'AlCapone', folder: '5.Al_Capone', name: 'Al Capone', nickname: 'Mob Boss', country: 'Italy', stageId: 'Italy', hp: 400, speed: 460, power: 88, spritePrefix: 'capone', cutinFile: 'proj_al_capone.png' },
+    { id: 'Gargamel', folder: '6.C_Gargamel', name: 'C. Gargamel', nickname: 'Dark Alchemist', country: 'Germany', stageId: 'Germany', hp: 410, speed: 485, power: 92, flipStance: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
+    { id: 'Marley', folder: '7.Marley_Jamaica', name: 'Marley', nickname: 'Rasta Warrior', country: 'Jamaica', stageId: 'Jamaica', hp: 420, speed: 510, power: 95, spritePrefix: 'marley', cutinFile: 'proj_marley.png' },
+    { id: 'Kowalski', folder: '8.Kowalski_Poland', name: 'Kowalski', nickname: 'Iron Bear', country: 'Poland', stageId: 'Poland', hp: 440, speed: 430, power: 100, largeAura: true, spritePrefix: 'kowalski', cutinFile: 'proj_kowalski.png' },
+    { id: 'Paco', folder: '9.Paco_el_Taco', name: 'Paco el Taco', nickname: 'Lucha Libre', country: 'Mexico', stageId: 'Mexico', hp: 440, speed: 520, power: 100, spritePrefix: 'paco', cutinFile: 'proj_paco.png' },
+    { id: 'Juan', folder: '10.Juan', name: 'Juan', nickname: 'Matador', country: 'Spain', stageId: 'Spain', hp: 450, speed: 530, power: 105, spritePrefix: 'juan', cutinFile: 'proj_juan.png' },
+    { id: 'Lee', folder: '11.Lee', name: 'Lee', nickname: 'Fist of Fury', country: 'Japan', stageId: 'Japan_Night', hp: 450, speed: 580, power: 105, flipPunchOnly: true, spritePrefix: 'lee', cutinFile: 'proj_lee.png' },
+    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 470, speed: 550, power: 110, largeAura: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
+    { id: 'Putin', folder: '13.Putin', name: 'Putin', nickname: 'Cold War', country: 'Russia', stageId: 'Russia', hp: 500, speed: 430, power: 115, largeAura: true, spritePrefix: 'putin', cutinFile: 'proj_putin.png' },
+    { id: 'VikingoRaw', folder: '14.1.vikingo_shirtless', name: 'Dark Vikingo', nickname: 'God of War', country: 'Valhalla', stageId: 'Valhalla', hp: 540, speed: 560, power: 125, largeAura: true, flipPunchOnly: true, spritePrefix: 'vikingo_shirtless', cutinFile: 'proj_dark_vikingo.png' },
 ];
 // ─── SPECIAL / SECRET CHARACTERS ───
 // "unlockedBy" defines the Bloodline progression requirement (who you need to beat Arcade mode with)
