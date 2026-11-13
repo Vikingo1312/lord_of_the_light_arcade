@@ -18,7 +18,6 @@ export default class TouchPad {
         // Attack buttons — current + previous frame for "just pressed"
         this.buttons = { l: false, h: false, s: false };
         this.prevButtons = { l: false, h: false, s: false };
-        this.prevDpad = { up: false, down: false, left: false, right: false };
 
         // Latch: once a button/dpad is pressed, hold it until injectInput consumes it.
         // This prevents fast taps from being lost between frames on mobile.
@@ -85,6 +84,9 @@ export default class TouchPad {
     }
 
     handleTouches(touchList) {
+        // Save previous button state
+        this.prevButtons = { ...this.buttons };
+
         // Reset live state (represents what fingers are CURRENTLY touching)
         this.dpad = { up: false, down: false, left: false, right: false };
         this.buttons = { l: false, h: false, s: false };
@@ -152,21 +154,11 @@ export default class TouchPad {
 
         const p1 = inputManager.p1;
 
-        // Held D-pad (latched OR live)
-        const latchLeft = this.dpad.left || this.latchedDpad.left;
-        const latchRight = this.dpad.right || this.latchedDpad.right;
-        const latchUp = this.dpad.up || this.latchedDpad.up;
-        const latchDown = this.dpad.down || this.latchedDpad.down;
-
-        p1.left = p1.left || latchLeft;
-        p1.right = p1.right || latchRight;
-        p1.up = p1.up || latchUp;
-        p1.down = p1.down || latchDown;
-
-        if (latchUp && !this.prevDpad.up) p1.upJust = true;
-        if (latchDown && !this.prevDpad.down) p1.downJust = true;
-        if (latchLeft && !this.prevDpad.left) p1.leftJust = true;
-        if (latchRight && !this.prevDpad.right) p1.rightJust = true;
+        // Use latched state (survives fast taps) OR live state (finger still down)
+        p1.left = p1.left || this.dpad.left || this.latchedDpad.left;
+        p1.right = p1.right || this.dpad.right || this.latchedDpad.right;
+        p1.up = p1.up || this.dpad.up || this.latchedDpad.up;
+        p1.down = p1.down || this.dpad.down || this.latchedDpad.down;
 
         // Held buttons (latched OR live)
         const latchL = this.buttons.l || this.latchedButtons.l;
@@ -177,12 +169,10 @@ export default class TouchPad {
         p1.s = p1.s || latchS;
 
         // "Just pressed" — true only on the frame it goes from false to true
+        // Use latched state to catch taps that started and ended between frames
         if (latchL && !this.prevButtons.l) p1.lJust = true;
         if (latchH && !this.prevButtons.h) p1.hJust = true;
         if (latchS && !this.prevButtons.s) p1.sJust = true;
-
-        this.prevButtons = { l: latchL, h: latchH, s: latchS };
-        this.prevDpad = { up: latchUp, down: latchDown, left: latchLeft, right: latchRight };
 
         // Clear latches after consumption — they've been seen by the game loop
         this.latchedButtons = { l: false, h: false, s: false };
