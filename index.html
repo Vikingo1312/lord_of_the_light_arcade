@@ -73,7 +73,7 @@
         <!-- Mobile Hamburger Menu (touch devices only) -->
         <div id="mobile-menu-btn" style="
             display: none;
-            position: fixed; top: 12px; right: 12px; z-index: 9999;
+            position: fixed; top: 12px; left: 12px; z-index: 9999;
             width: 44px; height: 44px;
             background: rgba(15,18,25,0.85);
             border: 2px solid rgba(0,212,255,0.4);
@@ -81,7 +81,7 @@
             cursor: pointer;
             align-items: center; justify-content: center;
             backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-        " ontouchstart="document.getElementById('mobile-menu').classList.toggle('hidden')">
+        ">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <rect y="3" width="24" height="3" rx="1.5" fill="#00d4ff" />
                 <rect y="10" width="18" height="3" rx="1.5" fill="#00d4ff" />
@@ -90,7 +90,7 @@
         </div>
 
         <div id="mobile-menu" class="hidden" style="
-            position: fixed; top: 60px; right: 12px; z-index: 9998;
+            position: fixed; top: 60px; left: 12px; z-index: 9998;
             background: rgba(10,12,20,0.92);
             border: 2px solid rgba(0,212,255,0.3);
             border-radius: 12px;
@@ -98,31 +98,57 @@
             min-width: 180px;
             backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
         ">
-            <div class="mmenu-item" onclick="
-                if(document.fullscreenElement){document.exitFullscreen()}else{document.documentElement.requestFullscreen().catch(()=>{})}
-                document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#00d4ff;font:bold 14px 'Press Start 2P';cursor:pointer;">⛶ FULLSCREEN
+            <div id="mmenu-fs" class="mmenu-item" style="padding:14px 20px;color:#00d4ff;font:bold 14px 'Press Start 2P';cursor:pointer;">⛶ FULLSCREEN
             </div>
-            <div class="mmenu-item" onclick="
-                const am=window.__gameRef?.audioManager;
-                if(am){am.bgm&&(am.bgm.muted=!am.bgm.muted)}
-                document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#ffcc00;font:bold 14px 'Press Start 2P';cursor:pointer;">🔇 MUTE</div>
-            <div class="mmenu-item" onclick="
-                window.__gameRef?.stateManager?.switchState('Menu');
-                document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 20px;color:#ff4444;font:bold 14px 'Press Start 2P';cursor:pointer;">🏠 MENU</div>
+            <div id="mmenu-mute" class="mmenu-item" style="padding:14px 20px;color:#ffcc00;font:bold 14px 'Press Start 2P';cursor:pointer;">🔇 MUTE</div>
+            <div id="mmenu-home" class="mmenu-item" style="padding:14px 20px;color:#ff4444;font:bold 14px 'Press Start 2P';cursor:pointer;">🏠 MENU</div>
         </div>
     </div>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.07"></script>
+    <script type="module" src="js/main.js?v=2.08"></script>
 
     <script>
+        const menuBtn = document.getElementById('mobile-menu-btn');
+        const menuPanel = document.getElementById('mobile-menu');
         // Show hamburger menu only on touch devices
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-            document.getElementById('mobile-menu-btn').style.display = 'flex';
+            menuBtn.style.display = 'flex';
         }
+        const bindTapOrClick = (el, fn) => {
+            if (!el) return;
+            let touched = false;
+            el.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                touched = true;
+                fn();
+                setTimeout(() => { touched = false; }, 350);
+            }, { passive: false });
+            el.addEventListener('click', (e) => {
+                if (touched) return;
+                e.stopPropagation();
+                fn();
+            });
+        };
+        bindTapOrClick(menuBtn, () => menuPanel.classList.toggle('hidden'));
+        bindTapOrClick(document.getElementById('mmenu-fs'), () => {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            } else {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+            menuPanel.classList.add('hidden');
+        });
+        bindTapOrClick(document.getElementById('mmenu-mute'), () => {
+            const am = window.__gameRef?.audioManager;
+            if (am && am.bgm) am.bgm.muted = !am.bgm.muted;
+            menuPanel.classList.add('hidden');
+        });
+        bindTapOrClick(document.getElementById('mmenu-home'), () => {
+            window.__gameRef?.stateManager?.switchState('Menu');
+            menuPanel.classList.add('hidden');
+        });
         // iOS Safari: scroll to hide address bar
         window.addEventListener('load', () => {
             setTimeout(() => window.scrollTo(0, 1), 100);

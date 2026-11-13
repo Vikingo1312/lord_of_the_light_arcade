@@ -110,6 +110,8 @@ export default class CombatState {
         }, 1000);
 
         this.game.canvas.addEventListener('mousedown', this._onMouseClick);
+        this.game.canvas.addEventListener('touchstart', this._onMouseClick, { passive: true });
+        this.game.canvas.addEventListener('mousemove', this._onMouseMove);
     }
 
     preloadFighterSprites(char) {
@@ -138,24 +140,131 @@ export default class CombatState {
             this.game.audioManager.stopBGM();
         }
         this.game.canvas.removeEventListener('mousedown', this._onMouseClick);
+        this.game.canvas.removeEventListener('touchstart', this._onMouseClick);
+        this.game.canvas.removeEventListener('mousemove', this._onMouseMove);
     }
 
-    _onMouseClick = (e) => {
-        if (!this.game || !this.game.canvas) return;
+    _getCanvasCoords(e) {
         const rect = this.game.canvas.getBoundingClientRect();
         const scaleX = this.game.width / rect.width;
         const scaleY = this.game.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+        const pt = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+        return {
+            x: (pt.clientX - rect.left) * scaleX,
+            y: (pt.clientY - rect.top) * scaleY
+        };
+    }
+
+    _executePauseOption(idx) {
+        if (idx === 0) {
+            this.paused = false;
+        } else if (idx === 1) {
+            this.paused = false;
+            this.game.stateManager.switchState('CharSelect', { arcadeMode: this.arcadeMode });
+        } else {
+            this.paused = false;
+            this.game.stateManager.switchState('Menu');
+        }
+    }
+
+    _onMouseMove = (e) => {
+        if (!this.game || !this.game.canvas) return;
+        const { x, y } = this._getCanvasCoords(e);
+        const cx = this.game.width / 2;
+        const cy = this.game.height / 2;
 
         if (this.paused) {
-            this.paused = false;
+            for (let i = 0; i < 3; i++) {
+                const optY = cy - 10 + (i * 85);
+                if (x >= cx - 340 && x <= cx + 340 && y >= optY - 48 && y <= optY + 20) {
+                    this.pauseSelection = i;
+                }
+            }
+        } else if (this.matchPhase === 'POST_MATCH') {
+            const startY = this.game.height * 0.65;
+            if (this.arcadeMode && this.winner !== 'p1') {
+                for (let i = 0; i < 2; i++) {
+                    const optY = startY + 75 + i * 60;
+                    if (x >= cx - 300 && x <= cx + 300 && y >= optY - 40 && y <= optY + 20) {
+                        this.postMatchIndex = i;
+                    }
+                }
+            } else if (!this.arcadeMode) {
+                for (let i = 0; i < 3; i++) {
+                    const optY = startY + i * 65;
+                    if (x >= cx - 300 && x <= cx + 300 && y >= optY - 40 && y <= optY + 20) {
+                        this.postMatchIndex = i;
+                    }
+                }
+            }
+        }
+    };
+
+    _onMouseClick = (e) => {
+        if (!this.game || !this.game.canvas) return;
+        const { x, y } = this._getCanvasCoords(e);
+        const cx = this.game.width / 2;
+        const cy = this.game.height / 2;
+
+        // Top-right MENU button toggles pause at any time
+        if (x > this.game.width - 220 && y < 90) {
+            this.paused = !this.paused;
+            this.pauseSelection = 0;
             return;
         }
 
-        if (x > this.game.width - 200 && y < 80) {
-            this.paused = true;
-            this.pauseSelection = 0;
+        if (this.paused) {
+            for (let i = 0; i < 3; i++) {
+                const optY = cy - 10 + (i * 85);
+                if (x >= cx - 340 && x <= cx + 340 && y >= optY - 48 && y <= optY + 25) {
+                    this.pauseSelection = i;
+                    this._executePauseOption(i);
+                    return;
+                }
+            }
+            return;
+        }
+
+        // Direct click/tap on POST_MATCH menu options
+        if (this.matchPhase === 'POST_MATCH' && !this._transitioning) {
+            const startY = this.game.height * 0.65;
+            if (this.arcadeMode) {
+                if (this.winner === 'p1') {
+                    if (x >= cx - 220 && x <= cx + 220 && y >= startY && y <= startY + 110) {
+                        this.advanceArcadeLadder();
+                    }
+                } else {
+                    for (let i = 0; i < 2; i++) {
+                        const optY = startY + 75 + i * 60;
+                        if (x >= cx - 300 && x <= cx + 300 && y >= optY - 40 && y <= optY + 25) {
+                            this.postMatchIndex = i;
+                            this._transitioning = true;
+                            if (i === 0) {
+                                this.game.stateManager.switchState('Combat', this.combatData);
+                            } else {
+                                this.game.stateManager.switchState('Menu');
+                            }
+                            return;
+                        }
+                    }
+                }
+            } else {
+                for (let i = 0; i < 3; i++) {
+                    const optY = startY + i * 65;
+                    if (x >= cx - 300 && x <= cx + 300 && y >= optY - 40 && y <= optY + 25) {
+                        this.postMatchIndex = i;
+                        this._transitioning = true;
+                        if (i === 0) {
+                            this.game.stateManager.switchState('Combat', this.combatData);
+                        } else if (i === 1) {
+                            this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
+                        } else {
+                            this.game.stateManager.switchState('Menu');
+                        }
+                        return;
+                    }
+                }
+            }
         }
     };
 
@@ -170,14 +279,10 @@ export default class CombatState {
         }
 
         if (this.paused) {
-            if (p1.downJust) this.pauseSelection = 1;
-            if (p1.upJust) this.pauseSelection = 0;
+            if (p1.downJust) this.pauseSelection = Math.min(2, this.pauseSelection + 1);
+            if (p1.upJust) this.pauseSelection = Math.max(0, this.pauseSelection - 1);
             if (p1.lJust || p1.hJust || p1.sJust) {
-                if (this.pauseSelection === 0) {
-                    this.paused = false;
-                } else {
-                    this.game.stateManager.switchState('Menu');
-                }
+                this._executePauseOption(this.pauseSelection);
             }
             return;
         }

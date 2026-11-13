@@ -327,20 +327,28 @@ export default class CombatHUD {
         const cx = w / 2;
         const cy = h / 2;
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
         ctx.fillRect(0, 0, w, h);
 
         ctx.font = 'bold 80px "Press Start 2P"';
         ctx.fillStyle = '#fdbf00';
         ctx.textAlign = 'center';
-        ctx.fillText('PAUSED', cx, cy - 80);
+        ctx.fillText('PAUSED', cx, cy - 120);
 
-        const options = ['RESUME FIGHT', 'QUIT TO MENU'];
-        ctx.font = 'bold 36px "Press Start 2P"';
+        const options = ['RESUME FIGHT', 'CHARACTER SELECT', 'QUIT TO MENU'];
+        ctx.font = 'bold 34px "Press Start 2P"';
         for (let i = 0; i < options.length; i++) {
-            const y = cy + 40 + (i * 80);
-            ctx.fillStyle = combat.pauseSelection === i ? '#ff0055' : '#888';
-            ctx.fillText(combat.pauseSelection === i ? `> ${options[i]} <` : options[i], cx, y);
+            const y = cy - 10 + (i * 85);
+            const isSel = combat.pauseSelection === i;
+            ctx.fillStyle = isSel ? 'rgba(255, 0, 85, 0.25)' : 'rgba(20, 25, 40, 0.8)';
+            ctx.fillRect(cx - 340, y - 48, 680, 68);
+            ctx.strokeStyle = isSel ? '#ff0055' : '#445';
+            ctx.lineWidth = isSel ? 3 : 2;
+            ctx.strokeRect(cx - 340, y - 48, 680, 68);
+
+            ctx.fillStyle = isSel ? '#ff0055' : '#ccc';
+            ctx.fillText(isSel ? `> ${options[i]} <` : options[i], cx, y);
         }
     }
 }
+

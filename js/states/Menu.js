@@ -57,11 +57,10 @@ export default class MenuState {
         this.inOptions = false;
         this._tapConfirmPending = false;
         this.isTransitioning = false;
+        if (this.credits <= 0) this.credits = this.maxCredits;
 
-        // Check story completion
-        try {
-            this.storyCompleted = localStorage.getItem('lotl_story_complete') === 'true';
-        } catch (e) { this.storyCompleted = false; }
+        // Unlock all modes from the beginning so both Keano and Jayden (JJ Dark) can play any mode immediately
+        this.storyCompleted = true;
 
         // Play main theme — start quiet and fade in gently after the calm splash screen
         this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.02);
@@ -88,8 +87,6 @@ export default class MenuState {
         this._removeMenuTap(); // Clean up any previous listener
 
         this._onMenuTap = (e) => {
-            if (this.inOptions) return; // Options sub-menu uses controller
-
             const rect = this.game.canvas.getBoundingClientRect();
             const scaleX = this.game.canvas.width / rect.width;
             const scaleY = this.game.canvas.height / rect.height;
@@ -102,6 +99,26 @@ export default class MenuState {
             // Unlock audio on any tap
             if (this.game.audioManager.unlockAudio) {
                 this.game.audioManager.unlockAudio();
+            }
+
+            if (this.inOptions) {
+                // Top-right MENU / BACK button or bottom BACK text exits Options
+                if ((tx > this.game.width - 240 && ty < 90) || ty > this.game.height - 120) {
+                    this.inOptions = false;
+                    this.inputCooldown = 15;
+                    return;
+                }
+                // Tap on an option row to toggle/adjust it
+                const startY = 250;
+                for (let i = 0; i < 8; i++) {
+                    const rowY = startY + i * 70;
+                    if (ty >= rowY - 35 && ty <= rowY + 25) {
+                        this.optionIndex = i;
+                        this.adjustOption(tx < this.game.width / 2 ? -1 : 1);
+                        return;
+                    }
+                }
+                return;
             }
 
             // INSERT COIN: if no credits, any tap adds coins
@@ -210,34 +227,35 @@ export default class MenuState {
             if (this.credits <= 0) return; // No credits!
 
             if (this.selectedIndex === 0) {
-                // STORY MODE
+                // STORY MODE — let player choose hero (Keano Romeo, JJ Dark, etc.) before starting Story!
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
                 this.isTransitioning = true;
-                this.startStoryMode();
+                this.game.audioManager.stopBGM();
+                setTimeout(() => {
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: true });
+                }, 400);
             } else if (this.selectedIndex === 1) {
-                // ARCADE MODE — locked until story complete
-                if (!this.storyCompleted) return;
+                // ARCADE MODE
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
                 this.isTransitioning = true;
                 this.game.audioManager.stopBGM();
                 setTimeout(() => {
-                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true });
-                }, 500);
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: false });
+                }, 400);
             } else if (this.selectedIndex === 2) {
-                // VERSUS MODE — locked until story complete
-                if (!this.storyCompleted) return;
+                // VERSUS MODE
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
                 this.isTransitioning = true;
                 this.game.audioManager.stopBGM();
                 setTimeout(() => {
-                    this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
-                }, 500);
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: false, storyMode: false });
+                }, 400);
             } else if (this.selectedIndex === 3) {
                 // OPTIONS
                 this.playConfirm();
@@ -250,6 +268,11 @@ export default class MenuState {
 
     updateOptions(p1) {
         const optCount = 8; // timer, speed, difficulty, music, voice, sfx, eq, fullscreen
+        if (p1.menuJust) {
+            this.inOptions = false;
+            this.inputCooldown = 15;
+            return;
+        }
         if (this.inputCooldown <= 0) {
             if (p1.up) {
                 this.optionIndex = (this.optionIndex - 1 + optCount) % optCount;
@@ -737,10 +760,27 @@ export default class MenuState {
             }
         }
 
-        // Back hint
-        ctx.font = '18px "Press Start 2P"';
+        // Top-right MENU / BACK button
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(this.game.width - 170, 15, 155, 52);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.game.width - 170, 15, 155, 52);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#666';
-        ctx.fillText('PRESS SPECIAL (S) TO GO BACK', cx, this.game.height - 60);
+        ctx.fillText('MENU', this.game.width - 92, 48);
+
+        // Back button at bottom
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+        ctx.fillRect(cx - 260, this.game.height - 95, 520, 54);
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx - 260, this.game.height - 95, 520, 54);
+        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff0055';
+        ctx.fillText('< BACK TO MAIN MENU', cx, this.game.height - 60);
     }
 }
+

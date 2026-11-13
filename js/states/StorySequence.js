@@ -158,10 +158,15 @@ export default class StorySequence {
         // Fade-out state for smooth transitions
         this.fadeOut = 0;   // 0 = fully visible, 1 = fully faded
         this.fading = false;
+
+        this.game.canvas.addEventListener('mousedown', this._onPointerDown);
+        this.game.canvas.addEventListener('touchstart', this._onPointerDown, { passive: true });
     }
 
     exit() {
         if (this.autoFinishTimer) clearTimeout(this.autoFinishTimer);
+        this.game.canvas.removeEventListener('mousedown', this._onPointerDown);
+        this.game.canvas.removeEventListener('touchstart', this._onPointerDown);
         // Always stop voice when leaving a story scene
         this.game.audioManager.stopVoice();
 
@@ -171,6 +176,24 @@ export default class StorySequence {
             this.game.audioManager.stopBGM();
         }
     }
+
+    _onPointerDown = (e) => {
+        if (!this.game || !this.game.canvas || this._advanced) return;
+        const rect = this.game.canvas.getBoundingClientRect();
+        const scaleX = this.game.width / rect.width;
+        const scaleY = this.game.height / rect.height;
+        const pt = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+        const x = (pt.clientX - rect.left) * scaleX;
+        const y = (pt.clientY - rect.top) * scaleY;
+
+        // Top-right MENU button returns directly to Main Menu
+        if (x > this.game.width - 220 && y < 90) {
+            this._advanced = true;
+            this.game.audioManager.stopVoice();
+            this.game.audioManager.stopBGM();
+            this.game.stateManager.switchState('Menu');
+        }
+    };
 
     randomStarColor() {
         const colors = [
@@ -448,6 +471,19 @@ export default class StorySequence {
         // Draw unlocked character card if present — BEHIND text for birthday, ON TOP for others
         if (this.unlockedFighter && !this.isBirthdayScene) {
             this._drawUnlockCard(ctx, w, h);
+        }
+
+        // Top-right MENU button
+        if (!this.fading) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            ctx.fillRect(w - 160, 15, 145, 50);
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(w - 160, 15, 145, 50);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText('MENU', w - 88, 48);
         }
 
         // Skip hint — Birthday shows "HAUPTMENÜ", others show "SKIP"

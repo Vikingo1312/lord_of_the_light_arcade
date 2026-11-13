@@ -1,4 +1,5 @@
 import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js';
+import { STORY_PROLOGUE } from '../story_data.js';
 import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js';
 
 export default class CharacterSelectState {
@@ -20,11 +21,13 @@ export default class CharacterSelectState {
         this.inputCooldown = 0;
         this.loadingCombat = false;
         this.bgMusic = null;
+        this.storyMode = false;
     }
 
     enter(data) {
         console.log("Entering Character Select");
         this.arcadeMode = data && data.arcadeMode !== undefined ? data.arcadeMode : false;
+        this.storyMode = Boolean(data && data.storyMode);
         this.p1Index = 0;
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
@@ -40,13 +43,90 @@ export default class CharacterSelectState {
         // Play continuous main theme across menu and select screens
         this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.15);
         playAnnouncer(this.game.audioManager, 'select');
+
+        this.game.canvas.addEventListener('mousedown', this._onPointerDown);
+        this.game.canvas.addEventListener('touchstart', this._onPointerDown, { passive: true });
     }
 
     exit() {
-        // Automatically handled by State transitions and AudioManager, 
-        // but since Combat will overwrite it anyway, we can leave it running or stop it.
-        // Combat has its own playStageMusic call.
         this.game.audioManager.stopBGM();
+        this.game.canvas.removeEventListener('mousedown', this._onPointerDown);
+        this.game.canvas.removeEventListener('touchstart', this._onPointerDown);
+    }
+
+    _onPointerDown = (e) => {
+        if (!this.game || !this.game.canvas || this.loadingCombat) return;
+        const rect = this.game.canvas.getBoundingClientRect();
+        const scaleX = this.game.width / rect.width;
+        const scaleY = this.game.height / rect.height;
+        const pt = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
+        const x = (pt.clientX - rect.left) * scaleX;
+        const y = (pt.clientY - rect.top) * scaleY;
+
+        // Top-right MENU button returns to Main Menu
+        if (x > this.game.width - 220 && y < 90) {
+            this.game.stateManager.switchState('Menu');
+            return;
+        }
+
+        // Check fighter grid click/tap
+        const cellW = 160;
+        const cellH = 160;
+        const startX = 60;
+        const startY = 120;
+
+        for (let i = 0; i < this.allFighters.length; i++) {
+            const col = i % this.columns;
+            const row = Math.floor(i / this.columns);
+            const cx = startX + col * cellW;
+            const cy = startY + row * cellH;
+            if (x >= cx && x <= cx + cellW && y >= cy && y <= cy + cellH) {
+                const char = this.allFighters[i];
+                if (!isFighterUnlocked(char.id)) return;
+
+                if (!this.p1Locked) {
+                    this.p1Index = i;
+                    this._lockP1();
+                } else if (!this.p2Locked && !this.arcadeMode) {
+                    this.p2Index = i;
+                    this._lockP2();
+                }
+                return;
+            }
+        }
+    };
+
+    _lockP1() {
+        const char = this.allFighters[this.p1Index];
+        if (!isFighterUnlocked(char.id)) {
+            this.inputCooldown = 15;
+            return;
+        }
+        this.p1Locked = true;
+        this.inputCooldown = 20;
+        playFighterSound(this.game.audioManager, char.id, 'select');
+
+        if (this.arcadeMode) {
+            this.p2Index = 1; // ROSTER[1] Hattori is the start of the ladder
+            this.p2Locked = true;
+            this.loadingCombat = true;
+            this.preloadAndFight();
+        } else {
+            this.p2Index = this.p1Index;
+        }
+    }
+
+    _lockP2() {
+        const char = this.allFighters[this.p2Index];
+        if (!isFighterUnlocked(char.id)) {
+            this.inputCooldown = 15;
+            return;
+        }
+        this.p2Locked = true;
+        this.inputCooldown = 60;
+        this.loadingCombat = true;
+        playFighterSound(this.game.audioManager, char.id, 'select');
+        this.preloadAndFight();
     }
 
     update(dt) {
@@ -54,6 +134,11 @@ export default class CharacterSelectState {
             this.inputCooldown--;
         }
         const p1 = this.game.inputManager.p1;
+
+        if (p1.menuJust) {
+            this.game.stateManager.switchState('Menu');
+            return;
+        }
 
         if (!this.p1Locked && this.inputCooldown <= 0) {
             // P1 Selection Phase
@@ -63,27 +148,7 @@ export default class CharacterSelectState {
             else if (p1.down) { this.p1Index = Math.min(this.allFighters.length - 1, this.p1Index + 1 * this.columns); this.inputCooldown = 10; }
 
             if (p1.l || p1.h) {
-                const char = this.allFighters[this.p1Index];
-                if (!isFighterUnlocked(char.id)) {
-                    // Locked! Cannot select. Play buzzer or ignore.
-                    this.inputCooldown = 15;
-                    return;
-                }
-
-                this.p1Locked = true;
-                this.inputCooldown = 20;
-                playFighterSound(this.game.audioManager, char.id, 'select');
-
-                if (this.arcadeMode) {
-                    // Arcade Mode: Skip P2 selection, go straight to ladder
-                    this.p2Index = 1; // ROSTER[1] Hattori is the start of the ladder
-                    this.p2Locked = true;
-                    this.loadingCombat = true;
-                    this.preloadAndFight();
-                } else {
-                    // Versus Mode: Initialize P2 cursor to P1's position to let P1 pick P2
-                    this.p2Index = this.p1Index;
-                }
+                this._lockP1();
             } else if (p1.s) {
                 // Return to Main Menu
                 this.inputCooldown = 20;
@@ -97,17 +162,7 @@ export default class CharacterSelectState {
             else if (p1.down) { this.p2Index = Math.min(this.allFighters.length - 1, this.p2Index + this.columns); this.inputCooldown = 10; }
 
             if (p1.l || p1.h) {
-                const char = this.allFighters[this.p2Index];
-                if (!isFighterUnlocked(char.id)) {
-                    // Locked!
-                    this.inputCooldown = 15;
-                    return;
-                }
-                this.p2Locked = true;
-                this.inputCooldown = 60;
-                this.loadingCombat = true;
-                playFighterSound(this.game.audioManager, char.id, 'select');
-                this.preloadAndFight();
+                this._lockP2();
             } else if (p1.s) {
                 // Cancel P1 lock
                 this.p1Locked = false;
@@ -131,18 +186,26 @@ export default class CharacterSelectState {
 
         setTimeout(() => {
             if (this.arcadeMode) {
-                // Arcade Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
+                // Story or Arcade Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
                 const opponent = ROSTER[1];
                 const combatData = {
                     p1: p1Char,
                     p2: { ...opponent, rosterIndex: 1 },
                     stageId: opponent.stageId,
                     arcadeMode: true,
-                    storyMode: false,
+                    storyMode: this.storyMode,
                     arcadeIndex: 1,
                     arcadeWins: 0,
                 };
-                this.game.stateManager.switchState('VersusIntro', combatData);
+                if (this.storyMode) {
+                    this.game.stateManager.switchState('Story', {
+                        ...STORY_PROLOGUE,
+                        nextState: 'VersusIntro',
+                        nextData: combatData,
+                    });
+                } else {
+                    this.game.stateManager.switchState('VersusIntro', combatData);
+                }
             } else {
                 this.game.stateManager.switchState('VersusIntro', {
                     p1: p1Char,
@@ -172,8 +235,19 @@ export default class CharacterSelectState {
         ctx.font = 'bold 44px "Press Start 2P"';
         ctx.shadowColor = '#ff00ff';
         ctx.shadowBlur = 15;
-        ctx.fillText("SELECT YOUR FIGHTER", this.game.width / 2, 65);
+        ctx.fillText(this.storyMode ? "STORY MODE — SELECT HERO" : "SELECT YOUR FIGHTER", this.game.width / 2, 65);
         ctx.shadowBlur = 0;
+
+        // Top-right MENU button
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(this.game.width - 160, 15, 145, 50);
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(this.game.width - 160, 15, 145, 50);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText('MENU', this.game.width - 88, 48);
 
         // ─── UNIFIED FIGHTER GRID ───
         const cellW = 160;
