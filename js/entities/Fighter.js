@@ -864,10 +864,10 @@ export default class Fighter {
                 ctx.restore();
             }
 
-            // ─── CLEAN CROUCH / SWEEP POSE ADJUSTMENT (No jittery breathing/walk distortion!) ───
+            // ─── CLEAN CROUCH / SWEEP POSE ADJUSTMENT (Only for characters without a dedicated low_kick sprite) ───
             let poseScaleX = 1.0;
             let poseScaleY = 1.0;
-            if (this.state === 'CROUCH' || (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'SWEEP' || this.currentAttack.type === 'CROUCH_LIGHT'))) {
+            if (!this.data.multiFrameAnim && (this.state === 'CROUCH' || (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'SWEEP' || this.currentAttack.type === 'CROUCH_LIGHT')))) {
                 poseScaleY = 0.76;
                 poseScaleX = 1.06;
             }
@@ -875,7 +875,7 @@ export default class Fighter {
             // ─── SIMULATE STREET FIGHTER JUMP ROLL OR SPECIAL DASH SPIN ───
             let isRolling = false;
             let currentRotation = 0;
-            if (this.state === 'JUMP' && Math.abs(this.vx) > 10) {
+            if (!this.data.multiFrameAnim && this.state === 'JUMP' && Math.abs(this.vx) > 10) {
                 isRolling = true;
                 const flipSpeed = 8.0;
                 const dir = (this.vx * this.facing > 0) ? 1 : -1;
