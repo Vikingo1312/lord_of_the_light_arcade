@@ -61,24 +61,24 @@ export default class AssetManager {
                     };
                     img.src = item.path + '?v=' + Date.now(); // Cache buster
                 } else if (item.type === 'audio') {
-                    const aud = new Audio();
-                    this.audioBuffer[item.key] = aud;
-
-                    aud.oncanplaythrough = () => {
+                    this.audioBuffer[item.key] = true;
+                    let settled = false;
+                    const finishAudio = () => {
+                        if (settled) return;
+                        settled = true;
                         this.loadedCount++;
                         if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
                         resolve();
                     };
-
-                    aud.onerror = () => {
-                        console.warn(`Failed to pre-load audio: ${item.path}`);
-                        this.loadedCount++;
-                        if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
-                        resolve();
-                    };
-
-                    aud.src = item.path;
-                    aud.load();
+                    const timer = setTimeout(finishAudio, 2500);
+                    if (this.game && this.game.audioManager && typeof this.game.audioManager.preloadAudio === 'function') {
+                        this.game.audioManager.preloadAudio(item.path)
+                            .then(() => { clearTimeout(timer); finishAudio(); })
+                            .catch(() => { clearTimeout(timer); finishAudio(); });
+                    } else {
+                        clearTimeout(timer);
+                        finishAudio();
+                    }
                 }
             });
         });

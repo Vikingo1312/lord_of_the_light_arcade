@@ -101,59 +101,80 @@ export default class CombatHUD {
         ctx.fillRect(p1X, barY, barW, barH);
         ctx.fillRect(p2X, barY, barW, barH);
 
-        // Trailing Red Damage Bar (shows combo damage before smoothly draining)
-        const p1Trail = combat.p1TrailHP !== undefined ? combat.p1TrailHP : combat.p1.hp;
-        const p2Trail = combat.p2TrailHP !== undefined ? combat.p2TrailHP : combat.p2.hp;
+        const pad = 3;
+        const innerW = barW - pad * 2;
+        const innerH = barH - pad * 2;
+        const innerY = barY + pad;
+        const p1InnerX = p1X + pad;
+        const p2InnerX = p2X + pad;
+
+        const p1Dead = combat.p1.hp <= 0 || combat.p1.state === 'KO';
+        const p2Dead = combat.p2.hp <= 0 || combat.p2.state === 'KO';
+
+        // Trailing Red Damage Bar (only drawn while fighter is alive; snaps to 0 on KO!)
+        const p1Trail = p1Dead ? 0 : (combat.p1TrailHP !== undefined ? combat.p1TrailHP : combat.p1.hp);
+        const p2Trail = p2Dead ? 0 : (combat.p2TrailHP !== undefined ? combat.p2TrailHP : combat.p2.hp);
         const p1TrailPct = Math.max(0, Math.min(1, p1Trail / combat.p1.maxHP));
         const p2TrailPct = Math.max(0, Math.min(1, p2Trail / combat.p2.maxHP));
 
-        ctx.fillStyle = '#e6192e';
-        ctx.fillRect(p1X + barW * (1 - p1TrailPct), barY, barW * p1TrailPct, barH);
-        ctx.fillRect(p2X, barY, barW * p2TrailPct, barH);
+        ctx.fillStyle = '#b31237';
+        if (p1TrailPct > 0) {
+            const tw1 = innerW * p1TrailPct;
+            ctx.fillRect(p1InnerX + (innerW - tw1), innerY, tw1, innerH);
+        }
+        if (p2TrailPct > 0) {
+            const tw2 = innerW * p2TrailPct;
+            ctx.fillRect(p2InnerX, innerY, tw2, innerH);
+        }
 
         // Actual Health (Street Fighter drains toward the center KO badge!)
-        const p1Pct = Math.max(0, Math.min(1, combat.p1.hp / combat.p1.maxHP));
-        const p1Grad = ctx.createLinearGradient(0, barY, 0, barY + barH);
-        if (p1Pct > 0.5) {
-            p1Grad.addColorStop(0, '#99ff33');
-            p1Grad.addColorStop(0.5, '#00e640');
-            p1Grad.addColorStop(1, '#008822');
-        } else if (p1Pct > 0.25) {
-            p1Grad.addColorStop(0, '#ffff66');
-            p1Grad.addColorStop(0.5, '#ffcc00');
-            p1Grad.addColorStop(1, '#cc7700');
-        } else {
-            p1Grad.addColorStop(0, '#ff7733');
-            p1Grad.addColorStop(0.5, '#ff2200');
-            p1Grad.addColorStop(1, '#990000');
+        // Alive fighters always render at least a 10px visible sliver inside the gold border so 1 HP never looks empty!
+        const p1Pct = p1Dead ? 0 : Math.max(0, Math.min(1, combat.p1.hp / combat.p1.maxHP));
+        if (!p1Dead && p1Pct > 0) {
+            const p1Grad = ctx.createLinearGradient(0, innerY, 0, innerY + innerH);
+            if (p1Pct > 0.5) {
+                p1Grad.addColorStop(0, '#99ff33');
+                p1Grad.addColorStop(0.5, '#00e640');
+                p1Grad.addColorStop(1, '#008822');
+            } else if (p1Pct > 0.25) {
+                p1Grad.addColorStop(0, '#ffff66');
+                p1Grad.addColorStop(0.5, '#ffcc00');
+                p1Grad.addColorStop(1, '#cc7700');
+            } else {
+                p1Grad.addColorStop(0, '#ff8833');
+                p1Grad.addColorStop(0.5, '#ff3300');
+                p1Grad.addColorStop(1, '#aa0000');
+            }
+            ctx.fillStyle = p1Grad;
+            const p1W = Math.min(innerW, Math.max(10, innerW * p1Pct));
+            ctx.fillRect(p1InnerX + (innerW - p1W), innerY, p1W, innerH);
         }
-        ctx.fillStyle = p1Grad;
-        const p1W = barW * p1Pct;
-        ctx.fillRect(p1X + (barW - p1W), barY, p1W, barH);
 
-        const p2Pct = Math.max(0, Math.min(1, combat.p2.hp / combat.p2.maxHP));
-        const p2Grad = ctx.createLinearGradient(0, barY, 0, barY + barH);
-        if (p2Pct > 0.5) {
-            p2Grad.addColorStop(0, '#99ff33');
-            p2Grad.addColorStop(0.5, '#00e640');
-            p2Grad.addColorStop(1, '#008822');
-        } else if (p2Pct > 0.25) {
-            p2Grad.addColorStop(0, '#ffff66');
-            p2Grad.addColorStop(0.5, '#ffcc00');
-            p2Grad.addColorStop(1, '#cc7700');
-        } else {
-            p2Grad.addColorStop(0, '#ff7733');
-            p2Grad.addColorStop(0.5, '#ff2200');
-            p2Grad.addColorStop(1, '#990000');
+        const p2Pct = p2Dead ? 0 : Math.max(0, Math.min(1, combat.p2.hp / combat.p2.maxHP));
+        if (!p2Dead && p2Pct > 0) {
+            const p2Grad = ctx.createLinearGradient(0, innerY, 0, innerY + innerH);
+            if (p2Pct > 0.5) {
+                p2Grad.addColorStop(0, '#99ff33');
+                p2Grad.addColorStop(0.5, '#00e640');
+                p2Grad.addColorStop(1, '#008822');
+            } else if (p2Pct > 0.25) {
+                p2Grad.addColorStop(0, '#ffff66');
+                p2Grad.addColorStop(0.5, '#ffcc00');
+                p2Grad.addColorStop(1, '#cc7700');
+            } else {
+                p2Grad.addColorStop(0, '#ff8833');
+                p2Grad.addColorStop(0.5, '#ff3300');
+                p2Grad.addColorStop(1, '#aa0000');
+            }
+            ctx.fillStyle = p2Grad;
+            const p2W = Math.min(innerW, Math.max(10, innerW * p2Pct));
+            ctx.fillRect(p2InnerX, innerY, p2W, innerH);
         }
-        ctx.fillStyle = p2Grad;
-        const p2W = barW * p2Pct;
-        ctx.fillRect(p2X, barY, p2W, barH);
 
         // Glossy top bevel highlight
         ctx.fillStyle = 'rgba(255, 255, 255, 0.28)';
-        ctx.fillRect(p1X, barY + 2, barW, 7);
-        ctx.fillRect(p2X, barY + 2, barW, 7);
+        ctx.fillRect(p1InnerX, innerY, innerW, 6);
+        ctx.fillRect(p2InnerX, innerY, innerW, 6);
 
         // Gold Arcade Bar Borders
         ctx.strokeStyle = '#ffd700';
@@ -621,21 +642,83 @@ export default class CombatHUD {
         const h = combat.game.height;
         const cx = w / 2;
         const cy = h / 2;
+        const s = combat.game.settings || {};
 
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(4, 6, 18, 0.86)';
         ctx.fillRect(0, 0, w, h);
 
-        ctx.font = 'bold 80px "Press Start 2P"';
+        ctx.save();
+        ctx.fillStyle = 'rgba(10, 14, 34, 0.94)';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 3;
+        ctx.fillRect(cx - 450, cy - 250, 900, 500);
+        ctx.strokeRect(cx - 450, cy - 250, 900, 500);
+
+        ctx.font = 'bold 54px "Press Start 2P"';
         ctx.fillStyle = '#fdbf00';
         ctx.textAlign = 'center';
-        ctx.fillText('PAUSED', cx, cy - 80);
+        ctx.fillText('PAUSE & SOUND-MIX', cx, cy - 175);
 
-        const options = ['RESUME FIGHT', 'QUIT TO MENU'];
-        ctx.font = 'bold 36px "Press Start 2P"';
-        for (let i = 0; i < options.length; i++) {
-            const y = cy + 40 + (i * 80);
-            ctx.fillStyle = combat.pauseSelection === i ? '#ff0055' : '#888';
-            ctx.fillText(combat.pauseSelection === i ? `> ${options[i]} <` : options[i], cx, y);
+        const rows = [
+            { label: 'WEITERSPIELEN', type: 'action' },
+            { label: 'MUSIK (BGM)', type: 'slider', val: s.musicVolume ?? 0.22, max: 1.0, color: '#00e5ff' },
+            { label: 'FX & HITS', type: 'slider', val: s.sfxVolume ?? 0.90, max: 1.5, color: '#ff3366' },
+            { label: 'STIMMEN', type: 'slider', val: s.voiceVolume ?? 1.00, max: 1.5, color: '#ffd700' },
+            { label: 'HAUPTMENÜ', type: 'action' }
+        ];
+
+        const startY = cy - 110;
+        const rowStep = 68;
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const y = startY + i * rowStep;
+            const sel = combat.pauseSelection === i;
+
+            if (sel) {
+                ctx.fillStyle = 'rgba(255, 0, 85, 0.16)';
+                ctx.fillRect(cx - 410, y - 36, 820, 52);
+                ctx.strokeStyle = '#ff0055';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - 410, y - 36, 820, 52);
+            }
+
+            if (r.type === 'action') {
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 28px "Press Start 2P"';
+                ctx.fillStyle = sel ? '#00ffff' : '#aaaaaa';
+                ctx.fillText(sel ? `> ${r.label} <` : r.label, cx, y);
+            } else {
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 22px "Press Start 2P"';
+                ctx.fillStyle = sel ? '#ffffff' : '#bbbbbb';
+                ctx.fillText(r.label, cx - 380, y - 2);
+
+                const barX = cx - 40;
+                const barW = 280;
+                const barH = 22;
+                const barY = y - 22;
+                const ratio = Math.max(0, Math.min(1, r.val / r.max));
+
+                ctx.fillStyle = '#141829';
+                ctx.fillRect(barX, barY, barW, barH);
+                ctx.fillStyle = r.color;
+                ctx.fillRect(barX, barY, barW * ratio, barH);
+                ctx.strokeStyle = sel ? '#ffffff' : '#556688';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(barX, barY, barW, barH);
+
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.fillStyle = sel ? r.color : '#cccccc';
+                ctx.fillText(`${Math.round(r.val * 100)}%`, cx + 380, y - 2);
+            }
         }
+
+        ctx.textAlign = 'center';
+        ctx.font = '13px "Press Start 2P"';
+        ctx.fillStyle = '#88aacc';
+        ctx.fillText('[↑/↓] AUSWAHL   [←/→ ODER TIPPEN] LAUTSTÄRKE   [ENTER/J] BESTÄTIGEN', cx, cy + 222);
+        ctx.restore();
     }
 }

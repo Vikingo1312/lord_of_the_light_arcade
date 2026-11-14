@@ -13,6 +13,34 @@ export default class Game {
         this.width = canvas.width;
         this.height = canvas.height;
 
+        // Game settings (modified by Options / Sound-Mischpult menu)
+        let savedSettings = {};
+        try {
+            const raw = localStorage.getItem('lotl_settings');
+            if (raw) savedSettings = JSON.parse(raw) || {};
+        } catch (e) { }
+
+        // Migrate old uncalibrated audio mix to v3 Street Fighter Studio Mix
+        const isMixV3 = savedSettings.mixVersion === 3;
+
+        this.settings = {
+            mixVersion: 3,
+            timer: savedSettings.timer || 99,
+            speed: savedSettings.speed || 1.0,
+            difficulty: savedSettings.difficulty || 'NORMAL',
+            masterVolume: isMixV3 ? (savedSettings.masterVolume ?? 1.0) : 1.0,
+            musicVolume: isMixV3 ? (savedSettings.musicVolume ?? 0.22) : 0.22,
+            sfxVolume: isMixV3 ? (savedSettings.sfxVolume ?? 0.90) : 0.90,
+            voiceVolume: isMixV3 ? (savedSettings.voiceVolume ?? 1.00) : 1.00,
+            announcerVolume: isMixV3 ? (savedSettings.announcerVolume ?? 0.95) : 0.95,
+
+            // Effect Bypass Flags — set to false to disable
+            chromaKeyEnabled: false,  // Sprites are already transparent — DO NOT process!
+            hitFlashEnabled: true,    // White flash on hit
+            bgmFilterEnabled: savedSettings.bgmFilterEnabled ?? true, // Auto-duck BGM during voiceover
+            autoFacingEnabled: true,  // Auto-mirror sprites based on position
+        };
+
         this.stateManager = new StateManager(this);
         this.inputManager = new InputManager();
         this.assetManager = new AssetManager(this);
@@ -20,27 +48,7 @@ export default class Game {
         this.touchPad = new TouchPad(this);
         this.networkManager = new NetworkManager(this);
 
-        // Game settings (modified by Options menu)
-        let savedSettings = {};
-        try {
-            const raw = localStorage.getItem('lotl_settings');
-            if (raw) savedSettings = JSON.parse(raw) || {};
-        } catch (e) { }
-
-        this.settings = {
-            timer: savedSettings.timer || 99,
-            speed: savedSettings.speed || 1.0,
-            difficulty: savedSettings.difficulty || 'NORMAL',
-            musicVolume: savedSettings.musicVolume ?? 0.52,
-            voiceVolume: savedSettings.voiceVolume ?? 0.96,
-            sfxVolume: savedSettings.sfxVolume ?? 0.35,
-
-            // Effect Bypass Flags — set to false to disable
-            chromaKeyEnabled: false,  // Sprites are already transparent — DO NOT process!
-            hitFlashEnabled: true,    // White flash on hit
-            bgmFilterEnabled: savedSettings.bgmFilterEnabled ?? true, // Low-pass filter on BGM during voiceover
-            autoFacingEnabled: true,  // Auto-mirror sprites based on position
-        };
+        this.saveSettings();
 
         this.lastTime = 0;
         this.accumulator = 0;
@@ -49,6 +57,26 @@ export default class Game {
         this.isRunning = false;
 
         this.loop = this.loop.bind(this);
+    }
+
+    saveSettings() {
+        try {
+            localStorage.setItem('lotl_settings', JSON.stringify(this.settings));
+        } catch (e) { }
+        if (this.audioManager) {
+            this.audioManager.applyVolumeSettings();
+        }
+    }
+
+    resetAudioMixDefaults() {
+        this.settings.mixVersion = 3;
+        this.settings.masterVolume = 1.00;
+        this.settings.musicVolume = 0.22;
+        this.settings.sfxVolume = 0.90;
+        this.settings.voiceVolume = 1.00;
+        this.settings.announcerVolume = 0.95;
+        this.settings.bgmFilterEnabled = true;
+        this.saveSettings();
     }
 
     start() {

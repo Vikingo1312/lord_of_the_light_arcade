@@ -244,6 +244,59 @@ export default class CombatState {
         this.game.canvas.removeEventListener('mousedown', this._onMouseClick);
     }
 
+    _updateTrailBars(dt) {
+        if (this.p1) {
+            if (this.p1.hp <= 0 || this.p1.state === 'KO') {
+                this.p1.hp = 0;
+                this.p1TrailHP = 0;
+            } else if (this.p1TrailHP > this.p1.hp) {
+                const rate = this.p1.state === 'HIT' ? 65 : 220;
+                this.p1TrailHP = Math.max(this.p1.hp, this.p1TrailHP - rate * dt);
+            } else {
+                this.p1TrailHP = this.p1.hp;
+            }
+        }
+        if (this.p2) {
+            if (this.p2.hp <= 0 || this.p2.state === 'KO') {
+                this.p2.hp = 0;
+                this.p2TrailHP = 0;
+            } else if (this.p2TrailHP > this.p2.hp) {
+                const rate = this.p2.state === 'HIT' ? 65 : 220;
+                this.p2TrailHP = Math.max(this.p2.hp, this.p2TrailHP - rate * dt);
+            } else {
+                this.p2TrailHP = this.p2.hp;
+            }
+        }
+        if (this.ally) {
+            if (this.ally.hp <= 0 || this.ally.state === 'KO') {
+                this.ally.hp = 0;
+                this.allyTrailHP = 0;
+            } else if (this.allyTrailHP > this.ally.hp) {
+                const rate = this.ally.state === 'HIT' ? 65 : 220;
+                this.allyTrailHP = Math.max(this.ally.hp, this.allyTrailHP - rate * dt);
+            } else {
+                this.allyTrailHP = this.ally.hp;
+            }
+        }
+    }
+
+    _adjustPauseVolume(rowIdx, delta) {
+        const s = this.game.settings;
+        if (!s) return;
+        if (rowIdx === 1) {
+            s.musicVolume = Math.round(Math.max(0, Math.min(1.0, (s.musicVolume ?? 0.22) + delta)) * 100) / 100;
+            this.game.saveSettings?.();
+        } else if (rowIdx === 2) {
+            s.sfxVolume = Math.round(Math.max(0, Math.min(1.5, (s.sfxVolume ?? 0.90) + delta)) * 100) / 100;
+            this.game.saveSettings?.();
+            this.game.audioManager?.playHitImpactSound?.(true, false);
+        } else if (rowIdx === 3) {
+            s.voiceVolume = Math.round(Math.max(0, Math.min(1.5, (s.voiceVolume ?? 1.00) + delta)) * 100) / 100;
+            this.game.saveSettings?.();
+            playFighterSound(this.game.audioManager, this.p1?.data?.id || 'Keano', 'special');
+        }
+    }
+
     _onMouseClick = (e) => {
         if (!this.game || !this.game.canvas) return;
         const rect = this.game.canvas.getBoundingClientRect();
@@ -253,7 +306,44 @@ export default class CombatState {
         const y = (e.clientY - rect.top) * scaleY;
 
         if (this.paused) {
-            this.paused = false;
+            const cx = this.game.width / 2;
+            const cy = this.game.height / 2;
+            const startY = cy - 110;
+            const rowStep = 68;
+            for (let i = 0; i < 5; i++) {
+                const ry = startY + i * rowStep;
+                if (y >= ry - 36 && y <= ry + 22 && x >= cx - 420 && x <= cx + 420) {
+                    this.pauseSelection = i;
+                    if (i === 0) {
+                        this.paused = false;
+                    } else if (i === 4) {
+                        if (this.game.networkManager?.active) this.game.networkManager.disconnect();
+                        this.game.stateManager.switchState('Menu');
+                    } else if (i >= 1 && i <= 3) {
+                        const barX = cx - 40;
+                        const barW = 280;
+                        const maxVal = i === 1 ? 1.0 : 1.5;
+                        if (x >= barX && x <= barX + barW) {
+                            const ratio = Math.max(0, Math.min(1, (x - barX) / barW));
+                            const val = Math.round(ratio * maxVal * 20) / 20;
+                            if (i === 1) this.game.settings.musicVolume = val;
+                            if (i === 2) this.game.settings.sfxVolume = val;
+                            if (i === 3) this.game.settings.voiceVolume = val;
+                            this.game.saveSettings?.();
+                            if (i === 2) this.game.audioManager?.playHitImpactSound?.(true, false);
+                            if (i === 3) playFighterSound(this.game.audioManager, this.p1?.data?.id || 'Keano', 'special');
+                        } else if (x < barX) {
+                            this._adjustPauseVolume(i, -0.05);
+                        } else {
+                            this._adjustPauseVolume(i, 0.05);
+                        }
+                    }
+                    return;
+                }
+            }
+            if (x < cx - 450 || x > cx + 450 || y < cy - 260 || y > cy + 260) {
+                this.paused = false;
+            }
             return;
         }
 
@@ -277,12 +367,18 @@ export default class CombatState {
         }
 
         if (this.paused) {
-            if (p1.downJust) this.pauseSelection = 1;
-            if (p1.upJust) this.pauseSelection = 0;
-            if (p1.lJust || p1.hJust || p1.sJust) {
+            if (p1.downJust) this.pauseSelection = (this.pauseSelection + 1) % 5;
+            if (p1.upJust) this.pauseSelection = (this.pauseSelection + 4) % 5;
+            if (p1.leftJust && this.pauseSelection >= 1 && this.pauseSelection <= 3) {
+                this._adjustPauseVolume(this.pauseSelection, -0.05);
+            } else if (p1.rightJust && this.pauseSelection >= 1 && this.pauseSelection <= 3) {
+                this._adjustPauseVolume(this.pauseSelection, 0.05);
+            } else if (p1.lJust || p1.hJust || p1.sJust) {
                 if (this.pauseSelection === 0) {
                     this.paused = false;
-                } else {
+                } else if (this.pauseSelection >= 1 && this.pauseSelection <= 3) {
+                    this._adjustPauseVolume(this.pauseSelection, 0.05);
+                } else if (this.pauseSelection === 4) {
                     if (net && net.active) net.disconnect();
                     this.game.stateManager.switchState('Menu');
                 }
@@ -322,6 +418,7 @@ export default class CombatState {
 
         // Keep gravity running for airborne KO characters during POST_MATCH and VICTORY
         if (this.matchPhase === 'POST_MATCH' || this.matchPhase === 'VICTORY') {
+            this._updateTrailBars(dt);
             const floorY = this.game.height * 0.9;
             const fighters = this.ally ? [this.p1, this.ally, this.p2] : [this.p1, this.p2];
             for (const f of fighters) {
@@ -436,6 +533,7 @@ export default class CombatState {
 
         // ─── KO FREEZE (Slow-motion cinematic KO with flyback) ───
         if (this.matchPhase === 'KO_FREEZE') {
+            this._updateTrailBars(dt);
             const slowDt = dt * 0.3;
             this.koFreezeTimer += dt;
             const loser = this.winner === 'p1' ? this.p2 : this.p1;
@@ -493,16 +591,8 @@ export default class CombatState {
             if (this.callout.timer <= 0) this.callout = null;
         }
 
-        // Smoothly drain Street Fighter Red Trailing Damage Bars when fighter is out of Hitstun
-        if (this.p1.state !== 'HIT' && this.p1TrailHP > this.p1.hp) {
-            this.p1TrailHP = Math.max(this.p1.hp, this.p1TrailHP - 180 * dt);
-        }
-        if (this.p2.state !== 'HIT' && this.p2TrailHP > this.p2.hp) {
-            this.p2TrailHP = Math.max(this.p2.hp, this.p2TrailHP - 180 * dt);
-        }
-        if (this.ally && this.ally.state !== 'HIT' && this.allyTrailHP > this.ally.hp) {
-            this.allyTrailHP = Math.max(this.ally.hp, this.allyTrailHP - 180 * dt);
-        }
+        // Smoothly drain Street Fighter Red Trailing Damage Bars (and snap to 0 immediately on KO!)
+        this._updateTrailBars(dt);
 
         // ─── STREET FIGHTER SUPER COMBO FREEZE ───
         if (this.superFreezeTimer > 0) {
@@ -757,18 +847,29 @@ export default class CombatState {
             }
         }
 
-        // --- Check K.O. ---
+        // --- Check K.O. (Prioritize P1 victory if P2 is defeated on the same frame!) ---
+        const p2Defeated = this.p2.state === 'KO' || this.p2.hp <= 0;
         const teamP1Defeated = this.coopMode && this.ally
-            ? (this.p1.state === 'KO' && this.ally.state === 'KO')
-            : (this.p1.state === 'KO');
+            ? ((this.p1.state === 'KO' || this.p1.hp <= 0) && (this.ally.state === 'KO' || this.ally.hp <= 0))
+            : (this.p1.state === 'KO' || this.p1.hp <= 0);
 
-        if (teamP1Defeated) {
-            this.winner = 'p2';
+        if (p2Defeated) {
+            this.p2.hp = 0;
+            this.p2.state = 'KO';
+            this.p2TrailHP = 0;
+            if (this.p1.hp <= 0) {
+                this.p1.hp = 1;
+                this.p1.state = 'IDLE';
+            }
+            this.winner = 'p1';
             this.matchPhase = 'KO_FREEZE';
             this.koFreezeTimer = 0;
             this._koKnockbackApplied = false;
-        } else if (this.p2.state === 'KO') {
-            this.winner = 'p1';
+        } else if (teamP1Defeated) {
+            this.p1.hp = 0;
+            this.p1.state = 'KO';
+            this.p1TrailHP = 0;
+            this.winner = 'p2';
             this.matchPhase = 'KO_FREEZE';
             this.koFreezeTimer = 0;
             this._koKnockbackApplied = false;
@@ -921,12 +1022,7 @@ export default class CombatState {
             this._applyFighterSnapshot(this.ally, snap.ally);
         }
 
-        if (this.p1.state !== 'HIT' && this.p1TrailHP > this.p1.hp) {
-            this.p1TrailHP = Math.max(this.p1.hp, this.p1TrailHP - 180 * dt);
-        }
-        if (this.p2.state !== 'HIT' && this.p2TrailHP > this.p2.hp) {
-            this.p2TrailHP = Math.max(this.p2.hp, this.p2TrailHP - 180 * dt);
-        }
+        this._updateTrailBars(dt);
 
         if (Array.isArray(snap.projectiles)) {
             this.projectiles = snap.projectiles.map(sp => {
@@ -1020,7 +1116,8 @@ export default class CombatState {
     }
 
     _resolveMeleeHit(attacker, defender, attackerKey) {
-        if (!attacker || !defender || !attacker.activeHitbox || defender.state === 'KO') return;
+        if (!attacker || !defender || !attacker.activeHitbox) return;
+        if (attacker.state === 'KO' || attacker.hp <= 0 || defender.state === 'KO' || defender.hp <= 0) return;
 
         // Grounded reeling defenders cannot be infinite-jabbed by repeated Light punches,
         // but CAN be combo-linked into Heavy, Command Moves, Sweep, or Special attacks!
@@ -1086,6 +1183,22 @@ export default class CombatState {
                 sparks: { x: impactX, y: impactY, c1: '#00eeff', c2: '#ffffff', count: 14, kind: 'block' },
                 combatSound: { type: 'block', charId: defender.data.id }
             });
+            if (defender.hp <= 0) {
+                defender.hp = 0;
+                defender.state = 'KO';
+                defender.activeHitbox = null;
+                if (defender === this.p2) {
+                    this.p2TrailHP = 0;
+                    for (const pr of this.projectiles) if (pr.owner === 'p2') pr.alive = false;
+                } else if (defender === this.p1) {
+                    this.p1TrailHP = 0;
+                }
+                if (!this._koAnnounced) {
+                    this._koAnnounced = true;
+                    playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
+                    this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
+                }
+            }
         } else {
             // Street Fighter Arcade Callouts: FIRST ATTACK!, COUNTER HIT!, THROW SLAM!, Story Special Name!
             if (!this.firstAttackAwarded) {
@@ -1139,13 +1252,24 @@ export default class CombatState {
                 combatSound: { type: atkType === 'THROW' ? 'throw' : 'hit', charId: defender.data.id },
                 shake: isHeavyHit ? { i: 3.5, d: 0.14 } : null
             });
-            if (defender.hp <= 0 && !this._koAnnounced) {
-                const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
-                if (isFinalKO) {
-                    this._koAnnounced = true;
+            if (defender.hp <= 0) {
+                defender.hp = 0;
+                defender.state = 'KO';
+                defender.activeHitbox = null;
+                if (defender === this.p2) {
+                    this.p2TrailHP = 0;
+                    for (const pr of this.projectiles) if (pr.owner === 'p2') pr.alive = false;
+                } else if (defender === this.p1) {
+                    this.p1TrailHP = 0;
                 }
-                playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
-                this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
+                if (!this._koAnnounced) {
+                    const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                    if (isFinalKO) {
+                        this._koAnnounced = true;
+                    }
+                    playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
+                    this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
+                }
             }
         }
     }
@@ -1153,13 +1277,17 @@ export default class CombatState {
     checkProjectileCollisions() {
         for (const proj of this.projectiles) {
             if (!proj.alive) continue;
+            if (proj.owner === 'p2' && (this.p2.state === 'KO' || this.p2.hp <= 0)) {
+                proj.alive = false;
+                continue;
+            }
             const pRect = proj.getHitRect();
             const targets = proj.owner === 'p1'
                 ? [this.p2]
                 : (this.ally ? [this.p1, this.ally] : [this.p1]);
 
             for (const defender of targets) {
-                if (!defender || defender.state === 'KO') continue;
+                if (!defender || defender.state === 'KO' || defender.hp <= 0) continue;
 
                 const hurtR = defender.hurtbox.getWorldRect(defender.x, defender.y, defender.facing);
                 if (Hitbox.checkCollision(pRect, hurtR)) {
@@ -1202,7 +1330,18 @@ export default class CombatState {
                             combatSound: { type: 'hit', charId: defender.data.id },
                             shake: { i: 3, d: 0.12 }
                         });
-                        if (defender.hp <= 0 && !this._koAnnounced) {
+                    }
+                    if (defender.hp <= 0) {
+                        defender.hp = 0;
+                        defender.state = 'KO';
+                        defender.activeHitbox = null;
+                        if (defender === this.p2) {
+                            this.p2TrailHP = 0;
+                            for (const pr of this.projectiles) if (pr.owner === 'p2') pr.alive = false;
+                        } else if (defender === this.p1) {
+                            this.p1TrailHP = 0;
+                        }
+                        if (!this._koAnnounced) {
                             const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
                             if (isFinalKO) {
                                 this._koAnnounced = true;

@@ -5,7 +5,7 @@ import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloade
 export default class MenuState {
     constructor(game) {
         this.game = game;
-        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'OPTIONS'];
+        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'MISCHPULT / OPTIONEN'];
         this.selectedIndex = 0;
         this.inputCooldown = 0;
         this.time = 0;
@@ -23,15 +23,18 @@ export default class MenuState {
         this.inOptions = false;
         this.optionIndex = 0;
         this.isTransitioning = false;
+        this._draggingSlider = false;
 
-        // Game settings (merge with existing — Game.js may have already set bgmFilterEnabled etc.)
+        // Ensure all mixer channels exist in game.settings
         Object.assign(this.game.settings, {
             timer: this.game.settings.timer || 99,
             speed: this.game.settings.speed || 1.0,
             difficulty: this.game.settings.difficulty || 'NORMAL',
-            musicVolume: this.game.settings.musicVolume ?? 0.3,
-            voiceVolume: this.game.settings.voiceVolume ?? 0.9,
-            sfxVolume: this.game.settings.sfxVolume ?? 0.5,
+            masterVolume: this.game.settings.masterVolume ?? 1.0,
+            musicVolume: this.game.settings.musicVolume ?? 0.22,
+            sfxVolume: this.game.settings.sfxVolume ?? 0.90,
+            voiceVolume: this.game.settings.voiceVolume ?? 1.00,
+            announcerVolume: this.game.settings.announcerVolume ?? 0.95,
         });
 
         // Ambient Background Particles
@@ -46,8 +49,10 @@ export default class MenuState {
                 wobble: Math.random() * Math.PI * 2
             });
         }
-        // Mobile tap handler (bound reference for cleanup)
+        // Mobile tap & drag handlers (bound references for cleanup)
         this._onMenuTap = null;
+        this._onMenuMove = null;
+        this._onMenuUp = null;
     }
 
     enter(data) {
@@ -57,47 +62,132 @@ export default class MenuState {
         this.inOptions = false;
         this._tapConfirmPending = false;
         this.isTransitioning = false;
+        this._draggingSlider = false;
 
         // Check story completion
         try {
             this.storyCompleted = localStorage.getItem('lotl_story_complete') === 'true';
         } catch (e) { this.storyCompleted = false; }
 
-        // Play main theme — start quiet and fade in gently after the calm splash screen
+        // Play main theme — start quiet and fade in gently to user's configured musicVolume
         this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.02);
-        // Gradually ramp volume up over ~2 seconds
         this._fadeInTimer = 0;
-        this._fadeInTarget = this.game.settings.musicVolume;
+        this._fadeInTarget = this.game.settings.musicVolume ?? 0.22;
 
-        // Setup direct tap-on-menu for mobile
+        // Setup direct tap & slider drag on menu for mobile & desktop
         this._setupMenuTap();
     }
 
     exit() {
-        // Do not stop music here if transitioning to character select or story
-        // The new state will handle changing or stopping it via AudioManager
         this._removeMenuTap();
     }
 
+    _mapEventToCanvas(e) {
+        const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
+        if (window.mapTouchToCanvas) {
+            return window.mapTouchToCanvas(touch.clientX, touch.clientY, this.game.canvas);
+        }
+        const rect = this.game.canvas.getBoundingClientRect();
+        return {
+            x: (touch.clientX - rect.left) * (this.game.canvas.width / rect.width),
+            y: (touch.clientY - rect.top) * (this.game.canvas.height / rect.height)
+        };
+    }
+
+    _handleOptionsPointer(tx, ty, isDrag = false) {
+        const cx = this.game.width / 2;
+        const startY = 205;
+        const rowStep = 64;
+        const barX = cx - 40;
+        const barW = 360;
+
+        // Top-left back button or bottom back area
+        if (!isDrag && ((tx < 340 && ty < 120) || ty >= this.game.height - 95)) {
+            this.inOptions = false;
+            this.inputCooldown = 15;
+            this.playBlip();
+            return;
+        }
+
+        for (let i = 0; i < 10; i++) {
+            const rowY = startY + i * rowStep;
+            if (ty >= rowY - 32 && ty <= rowY + 24 && tx >= cx - 540 && tx <= cx + 540) {
+                this.optionIndex = i;
+                // Rows 0..4 are volume faders
+                if (i >= 0 && i <= 4) {
+                    const maxVal = (i === 1) ? 1.0 : 1.5;
+                    if (tx >= barX - 12 && tx <= barX + barW + 12) {
+                        const ratio = Math.max(0, Math.min(1, (tx - barX) / barW));
+                        const stepped = Math.round(ratio * maxVal * 20) / 20;
+                        this._setSliderValue(i, stepped, !isDrag);
+                        this._draggingSlider = true;
+                        return;
+                    } else if (!isDrag) {
+                        const dir = tx < barX ? -1 : 1;
+                        this.adjustOption(dir);
+                        return;
+                    }
+                } else if (!isDrag) {
+                    if (i === 8) {
+                        // Reset to Street Fighter Studio Mix defaults
+                        this.game.resetAudioMixDefaults?.();
+                        this._fadeInTarget = this.game.settings.musicVolume;
+                        this.playConfirm();
+                        this.game.audioManager?.playHitImpactSound?.(true, true);
+                    } else if (i === 9) {
+                        this.inOptions = false;
+                        this.inputCooldown = 15;
+                        this.playBlip();
+                    } else {
+                        const dir = tx < cx ? -1 : 1;
+                        this.adjustOption(dir);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    _setSliderValue(rowIndex, val, playPreview = true) {
+        const s = this.game.settings;
+        if (rowIndex === 0) {
+            s.masterVolume = Math.max(0, Math.min(1.5, val));
+        } else if (rowIndex === 1) {
+            s.musicVolume = Math.max(0, Math.min(1.0, val));
+            this._fadeInTarget = s.musicVolume;
+            this._fadeInTimer = 2.0;
+        } else if (rowIndex === 2) {
+            s.sfxVolume = Math.max(0, Math.min(1.5, val));
+        } else if (rowIndex === 3) {
+            s.voiceVolume = Math.max(0, Math.min(1.5, val));
+        } else if (rowIndex === 4) {
+            s.announcerVolume = Math.max(0, Math.min(1.5, val));
+        }
+        this.game.saveSettings?.();
+
+        if (playPreview) {
+            const now = performance.now();
+            if (!this._lastPreviewAt || now - this._lastPreviewAt > 220) {
+                this._lastPreviewAt = now;
+                if (rowIndex === 2) {
+                    this.game.audioManager?.playHitImpactSound?.(true, false);
+                } else if (rowIndex === 3) {
+                    this.game.audioManager?.playFighterVoice?.('assets/audio/voice/keano_special.mp3', 'special');
+                } else if (rowIndex === 4) {
+                    this.game.audioManager?.playAnnouncerVoice?.('assets/audio/voice/announcer_fight.mp3');
+                }
+            }
+        }
+    }
+
     /**
-     * Direct tap-on-menu support for mobile.
-     * Tapping on a menu item selects AND confirms it —
-     * no need to find the small P/K/S buttons.
+     * Direct tap & slider drag support for mobile & desktop.
      */
     _setupMenuTap() {
-        this._removeMenuTap(); // Clean up any previous listener
+        this._removeMenuTap();
 
         this._onMenuTap = (e) => {
-            const touch = e.changedTouches ? e.changedTouches[0] : e;
-            const pt = window.mapTouchToCanvas
-                ? window.mapTouchToCanvas(touch.clientX, touch.clientY, this.game.canvas)
-                : (() => {
-                    const rect = this.game.canvas.getBoundingClientRect();
-                    return {
-                        x: (touch.clientX - rect.left) * (this.game.canvas.width / rect.width),
-                        y: (touch.clientY - rect.top) * (this.game.canvas.height / rect.height)
-                    };
-                })();
+            const pt = this._mapEventToCanvas(e);
             const tx = pt.x;
             const ty = pt.y;
 
@@ -107,27 +197,7 @@ export default class MenuState {
             }
 
             if (this.inOptions) {
-                // Tap bottom area or top-left to exit Options
-                if (ty >= this.game.height - 140 || (tx < 300 && ty < 130)) {
-                    this.inOptions = false;
-                    this.inputCooldown = 15;
-                    this.playBlip();
-                    return;
-                }
-                const startY = 250;
-                for (let i = 0; i < 8; i++) {
-                    const rowY = startY + i * 70;
-                    if (ty >= rowY - 35 && ty <= rowY + 25) {
-                        this.optionIndex = i;
-                        const dir = tx < this.game.width / 2 ? -1 : 1;
-                        this.updateOptions({
-                            up: false, down: false,
-                            left: dir < 0, right: dir > 0,
-                            lJust: true, hJust: false, sJust: false
-                        });
-                        return;
-                    }
-                }
+                this._handleOptionsPointer(tx, ty, false);
                 return;
             }
 
@@ -141,23 +211,35 @@ export default class MenuState {
             // Check if tap hits a menu item
             const menuStartY = this.game.height * 0.61;
             const itemHeight = 56;
-            const hitPadding = 28; // vertical hit area around each item
+            const hitPadding = 28;
 
             for (let i = 0; i < this.options.length; i++) {
                 const itemY = menuStartY + (i * itemHeight);
                 if (ty >= itemY - hitPadding && ty <= itemY + hitPadding) {
-                    // Tapped on menu item i
                     this.selectedIndex = i;
-                    // Simulate confirm (same as pressing P/K/S)
                     this._tapConfirmPending = true;
                     return;
                 }
             }
         };
 
+        this._onMenuMove = (e) => {
+            if (!this.inOptions) return;
+            if (e.type === 'mousemove' && e.buttons !== 1 && !this._draggingSlider) return;
+            const pt = this._mapEventToCanvas(e);
+            this._handleOptionsPointer(pt.x, pt.y, true);
+        };
+
+        this._onMenuUp = () => {
+            this._draggingSlider = false;
+        };
+
         this.game.canvas.addEventListener('touchend', this._onMenuTap, { passive: true });
-        // Also support click for hybrid devices
         this.game.canvas.addEventListener('click', this._onMenuTap, { passive: true });
+        this.game.canvas.addEventListener('touchmove', this._onMenuMove, { passive: true });
+        this.game.canvas.addEventListener('mousemove', this._onMenuMove, { passive: true });
+        window.addEventListener('mouseup', this._onMenuUp, { passive: true });
+        window.addEventListener('touchend', this._onMenuUp, { passive: true });
     }
 
     _removeMenuTap() {
@@ -166,33 +248,44 @@ export default class MenuState {
             this.game.canvas.removeEventListener('click', this._onMenuTap);
             this._onMenuTap = null;
         }
+        if (this._onMenuMove) {
+            this.game.canvas.removeEventListener('touchmove', this._onMenuMove);
+            this.game.canvas.removeEventListener('mousemove', this._onMenuMove);
+            this._onMenuMove = null;
+        }
+        if (this._onMenuUp) {
+            window.removeEventListener('mouseup', this._onMenuUp);
+            window.removeEventListener('touchend', this._onMenuUp);
+            this._onMenuUp = null;
+        }
     }
 
     update(dt) {
-        if (this.isTransitioning) return; // Block input while loading/transitioning
+        if (this.isTransitioning) return;
 
         this.time += dt;
-        this.coinAngle += dt * 3; // Spinning coins
+        this.coinAngle += dt * 3;
 
         // Update ambient particles
         for (const p of this.particles) {
             p.y -= p.speed * dt;
             p.wobble += dt;
-            p.x += Math.sin(p.wobble) * 0.0005; // horizontal drift
+            p.x += Math.sin(p.wobble) * 0.0005;
             if (p.y < 0) {
                 p.y = 1;
                 p.x = Math.random();
             }
         }
 
-        // Smooth BGM fade-in over 2 seconds
+        // Smooth BGM fade-in over 2 seconds to user's configured musicVolume
         if (this._fadeInTimer !== undefined && this._fadeInTimer < 2.0) {
             this._fadeInTimer += dt;
+            this._fadeInTarget = this.game.settings.musicVolume ?? 0.22;
             const vol = Math.min(this._fadeInTarget, (this._fadeInTimer / 2.0) * this._fadeInTarget);
             if (this.game.audioManager.gainNode && this.game.audioManager.audioCtx) {
                 this.game.audioManager.gainNode.gain.setTargetAtTime(vol, this.game.audioManager.audioCtx.currentTime, 0.1);
             } else if (this.game.audioManager.bgm) {
-                this.game.audioManager.bgm.volume = vol;
+                try { this.game.audioManager.bgm.volume = vol; } catch (e) { }
             }
         }
 
@@ -234,7 +327,7 @@ export default class MenuState {
         this._tapConfirmPending = false;
 
         if (confirmPressed || tapConfirm) {
-            if (this.credits <= 0) return; // No credits!
+            if (this.credits <= 0) return;
 
             if (this.selectedIndex === 0) {
                 // STORY MODE
@@ -266,7 +359,7 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
                 }, 500);
             } else if (this.selectedIndex === 3) {
-                // ONLINE / KOOP — always available so Keano & Jayden can play together immediately!
+                // ONLINE / KOOP — always available
                 this.playConfirm();
                 this.inputCooldown = 30;
                 this.isTransitioning = true;
@@ -274,7 +367,7 @@ export default class MenuState {
                     this.game.stateManager.switchState('OnlineLobby');
                 }, 250);
             } else if (this.selectedIndex === 4) {
-                // OPTIONS
+                // SOUND-MISCHPULT & OPTIONEN
                 this.playConfirm();
                 this.inOptions = true;
                 this.optionIndex = 0;
@@ -284,81 +377,93 @@ export default class MenuState {
     }
 
     updateOptions(p1) {
-        const optCount = 8; // timer, speed, difficulty, music, voice, sfx, eq, fullscreen
+        const optCount = 10;
         if (this.inputCooldown <= 0) {
             if (p1.up) {
                 this.optionIndex = (this.optionIndex - 1 + optCount) % optCount;
-                this.inputCooldown = 12;
+                this.inputCooldown = 10;
                 this.playBlip();
             } else if (p1.down) {
                 this.optionIndex = (this.optionIndex + 1) % optCount;
-                this.inputCooldown = 12;
+                this.inputCooldown = 10;
                 this.playBlip();
             } else if (p1.right) {
                 this.adjustOption(1);
-                this.inputCooldown = 10;
+                this.inputCooldown = 8;
             } else if (p1.left) {
                 this.adjustOption(-1);
-                this.inputCooldown = 10;
-            } else if (p1.s) {
+                this.inputCooldown = 8;
+            } else if (p1.lJust || p1.hJust) {
+                if (this.optionIndex === 8) {
+                    this.game.resetAudioMixDefaults?.();
+                    this._fadeInTarget = this.game.settings.musicVolume;
+                    this.playConfirm();
+                    this.game.audioManager?.playHitImpactSound?.(true, true);
+                    this.inputCooldown = 15;
+                } else if (this.optionIndex === 9) {
+                    this.inOptions = false;
+                    this.inputCooldown = 15;
+                    this.playBlip();
+                } else {
+                    this.adjustOption(1);
+                    this.inputCooldown = 10;
+                }
+            } else if (p1.s || p1.menuJust) {
                 // Back
                 this.inOptions = false;
                 this.inputCooldown = 15;
+                this.playBlip();
             }
         }
     }
 
     adjustOption(dir) {
         const s = this.game.settings;
+        const step = 0.05;
         switch (this.optionIndex) {
-            case 0: // Timer
-                s.timer = s.timer === 99 ? 66 : 99;
+            case 0: // Master Vol (0% - 150%)
+                this._setSliderValue(0, Math.round(((s.masterVolume ?? 1.0) + dir * step) * 20) / 20, true);
                 break;
-            case 1: // Speed
-                s.speed = Math.max(0.5, Math.min(2.0, s.speed + dir * 0.25));
+            case 1: // Music Vol (0% - 100%)
+                this._setSliderValue(1, Math.round(((s.musicVolume ?? 0.22) + dir * step) * 20) / 20, false);
                 break;
-            case 2: // Difficulty
+            case 2: // FX & Hits Vol (0% - 150%)
+                this._setSliderValue(2, Math.round(((s.sfxVolume ?? 0.90) + dir * step) * 20) / 20, true);
+                break;
+            case 3: // Fighter Voices Vol (0% - 150%)
+                this._setSliderValue(3, Math.round(((s.voiceVolume ?? 1.00) + dir * step) * 20) / 20, true);
+                break;
+            case 4: // Announcer / Story Vol (0% - 150%)
+                this._setSliderValue(4, Math.round(((s.announcerVolume ?? 0.95) + dir * step) * 20) / 20, true);
+                break;
+            case 5: // Voice-Ducking EQ Filter
+                s.bgmFilterEnabled = !s.bgmFilterEnabled;
+                this.game.saveSettings?.();
+                break;
+            case 6: // Difficulty
                 const diffs = ['EASY', 'NORMAL', 'HARD'];
                 const idx = diffs.indexOf(s.difficulty);
                 s.difficulty = diffs[Math.max(0, Math.min(2, idx + dir))];
+                this.game.saveSettings?.();
                 break;
-            case 3: // Music Vol
-                s.musicVolume = Math.max(0, Math.min(1, s.musicVolume + dir * 0.1));
-                if (this.game.audioManager.bgm) {
-                    this.game.audioManager.bgm.volume = s.musicVolume;
-                }
-                if (this.game.audioManager.gainNode && this.game.audioManager.audioCtx) {
-                    this.game.audioManager.gainNode.gain.setTargetAtTime(s.musicVolume, this.game.audioManager.audioCtx.currentTime, 0.1);
-                }
-                break;
-            case 4: // Voice Vol
-                s.voiceVolume = Math.max(0, Math.min(1, s.voiceVolume + dir * 0.1));
-                if (this.game.audioManager.voiceChannel) {
-                    this.game.audioManager.voiceChannel.volume = s.voiceVolume;
-                }
-                break;
-            case 5: // SFX Vol
-                s.sfxVolume = Math.max(0, Math.min(1, s.sfxVolume + dir * 0.1));
-                for (const sfx of this.game.audioManager.sfxChannels) {
-                    sfx.volume = s.sfxVolume;
-                }
-                break;
-            case 6: // EQ (BGM Filter)
-                s.bgmFilterEnabled = !s.bgmFilterEnabled;
-                break;
-            case 7: // Fullscreen
-                if (window.toggleGameFullscreen) {
-                    window.toggleGameFullscreen();
-                } else if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen?.().catch(() => { });
+            case 7: // Timer & Speed
+                if (dir > 0) {
+                    s.timer = s.timer === 99 ? 66 : 99;
                 } else {
-                    document.exitFullscreen?.().catch(() => { });
+                    s.speed = s.speed >= 1.25 ? 1.0 : (s.speed + 0.25);
                 }
+                this.game.saveSettings?.();
+                break;
+            case 8: // Reset Studio Mix
+                this.game.resetAudioMixDefaults?.();
+                this._fadeInTarget = this.game.settings.musicVolume;
+                this.playConfirm();
+                break;
+            case 9: // Back to Menu
+                this.inOptions = false;
+                this.inputCooldown = 15;
                 break;
         }
-        
-        // Save to local storage when changed
-        localStorage.setItem('lotl_settings', JSON.stringify(s));
     }
 
     startStoryMode() {
@@ -732,53 +837,143 @@ export default class MenuState {
     }
 
     drawOptions(ctx) {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillStyle = 'rgba(4, 6, 18, 0.92)';
         ctx.fillRect(0, 0, this.game.width, this.game.height);
 
         const cx = this.game.width / 2;
+        const s = this.game.settings;
+
+        ctx.save();
+        // Studio Console Outer Frame
+        ctx.fillStyle = 'rgba(10, 14, 34, 0.95)';
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 3;
+        ctx.fillRect(cx - 560, 48, 1120, this.game.height - 96);
+        ctx.strokeRect(cx - 560, 48, 1120, this.game.height - 96);
+
+        // Top-left back button pill for mobile/touch
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.22)';
+        ctx.strokeStyle = '#ff0055';
+        ctx.lineWidth = 2;
+        ctx.fillRect(cx - 535, 66, 210, 44);
+        ctx.strokeRect(cx - 535, 66, 210, 44);
+        ctx.font = 'bold 16px "Press Start 2P"';
+        ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
+        ctx.fillText('← ZURÜCK', cx - 430, 95);
 
         // Title
-        ctx.font = 'bold 60px "Press Start 2P"';
+        ctx.font = 'bold 42px "Press Start 2P"';
         ctx.fillStyle = '#00ffff';
-        ctx.fillText('OPTIONS', cx, 120);
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 14;
+        ctx.fillText('SOUND-MISCHPULT & OPTIONEN', cx + 70, 102);
+        ctx.shadowBlur = 0;
 
-        const s = this.game.settings;
-        const opts = [
-            { label: 'TIMER', value: `${s.timer}s` },
-            { label: 'SPEED', value: `${(s.speed * 100).toFixed(0)}%` },
-            { label: 'DIFFICULTY', value: s.difficulty },
-            { label: 'MUSIC', value: `${(s.musicVolume * 100).toFixed(0)}%` },
-            { label: 'VOICE', value: `${(s.voiceVolume * 100).toFixed(0)}%` },
-            { label: 'SFX', value: `${(s.sfxVolume * 100).toFixed(0)}%` },
-            { label: 'EQ FILTER', value: s.bgmFilterEnabled ? 'ON' : 'OFF' },
-            { label: 'FULLSCREEN', value: document.fullscreenElement ? 'ON' : 'OFF' },
+        ctx.font = 'bold 13px "Press Start 2P"';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('DIREKT AUF DIE REGLER TIPPEN / ZIEHEN ODER MIT [← / →] EINSTELLEN', cx, 142);
+
+        const rows = [
+            { label: 'MASTER VOL', type: 'slider', val: s.masterVolume ?? 1.00, max: 1.5, color: '#ffffff' },
+            { label: 'MUSIK (BGM)', type: 'slider', val: s.musicVolume ?? 0.22, max: 1.0, color: '#00e5ff' },
+            { label: 'FX & HITS', type: 'slider', val: s.sfxVolume ?? 0.90, max: 1.5, color: '#ff3366' },
+            { label: 'KÄMPFER-STIMMEN', type: 'slider', val: s.voiceVolume ?? 1.00, max: 1.5, color: '#ffd700' },
+            { label: 'ANNOUNCER / STORY', type: 'slider', val: s.announcerVolume ?? 0.95, max: 1.5, color: '#bb66ff' },
+            { label: 'VOICE-DUCKING (EQ)', type: 'value', value: s.bgmFilterEnabled ? 'AN (AUTO-MIX)' : 'AUS' },
+            { label: 'SCHWIERIGKEIT', type: 'value', value: s.difficulty },
+            { label: 'TIMER & TEMPO', type: 'value', value: `${s.timer}s · ${Math.round((s.speed || 1) * 100)}%` },
+            { label: '↺ STANDARD-STUDIO-MIX LADEN', type: 'action', color: '#00ff88' },
+            { label: '✓ SPEICHERN & ZURÜCK ZUM MENÜ', type: 'action', color: '#00ffff' },
         ];
 
-        ctx.font = 'bold 28px "Press Start 2P"';
-        const startY = 250;
-        for (let i = 0; i < opts.length; i++) {
-            const y = startY + i * 70;
+        const startY = 205;
+        const rowStep = 64;
+        const barX = cx - 40;
+        const barW = 360;
+        const barH = 24;
+
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const y = startY + i * rowStep;
             const isSel = i === this.optionIndex;
-            ctx.fillStyle = isSel ? '#00ffff' : '#888888';
 
-            // Label on left
-            ctx.textAlign = 'right';
-            ctx.fillText(opts[i].label, cx - 40, y);
-
-            // Value on right with arrows
-            ctx.textAlign = 'left';
             if (isSel) {
-                ctx.fillText(`< ${opts[i].value} >`, cx + 40, y);
-            } else {
-                ctx.fillText(opts[i].value, cx + 60, y);
+                ctx.fillStyle = 'rgba(0, 229, 255, 0.14)';
+                ctx.fillRect(cx - 520, y - 34, 1040, 50);
+                ctx.strokeStyle = '#00ffff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - 520, y - 34, 1040, 50);
+            }
+
+            if (r.type === 'slider') {
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
+                ctx.fillText(r.label, cx - 495, y - 2);
+
+                // [-] button
+                ctx.fillStyle = isSel ? '#00ffff' : '#667799';
+                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('[-]', barX - 36, y - 2);
+
+                // Fader Track
+                const by = y - 23;
+                const ratio = Math.max(0, Math.min(1, r.val / r.max));
+                ctx.fillStyle = '#121629';
+                ctx.fillRect(barX, by, barW, barH);
+
+                // Fader Fill
+                ctx.fillStyle = r.color;
+                ctx.fillRect(barX, by, barW * ratio, barH);
+
+                // 100% reference tick on 150% sliders
+                if (r.max > 1.0) {
+                    const tickX = barX + (1.0 / r.max) * barW;
+                    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                    ctx.fillRect(tickX - 1, by - 3, 2, barH + 6);
+                }
+
+                // Fader Knob
+                const knobX = barX + barW * ratio;
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(knobX - 6, by - 4, 12, barH + 8);
+
+                ctx.strokeStyle = isSel ? '#ffffff' : '#445577';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(barX, by, barW, barH);
+
+                // [+] button
+                ctx.fillStyle = isSel ? '#00ffff' : '#667799';
+                ctx.fillText('[+]', barX + barW + 36, y - 2);
+
+                // Percentage readout
+                ctx.textAlign = 'right';
+                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.fillStyle = isSel ? r.color : '#dddddd';
+                ctx.fillText(`${Math.round(r.val * 100)}%`, cx + 495, y - 2);
+            } else if (r.type === 'value') {
+                ctx.textAlign = 'left';
+                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
+                ctx.fillText(r.label, cx - 495, y - 2);
+
+                ctx.textAlign = 'center';
+                ctx.fillStyle = isSel ? '#00ffff' : '#cccccc';
+                ctx.fillText(isSel ? `< ${r.value} >` : r.value, barX + barW / 2, y - 2);
+            } else if (r.type === 'action') {
+                ctx.textAlign = 'center';
+                ctx.font = 'bold 23px "Press Start 2P"';
+                ctx.fillStyle = isSel ? r.color : '#88aa99';
+                ctx.fillText(isSel ? `> ${r.label} <` : r.label, cx, y - 2);
             }
         }
 
-        // Back hint
-        ctx.font = '18px "Press Start 2P"';
+        ctx.font = '14px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillStyle = '#666';
-        ctx.fillText('PRESS SPECIAL (S) TO GO BACK', cx, this.game.height - 60);
+        ctx.fillStyle = '#88aacc';
+        ctx.fillText('[↑/↓] KANAL WÄHLEN   [←/→ ODER ZIEHEN] MIX ANPASSEN   [S / ESC] ZURÜCK', cx, this.game.height - 66);
+        ctx.restore();
     }
 }

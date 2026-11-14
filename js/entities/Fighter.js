@@ -78,6 +78,14 @@ export default class Fighter {
 
     update(dt, inputQueue) {
         this.animTime += dt;
+        if (this.hp <= 0 && this.state !== 'KO') {
+            this.hp = 0;
+            this.blockStun = 0;
+            this.hitStop = 0;
+            this.activeHitbox = null;
+            this.currentAttack = null;
+            this.state = 'KO';
+        }
         if (!this.isGrounded) {
             this.jumpTime = (this.jumpTime || 0) + dt;
         } else {
@@ -796,7 +804,11 @@ export default class Fighter {
     }
 
     takeDamage(attackDef, attackerFacing) {
-        if (this.state === 'KO') return 'IMMUNE';
+        if (this.state === 'KO' || this.hp <= 0) {
+            this.hp = 0;
+            this.state = 'KO';
+            return 'IMMUNE';
+        }
 
         // Chain-hit protection: can't be re-hit during immunity frames
         if (this.hitImmunity > 0) return 'IMMUNE';
@@ -804,7 +816,8 @@ export default class Fighter {
         // Street Fighter "Guts" scaling: 15% damage reduction when below 25% HP for nail-biting comebacks
         const gutsMul = (this.hp / this.maxHP < 0.25) ? 0.85 : 1.0;
         const scaledDamage = Math.max(1, Math.round(attackDef.damage * gutsMul));
-        const isSpecialOrProj = Boolean(attackDef.isSpecialMove || attackDef.type === 'SPECIAL' || attackDef.type === 'SPECIAL_DASH' || attackDef.type === 'PROJECTILE');
+        const isSpecialOrProj = Boolean(attackDef.isSpecialMove || attackDef.type === 'SPECIAL' || attackDef.type === 'SPECIAL_DASH' || attackDef.type === 'PROJECTILE' || attackDef.type === 'DRAGON_UPPERCUT' || attackDef.type === 'HURRICANE_KICK' || attackDef.type === 'COMBO_FINISHER');
+        const isHeavyOrCommand = Boolean(isSpecialOrProj || (attackDef.damage || 0) >= 24 || attackDef.type === 'AXE_KICK' || attackDef.type === 'COMMAND_PUNCH');
 
         // ─── BLOCK CHECK (SF2 rules: Throws are unblockable; Overhead attacks break Crouching block!) ───
         const overheadBroken = Boolean(attackDef.isOverhead && this.state === 'CROUCH');
@@ -813,10 +826,10 @@ export default class Fighter {
         if (canBlockThis) {
             const chipRatio = isSpecialOrProj ? 0.20 : 0.10;
             const chipDmg = Math.max(1, Math.floor(scaledDamage * chipRatio));
-            if (isSpecialOrProj) {
-                this.hp -= chipDmg;
+            if (isSpecialOrProj || (isHeavyOrCommand && this.hp <= 6)) {
+                this.hp = Math.max(0, this.hp - chipDmg);
             } else {
-                // Authentic Street Fighter rule: normal attacks cannot chip-K.O. a blocking fighter
+                // Only light normal pokes leave 1 HP on block
                 this.hp = Math.max(1, this.hp - chipDmg);
             }
             this.blockStun = 0.14;
@@ -826,6 +839,10 @@ export default class Fighter {
 
             if (this.hp <= 0) {
                 this.hp = 0;
+                this.blockStun = 0;
+                this.hitStop = 0;
+                this.activeHitbox = null;
+                this.currentAttack = null;
                 this.state = 'KO';
                 this.vy = -600;
                 this.isGrounded = false;
@@ -835,11 +852,15 @@ export default class Fighter {
         }
 
         // ─── FULL HIT ───
-        this.hp -= scaledDamage;
+        this.hp = Math.max(0, this.hp - scaledDamage);
         this.stateTimer = 0;
 
         if (this.hp <= 0) {
             this.hp = 0;
+            this.blockStun = 0;
+            this.hitStop = 0;
+            this.activeHitbox = null;
+            this.currentAttack = null;
             this.state = 'KO';
             this.vy = -700;
             this.isGrounded = false;

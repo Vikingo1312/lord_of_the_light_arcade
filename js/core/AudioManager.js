@@ -1,547 +1,525 @@
 export default class AudioManager {
     constructor(game = null) {
         this.game = game;
-        this.bgm = null;
         this.currentPath = '';
-        this.voiceChannel = new Audio();
-        this.announcerChannel = new Audio();
-        this.fighterVoiceChannel = new Audio();
+        this.filterActive = false;
+
+        // WebAudio Engine & 5-Bus Studio Mixing Console (Works 100% on iPhone iOS, Android & Desktop!)
+        this.audioCtx = null;
+        this.masterGain = null;
+        this.gainNode = null;       // Music / BGM bus gain
+        this.lpFilter = null;       // Music low-pass filter for voice ducking
+        this.sfxGain = null;        // Combat FX / Hit sounds bus gain
+        this.voiceGain = null;      // Fighter & Story voiceover bus gain
+        this.announcerGain = null;  // Announcer bus gain
+
+        // In-memory decoded AudioBuffer cache & in-flight fetch promises
+        this.bufferCache = new Map();
+        this.loadingPromises = new Map();
+
+        // Active WebAudio source nodes & strict generation tokens (prevents stale/delayed audio from playing in later levels!)
+        this.bgmSource = null;
+        this._bgmToken = 0;
+        this._desiredBgm = null; // { path, loop, useFilter, volume }
+
+        this.voiceSource = null;
+        this._voiceToken = 0;
+        this._voicePlaying = false;
+        this.voiceChannel = { duration: 0 }; // Exposed for StorySequence scroll sync
+
+        this.fighterVoiceSource = null;
+        this._fighterVoiceToken = 0;
+        this._fighterVoicePlaying = false;
         this._fighterVoicePriority = 0;
         this._lastHitVoiceTime = 0;
-        this.sfxChannels = Array.from({ length: 8 }, () => new Audio());
-        this.sfxIndex = 0;
 
-        // WebAudio API for BGM filtering
-        this.audioCtx = null;
-        this.bgmSource = null;
-        this.lpFilter = null;
-        this.gainNode = null;
+        this.announcerSource = null;
+        this._announcerToken = 0;
+        this._announcerPlaying = false;
+
+        // Legacy compatibility array for any external code referencing sfxChannels
+        this.sfxChannels = [];
+        this.audioUnlocked = false;
+
+        this._setupGlobalMobileUnlock();
     }
 
-    _getMusicVol(fallback = 0.52) {
+    // ─── MIXER VOLUME GETTERS (Connected to Game.settings Mischpult) ───
+    _getMasterVol() {
+        return this.game?.settings?.masterVolume ?? 1.0;
+    }
+
+    _getMusicVol(fallback = 0.22) {
         return this.game?.settings?.musicVolume ?? fallback;
     }
 
-    _getVoiceVol(fallback = 0.96) {
+    _getVoiceVol(fallback = 1.0) {
         return this.game?.settings?.voiceVolume ?? fallback;
     }
 
-    _getSfxVol(fallback = 0.35) {
+    _getSfxVol(fallback = 0.90) {
         return this.game?.settings?.sfxVolume ?? fallback;
+    }
+
+    _getAnnouncerVol(fallback = 0.95) {
+        return this.game?.settings?.announcerVolume ?? fallback;
+    }
+
+    /**
+     * Immediately syncs all WebAudio mixer faders when changed in the Options Mischpult or Pause Menu.
+     */
+    applyMixerSettings() {
+        if (!this.audioCtx) return;
+        const now = this.audioCtx.currentTime;
+        if (this.masterGain) {
+            this.masterGain.gain.setTargetAtTime(Math.max(0, this._getMasterVol()), now, 0.03);
+        }
+        if (this.gainNode) {
+            const isDucked = this._voicePlaying || this._announcerPlaying || (this._fighterVoicePlaying && this._fighterVoicePriority >= 2);
+            const baseMusic = Math.max(0, this._getMusicVol(0.22));
+            const targetMusic = isDucked ? baseMusic * 0.35 : baseMusic;
+            this.gainNode.gain.setTargetAtTime(targetMusic, now, 0.05);
+        }
+        if (this.sfxGain) {
+            // 1.25x studio boost so hits & blocks punch cleanly above BGM
+            this.sfxGain.gain.setTargetAtTime(Math.max(0, this._getSfxVol(0.90) * 1.25), now, 0.03);
+        }
+        if (this.voiceGain) {
+            // 1.40x studio boost so fighter & story voices are crystal-clear and upfront
+            this.voiceGain.gain.setTargetAtTime(Math.max(0, this._getVoiceVol(1.0) * 1.40), now, 0.03);
+        }
+        if (this.announcerGain) {
+            this.announcerGain.gain.setTargetAtTime(Math.max(0, this._getAnnouncerVol(0.95) * 1.30), now, 0.03);
+        }
     }
 
     _initWebAudio() {
         if (this.audioCtx && this.audioCtx.state !== 'closed') return;
         try {
-            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            this.audioCtx = new AudioCtx();
 
-            // --- BGM Filter Setup ---
+            // Master Console Bus
+            this.masterGain = this.audioCtx.createGain();
+            this.masterGain.gain.value = this._getMasterVol();
+            this.masterGain.connect(this.audioCtx.destination);
+
+            // Bus 1: BGM (with Lowpass Filter for Voiceover Ducking)
             this.lpFilter = this.audioCtx.createBiquadFilter();
             this.lpFilter.type = 'lowpass';
-            this.lpFilter.frequency.value = 20000; // Default: let all frequencies pass
+            this.lpFilter.frequency.value = 20000;
             this.lpFilter.Q.value = 1.0;
 
             this.gainNode = this.audioCtx.createGain();
-            this.gainNode.gain.value = this._getMusicVol(0.5); // Baseline BGM volume
-
+            this.gainNode.gain.value = this._getMusicVol(0.22);
             this.lpFilter.connect(this.gainNode);
-            this.gainNode.connect(this.audioCtx.destination);
-            // Voice plays CLEAN — direct to speakers, no filter
+            this.gainNode.connect(this.masterGain);
 
+            // Bus 2: Combat SFX (Hits, Blocks, Whooshes, Throws, K.O. Boom)
+            this.sfxGain = this.audioCtx.createGain();
+            this.sfxGain.gain.value = this._getSfxVol(0.90) * 1.25;
+            this.sfxGain.connect(this.masterGain);
+
+            // Bus 3: Fighter & Story Voices
+            this.voiceGain = this.audioCtx.createGain();
+            this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.40;
+            this.voiceGain.connect(this.masterGain);
+
+            // Bus 4: Arcade Announcer
+            this.announcerGain = this.audioCtx.createGain();
+            this.announcerGain.gain.value = this._getAnnouncerVol(0.95) * 1.30;
+            this.announcerGain.connect(this.masterGain);
         } catch (e) {
-            console.warn("WebAudio API not supported. Falling back to simple audio.", e);
+            console.warn("WebAudio API not supported:", e);
         }
     }
 
     /**
-     * MUST be called during the first user interaction (click/keydown) to bypass Safari/Chrome Autoplay policies
-     * Unlocking the channels ensures that SFX requested during the game loop are not blocked.
+     * Global capture-phase unlocker for iPhone iOS Safari, iPad, Android Chrome, and Desktop.
+     * Ensures AudioContext is resumed on EVERY touch/click/key gesture (including after iOS tab switch/interruption)
+     * and immediately starts any pending BGM track.
      */
-    unlockAudio() {
-        if (this.audioUnlocked) return;
-
-        try {
-            // Unlock WebAudioContext if suspended (Needed for BOTH Desktop and Mobile)
-            if (this.audioCtx && this.audioCtx.state === 'suspended') {
-                this.audioCtx.resume();
-            }
-
-            // A tiny, 0.1s silent MP3 buffer to immediately satisfy browser AutoPlay policies
-            const silentB64 = 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq';
-
-            // Unlock ONE SFX Channel (bypasses Mobile Safari's "must play an element" rule)
-            this.sfxChannels[0].volume = 0;
-            this.sfxChannels[0].src = silentB64;
-            this.sfxChannels[0].play().catch(() => { });
-
-            // Unlock Story Voice, Announcer, and Fighter Voice Channels
-            for (const ch of [this.voiceChannel, this.announcerChannel, this.fighterVoiceChannel]) {
-                ch.volume = 0;
-                ch.src = silentB64;
-                ch.play().catch(() => { });
-            }
-
-            this.audioUnlocked = true;
-            console.log("Audio Engine Unlocked by User Interaction");
-        } catch (e) {
-            console.error("Audio unlock failed", e);
+    _setupGlobalMobileUnlock() {
+        const handleGesture = () => {
+            this.unlockAudio();
+        };
+        const events = ['touchend', 'pointerup', 'click', 'keydown', 'touchstart'];
+        for (const ev of events) {
+            window.addEventListener(ev, handleGesture, { capture: true, passive: true });
         }
-    }
-
-    /**
-     * Plays a premium deep sub-bass cinematic sweep fading in with an ethereal chord.
-     * Starts on Boot click and sustains through the Caesar Splash transition.
-     */
-    playCinematicSweep() {
-        this._initWebAudio();
-        const ctx = this.audioCtx;
-        if (!ctx) return;
-
-        const now = ctx.currentTime;
-
-        // 1. Deep Sub-Bass Sweep (120Hz to 20Hz over 6 seconds)
-        const subOsc = ctx.createOscillator();
-        const subGain = ctx.createGain();
-        subOsc.type = 'sine';
-        subOsc.frequency.setValueAtTime(120, now);
-        subOsc.frequency.exponentialRampToValueAtTime(20, now + 6);
-
-        subGain.gain.setValueAtTime(0, now);
-        subGain.gain.linearRampToValueAtTime(1.0, now + 2.0); // Swell up safely
-        subGain.gain.setValueAtTime(1.0, now + 4.0); // Hold
-        subGain.gain.linearRampToValueAtTime(0.001, now + 6.0); // Fade out
-
-        subOsc.connect(subGain);
-        subGain.connect(ctx.destination);
-        subOsc.start(now);
-        subOsc.stop(now + 6.0);
-
-        // 2. Mid/High Ethereal Shimmer (E4, B4, D5, G5)
-        [329.63, 493.88, 587.33, 783.99].forEach((freq, index) => {
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-
-            osc.type = index % 2 === 0 ? 'sine' : 'triangle';
-            osc.frequency.setValueAtTime(freq, now);
-            osc.detune.setValueAtTime(index * 5, now); // Slight lush detune
-
-            gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.08, now + 2.0 + (index * 0.2)); // Stagger chord swell
-            gain.gain.setValueAtTime(0.08, now + 4.0);
-            gain.gain.linearRampToValueAtTime(0.001, now + 6.0);
-
-            // Sweep lowpass filter for "unveiling" effect
-            const filter = ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(400, now);
-            filter.frequency.linearRampToValueAtTime(3000, now + 3);
-
-            osc.connect(gain);
-            gain.connect(filter);
-            filter.connect(ctx.destination);
-
-            osc.start(now);
-            osc.stop(now + 6.0);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && this.audioCtx && this.audioCtx.state !== 'running') {
+                this.audioCtx.resume().catch(() => {});
+            }
         });
     }
 
-    /**
-     * @param {string} path - path to the audio file
-     * @param {boolean} loop - whether the track should loop
-     * @param {boolean} useFilter - if true, applies the muffled low-pass filter
-     * @param {number} volume - BGM volume (default uses game.settings.musicVolume)
-     */
-    playBGM(path, loop = true, useFilter = false, volume = null, preloadedAudio = null) {
+    unlockAudio() {
         this._initWebAudio();
-        const effectiveVol = volume !== null ? volume : this._getMusicVol(0.5);
+        if (!this.audioCtx) return;
 
-        // Target settings
-        const targetFreq = useFilter ? 400 : 20000;
+        if (this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().then(() => {
+                this.audioUnlocked = true;
+                this._resumePendingBGMIfNeeded();
+            }).catch(() => {});
+        } else {
+            this.audioUnlocked = true;
+            this._resumePendingBGMIfNeeded();
+        }
+
+        // Play a 1-sample silent buffer to force iOS Safari hardware audio pipeline open
+        if (!this._silentPrimed && this.audioCtx) {
+            try {
+                const buf = this.audioCtx.createBuffer(1, 1, 22050);
+                const src = this.audioCtx.createBufferSource();
+                src.buffer = buf;
+                src.connect(this.audioCtx.destination);
+                src.start(0);
+                this._silentPrimed = true;
+                this.preloadCoreAudio();
+            } catch (e) {}
+        }
+    }
+
+    _resumePendingBGMIfNeeded() {
+        if (this._desiredBgm && !this.bgmSource && this.audioCtx && this.audioCtx.state === 'running') {
+            const { path, loop, useFilter, volume } = this._desiredBgm;
+            this.currentPath = ''; // Force start
+            this.playBGM(path, loop, useFilter, volume);
+        }
+    }
+
+    /**
+     * Preloads and decodes core combat SFX, announcer clips, and main soundtrack into WebAudio RAM
+     * so mobile & desktop have 0ms latency and zero network stalls during gameplay.
+     */
+    preloadCoreAudio() {
+        const coreFiles = [
+            'assets/audio/sfx/sfx_hit_light.mp3',
+            'assets/audio/sfx/sfx_hit_heavy.mp3',
+            'assets/audio/sfx/sfx_hit_special.mp3',
+            'assets/audio/sfx/sfx_block.mp3',
+            'assets/audio/sfx/sfx_whoosh_light.mp3',
+            'assets/audio/sfx/sfx_whoosh_heavy.mp3',
+            'assets/audio/sfx/sfx_throw.mp3',
+            'assets/audio/sfx/sfx_ko_boom.mp3',
+            'assets/audio/voice/announcer_round_1.mp3',
+            'assets/audio/voice/announcer_fight.mp3',
+            'assets/audio/voice/announcer_ko.mp3',
+            'assets/audio/voice/announcer_perfect.mp3',
+            'assets/audio/music/main_soundtrack.mp3',
+            'assets/audio/story_prologue.mp3'
+        ];
+        for (const f of coreFiles) {
+            this.preloadAudio(f);
+        }
+    }
+
+    /**
+     * Fetches and decodes an audio file into an AudioBuffer (cached in RAM).
+     * Automatically tries fallback paths ('assets/audio/voice/' <-> 'assets/audio/') if needed.
+     */
+    async preloadAudio(path) {
+        if (!path) return null;
+        this._initWebAudio();
+        if (!this.audioCtx) return null;
+
+        if (this.bufferCache.has(path)) {
+            return this.bufferCache.get(path);
+        }
+        if (this.loadingPromises.has(path)) {
+            return this.loadingPromises.get(path);
+        }
+
+        const fetchAndDecode = async (tryPath) => {
+            const res = await fetch(tryPath);
+            if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
+            const arr = await res.arrayBuffer();
+            return await new Promise((resolve, reject) => {
+                this.audioCtx.decodeAudioData(arr, resolve, reject);
+            });
+        };
+
+        const promise = (async () => {
+            try {
+                const buf = await fetchAndDecode(path);
+                this.bufferCache.set(path, buf);
+                return buf;
+            } catch (e) {
+                let altPath = null;
+                if (path.includes('assets/audio/voice/')) {
+                    altPath = path.replace('assets/audio/voice/', 'assets/audio/');
+                } else if (path.startsWith('assets/audio/') && !path.includes('assets/audio/sfx/') && !path.includes('assets/audio/music/')) {
+                    altPath = path.replace('assets/audio/', 'assets/audio/voice/');
+                }
+                if (altPath) {
+                    try {
+                        const buf = await fetchAndDecode(altPath);
+                        this.bufferCache.set(path, buf);
+                        this.bufferCache.set(altPath, buf);
+                        return buf;
+                    } catch (e2) {}
+                }
+                console.warn("[AudioManager] Could not decode audio:", path);
+                return null;
+            } finally {
+                this.loadingPromises.delete(path);
+            }
+        })();
+
+        this.loadingPromises.set(path, promise);
+        return promise;
+    }
+
+    // ─── BGM PLAYBACK (Pure WebAudio Buffer Source — 100% iOS & Desktop Reliable) ───
+    playBGM(path, loop = true, useFilter = false, volume = null) {
+        if (!path) return;
+        this._initWebAudio();
+        const effectiveVol = volume !== null ? volume : this._getMusicVol(0.22);
+        const targetFreq = useFilter ? 450 : 20000;
         this.filterActive = useFilter;
+        this._desiredBgm = { path, loop, useFilter, volume };
 
-        if (this.currentPath === path && this.bgm) {
-            // Track is already playing! Just adjust the filter and return.
-            if (this.audioCtx && this.lpFilter) {
-                // Smoothly transition the filter frequency
-                this.lpFilter.frequency.setTargetAtTime(targetFreq, this.audioCtx.currentTime, 0.5);
-                this.gainNode.gain.setTargetAtTime(effectiveVol, this.audioCtx.currentTime, 0.5);
-            } else {
-                this.bgm.volume = effectiveVol;
+        if (this.currentPath === path && this.bgmSource) {
+            if (this.audioCtx && this.lpFilter && this.gainNode) {
+                this.lpFilter.frequency.setTargetAtTime(targetFreq, this.audioCtx.currentTime, 0.25);
+                this.gainNode.gain.setTargetAtTime(effectiveVol, this.audioCtx.currentTime, 0.25);
             }
             return;
         }
 
-        // It's a new track. Stop the old one.
-        this.stopBGM();
-
+        this._stopBGMSourceOnly();
         this.currentPath = path;
-        this.bgm = preloadedAudio || new Audio(path);
-        this.bgm.loop = loop;
+        const token = ++this._bgmToken;
 
-        if (this.audioCtx && this.lpFilter && this.gainNode) {
-            // Use WebAudio
+        if (this.audioCtx && this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
+        }
+
+        this.preloadAudio(path).then((buffer) => {
+            if (!buffer || token !== this._bgmToken || this.currentPath !== path) return;
+            if (!this.audioCtx) return;
+
+            this._stopBGMSourceOnly();
+            const src = this.audioCtx.createBufferSource();
+            src.buffer = buffer;
+            src.loop = loop;
+
+            this.lpFilter.frequency.setValueAtTime(targetFreq, this.audioCtx.currentTime);
+            this.gainNode.gain.setValueAtTime(effectiveVol, this.audioCtx.currentTime);
+
+            src.connect(this.lpFilter);
             try {
-                if (!this.bgm._mediaSourceNode) {
-                    this.bgm._mediaSourceNode = this.audioCtx.createMediaElementSource(this.bgm);
-                }
-                this.bgmSource = this.bgm._mediaSourceNode;
-                this.bgmSource.connect(this.lpFilter);
+                src.start(0);
+                this.bgmSource = src;
+                src.onended = () => {
+                    if (this.bgmSource === src) {
+                        this.bgmSource = null;
+                    }
+                };
             } catch (e) {
-                console.warn("MediaElementSource reuse fallback:", e);
+                console.warn("[AudioManager] BGM start error:", e);
             }
-            this.lpFilter.frequency.value = targetFreq;
-            this.gainNode.gain.value = effectiveVol;
-        } else {
-            // Fallback
-            this.bgm.volume = effectiveVol;
-        }
+        });
+    }
 
-        // CRITICAL: Ensure AudioContext is running before playing!
-        // Chrome/Safari can re-suspend the context if there's no audio activity.
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
-        }
-
-        this._bgmPlayPromise = this.bgm.play();
-        if (this._bgmPlayPromise) {
-            this._bgmPlayPromise.catch(e => console.warn("BGM Auto-play blocked", e));
+    _stopBGMSourceOnly() {
+        if (this.bgmSource) {
+            try { this.bgmSource.onended = null; } catch (e) {}
+            try { this.bgmSource.stop(0); } catch (e) {}
+            try { this.bgmSource.disconnect(); } catch (e) {}
+            this.bgmSource = null;
         }
     }
 
     stopBGM() {
-        const oldBgm = this.bgm;
-        const oldPromise = this._bgmPlayPromise;
-
-        // Clear references immediately so new tracks can start without interference
-        this.bgm = null;
-        this._bgmPlayPromise = null;
+        this._bgmToken++;
         this.currentPath = '';
-
-        if (this.bgmSource) {
-            try { this.bgmSource.disconnect(); } catch (e) { }
-            this.bgmSource = null;
-        }
-
-        if (oldBgm) {
-            // Check if there is an unresolved play promise preventing an immediate pause
-            if (oldPromise !== undefined && oldPromise !== null) {
-                oldPromise.then(() => {
-                    if (this._bgmPlayPromise === oldPromise || this._bgmPlayPromise === null) {
-                        try { oldBgm.pause(); } catch (e) { }
-                        oldBgm.currentTime = 0;
-                    }
-                }).catch(() => { });
-            } else {
-                try { oldBgm.pause(); } catch (e) { }
-                oldBgm.currentTime = 0;
-            }
-        }
+        this._desiredBgm = null;
+        this._stopBGMSourceOnly();
     }
 
-    _createVoiceReverb() {
-        // Kept as raw HTML5 audio for Mobile Safari reliability.
-    }
-
+    // ─── STORY NARRATOR VOICEOVER PLAYBACK ───
     stopVoice() {
+        this._voiceToken++;
+        this._voicePlaying = false;
         if (this._voiceFallbackTimeout) {
             clearTimeout(this._voiceFallbackTimeout);
             this._voiceFallbackTimeout = null;
         }
-
-        const oldPromise = this._voicePlayPromise;
-        const voiceRef = this.voiceChannel;
-
-        if (oldPromise !== undefined && oldPromise !== null) {
-            oldPromise.then(() => {
-                if (this._voicePlayPromise === oldPromise || this._voicePlayPromise === null) {
-                    try { voiceRef.pause(); } catch (e) { }
-                    voiceRef.currentTime = 0;
-                }
-            }).catch(() => {
-                if (this._voicePlayPromise === oldPromise || this._voicePlayPromise === null) {
-                    voiceRef.currentTime = 0;
-                }
-            });
-        } else {
-            try { voiceRef.pause(); } catch (e) { }
-            voiceRef.currentTime = 0;
+        if (this.voiceSource) {
+            try { this.voiceSource.onended = null; } catch (e) {}
+            try { this.voiceSource.stop(0); } catch (e) {}
+            try { this.voiceSource.disconnect(); } catch (e) {}
+            this.voiceSource = null;
         }
-
-        this._voicePlayPromise = null;
-        const restoreVol = this._getMusicVol(0.5);
-        // Restore BGM volume & Remove Filter
-        if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(restoreVol, this.audioCtx.currentTime, 0.1);
-            if (this.lpFilter && !this.filterActive) {
-                this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-            }
-        } else if (this.bgm) {
-            this.bgm.volume = restoreVol;
+        this._restoreCombatBGM();
+        if (this.lpFilter && this.audioCtx && !this.filterActive) {
+            this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.25);
         }
     }
 
     playVoice(path, onEndedCallback = null) {
-        if (this._voiceFallbackTimeout) {
-            clearTimeout(this._voiceFallbackTimeout);
-            this._voiceFallbackTimeout = null;
+        this.stopVoice();
+        if (!path) {
+            if (onEndedCallback) onEndedCallback();
+            return;
         }
-        this._voicePlayPromise = null;
+        this._initWebAudio();
+        const token = ++this._voiceToken;
+        this._voicePlaying = true;
+        this.voiceChannel.duration = 0;
 
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-            this.audioCtx.resume();
+        if (this.audioCtx && this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
         }
 
-        this._createVoiceReverb();
-        const restoreVol = this._getMusicVol(0.5);
+        // Duck & low-pass filter BGM so Story Narrator is crystal-clear
+        this._duckCombatBGM(0.32);
+        if (this.lpFilter && this.audioCtx && (this.game?.settings?.bgmFilterEnabled !== false)) {
+            this.lpFilter.frequency.setTargetAtTime(450, this.audioCtx.currentTime, 0.12);
+        }
 
-        this.voiceChannel.onended = () => {
-            // Restore BGM after voice
-            if (this.gainNode && this.audioCtx) {
-                this.gainNode.gain.setTargetAtTime(restoreVol, this.audioCtx.currentTime, 0.3);
-                if (this.lpFilter && !this.filterActive) {
-                    this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
-                }
-            } else if (this.bgm) {
-                this.bgm.volume = restoreVol;
+        let finished = false;
+        const finish = () => {
+            if (finished || token !== this._voiceToken) return;
+            finished = true;
+            this._voicePlaying = false;
+            if (this._voiceFallbackTimeout) {
+                clearTimeout(this._voiceFallbackTimeout);
+                this._voiceFallbackTimeout = null;
+            }
+            this.voiceSource = null;
+            this._restoreCombatBGM();
+            if (this.lpFilter && this.audioCtx && !this.filterActive) {
+                this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.3);
             }
             if (onEndedCallback) onEndedCallback();
-            this.voiceChannel.onended = null; // Clear to prevent double fires
         };
 
-        this.voiceChannel.volume = this._getVoiceVol(0.9);
-        this.voiceChannel.src = path;
-
-        this._voicePlayPromise = this.voiceChannel.play();
-        if (this._voicePlayPromise !== undefined) {
-            this._voicePlayPromise.catch(e => {
-                // Fallback to assets/audio/voice/ if needed
-                if (path.startsWith('assets/audio/') && !path.includes('assets/audio/voice/')) {
-                    const altPath = path.replace('assets/audio/', 'assets/audio/voice/');
-                    this.voiceChannel.src = altPath;
-                    this._voicePlayPromise = this.voiceChannel.play();
-                    if (this._voicePlayPromise) {
-                        this._voicePlayPromise.catch(err => {
-                            console.warn("Voice play failed or was blocked by browser:", err);
-                            this._voiceFallbackTimeout = setTimeout(() => {
-                                if (this.voiceChannel.onended) this.voiceChannel.onended();
-                            }, 15000);
-                        });
-                    }
-                    return;
-                }
-                console.warn("Voice play failed or was blocked by browser:", e);
-                this._voiceFallbackTimeout = setTimeout(() => {
-                    if (this.voiceChannel.onended) {
-                        console.log("Triggering fallback onended for blocked voice track.");
-                        this.voiceChannel.onended();
-                    }
-                }, 15000);
-            });
-        }
-
-        // Dynamic Ducking + Lowpass Filter BGM
-        const duckVol = Math.min(restoreVol, 0.25);
-        if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(duckVol, this.audioCtx.currentTime, 0.1);
-            if (this.lpFilter && (this.game?.settings?.bgmFilterEnabled !== false)) {
-                // Muffle BGM Down to 400Hz so voice pops out clearly
-                this.lpFilter.frequency.setTargetAtTime(400, this.audioCtx.currentTime, 0.1);
+        this.preloadAudio(path).then((buffer) => {
+            if (token !== this._voiceToken) return;
+            if (!buffer || !this.audioCtx) {
+                this._voiceFallbackTimeout = setTimeout(finish, 4000);
+                return;
             }
-        } else if (this.bgm) {
-            this.bgm.volume = Math.min(restoreVol, 0.2);
-        }
+
+            this.voiceChannel.duration = buffer.duration;
+            this.applyMixerSettings();
+
+            const src = this.audioCtx.createBufferSource();
+            src.buffer = buffer;
+            src.connect(this.voiceGain);
+            src.onended = finish;
+            this.voiceSource = src;
+
+            try {
+                src.start(0);
+                this._voiceFallbackTimeout = setTimeout(finish, Math.ceil(buffer.duration * 1000) + 1200);
+            } catch (e) {
+                this._voiceFallbackTimeout = setTimeout(finish, 4000);
+            }
+        });
     }
 
+    // ─── COMBAT SFX PLAYBACK (Instantaneous Zero-Latency WebAudio Buffer Pool) ───
     playSFX(path, isHeavy = false) {
-        const channel = this.sfxChannels[this.sfxIndex];
-        const oldPromise = channel._sfxPromise;
+        if (!path) return;
+        this._initWebAudio();
+        if (!this.audioCtx) return;
 
-        // Safely clear out any pending play promise from a previous sound on this channel
-        if (oldPromise !== undefined && oldPromise !== null) {
-            oldPromise.then(() => {
-                if (channel._sfxPromise === oldPromise || channel._sfxPromise === null) {
-                    try { channel.pause(); } catch (e) { }
-                    channel.currentTime = 0;
-                }
-            }).catch(() => { });
-        } else {
-            try { channel.pause(); } catch (e) { }
-            channel.currentTime = 0;
+        if (this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
         }
 
-        const baseSfx = this._getSfxVol(0.35);
-        channel.src = path;
-        let sfxMul = isHeavy ? 0.78 : 0.62;
+        let sfxMul = isHeavy ? 1.05 : 0.90;
         if (path.includes('sfx_whoosh')) {
-            sfxMul = 0.36;
+            sfxMul = 0.62;
         } else if (path.includes('sfx_block')) {
-            sfxMul = 0.56;
+            sfxMul = 0.95;
         } else if (path.includes('sfx_hit_light')) {
-            sfxMul = 0.64;
+            sfxMul = 0.92;
         } else if (path.includes('sfx_hit_heavy') || path.includes('sfx_throw')) {
-            sfxMul = 0.74;
+            sfxMul = 1.08;
         } else if (path.includes('sfx_hit_special') || path.includes('sfx_ko_boom')) {
-            sfxMul = 0.82;
+            sfxMul = 1.20;
         }
-        channel.volume = Math.min(0.58, Math.max(0.0, baseSfx * sfxMul));
 
-        const tryFallback = (altPath) => {
-            channel.src = altPath;
-            channel._sfxPromise = channel.play();
-            return channel._sfxPromise;
+        const playBuffer = (buffer) => {
+            if (!buffer || !this.audioCtx) return;
+            try {
+                this.applyMixerSettings();
+                const src = this.audioCtx.createBufferSource();
+                const itemGain = this.audioCtx.createGain();
+                itemGain.gain.value = sfxMul;
+                src.buffer = buffer;
+                src.connect(itemGain);
+                itemGain.connect(this.sfxGain);
+                src.start(0);
+            } catch (e) {}
         };
 
-        channel._sfxPromise = channel.play();
-        if (channel._sfxPromise !== undefined) {
-            channel._sfxPromise.catch(() => {
-                // Automatic Fallback 1: Try switching between 'assets/audio/voice/' and 'assets/audio/'
-                let altPath = null;
-                if (path.includes('assets/audio/voice/')) {
-                    altPath = path.replace('assets/audio/voice/', 'assets/audio/');
-                } else if (path.startsWith('assets/audio/')) {
-                    altPath = path.replace('assets/audio/', 'assets/audio/voice/');
-                }
-
-                const fallbackCharacterAudio = () => {
-                    if (path.includes('_win.mp3')) {
-                        const tauntPath = (path.includes('voice/') ? path : path.replace('assets/audio/', 'assets/audio/voice/')).replace('_win.mp3', '_taunt.mp3');
-                        const p = tryFallback(tauntPath);
-                        if (p) p.catch(() => { });
-                    } else if (path.includes('_hit.mp3')) {
-                        const p = tryFallback('assets/audio/voice/keano_hit.mp3');
-                        if (p) p.catch(() => { });
-                    } else if (path.includes('_ko.mp3')) {
-                        const p = tryFallback('assets/audio/voice/keano_ko.mp3');
-                        if (p) p.catch(() => { });
-                    } else if (path.includes('_special.mp3') || path.includes('_super.mp3')) {
-                        const p = tryFallback('assets/audio/voice/keano_special.mp3');
-                        if (p) p.catch(() => { });
-                    }
-                };
-
-                if (altPath) {
-                    const p = tryFallback(altPath);
-                    if (p) p.catch(fallbackCharacterAudio);
-                } else {
-                    fallbackCharacterAudio();
-                }
-            });
+        // If already in RAM cache, fire synchronously (< 1ms latency)!
+        const cached = this.bufferCache.get(path);
+        if (cached) {
+            playBuffer(cached);
+            return;
         }
 
-        this.sfxIndex = (this.sfxIndex + 1) % this.sfxChannels.length;
+        const spawnTime = performance.now();
+        this.preloadAudio(path).then((buffer) => {
+            // Never play a combat SFX if it took more than 450ms to load (prevents delayed SFX in later rounds!)
+            if (performance.now() - spawnTime > 450) return;
+            playBuffer(buffer);
+        });
     }
 
-    _duckCombatBGM(factor = 0.68) {
-        const baseVol = this._getMusicVol(0.52);
+    _duckCombatBGM(factor = 0.35) {
+        const baseVol = this._getMusicVol(0.22);
         const ducked = baseVol * factor;
         if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(ducked, this.audioCtx.currentTime, 0.06);
-        } else if (this.bgm) {
-            this.bgm.volume = ducked;
+            this.gainNode.gain.setTargetAtTime(ducked, this.audioCtx.currentTime, 0.05);
         }
     }
 
     _restoreCombatBGM() {
-        const announcerActive = this.announcerChannel && !this.announcerChannel.paused && !this.announcerChannel.ended && this.announcerChannel.currentTime > 0;
-        const fighterActive = this.fighterVoiceChannel && !this.fighterVoiceChannel.paused && !this.fighterVoiceChannel.ended && this.fighterVoiceChannel.currentTime > 0 && this._fighterVoicePriority >= 2;
-        if (announcerActive || fighterActive) return;
-        const baseVol = this._getMusicVol(0.52);
+        const fighterActive = this._fighterVoicePlaying && this._fighterVoicePriority >= 2;
+        if (this._voicePlaying || this._announcerPlaying || fighterActive) return;
+        const baseVol = this._getMusicVol(0.22);
         if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(baseVol, this.audioCtx.currentTime, 0.18);
-        } else if (this.bgm) {
-            this.bgm.volume = baseVol;
+            this.gainNode.gain.setTargetAtTime(baseVol, this.audioCtx.currentTime, 0.16);
         }
     }
 
+    // ─── FIGHTER VOICE PLAYBACK (Strict Priority + Token Cancellation) ───
     stopFighterVoice() {
-        const ch = this.fighterVoiceChannel;
-        if (!ch) return;
-        ch.onended = null;
-        try { ch.pause(); } catch (e) { }
-        ch.currentTime = 0;
+        this._fighterVoiceToken++;
+        this._fighterVoicePlaying = false;
         this._fighterVoicePriority = 0;
-        this._restoreCombatBGM();
-    }
-
-    stopAnnouncerVoice() {
-        const ch = this.announcerChannel;
-        if (!ch) return;
-        ch.onended = null;
-        try { ch.pause(); } catch (e) { }
-        ch.currentTime = 0;
+        if (this._fighterVoiceTimeout) {
+            clearTimeout(this._fighterVoiceTimeout);
+            this._fighterVoiceTimeout = null;
+        }
+        if (this.fighterVoiceSource) {
+            try { this.fighterVoiceSource.onended = null; } catch (e) {}
+            try { this.fighterVoiceSource.stop(0); } catch (e) {}
+            try { this.fighterVoiceSource.disconnect(); } catch (e) {}
+            this.fighterVoiceSource = null;
+        }
         this._restoreCombatBGM();
     }
 
     isFighterVoicePlaying() {
-        const ch = this.fighterVoiceChannel;
-        return Boolean(ch && !ch.paused && !ch.ended && ch.currentTime > 0);
+        return Boolean(this._fighterVoicePlaying && this.fighterVoiceSource);
     }
 
-    isAnnouncerPlaying() {
-        const ch = this.announcerChannel;
-        return Boolean(ch && !ch.paused && !ch.ended && ch.currentTime > 0);
-    }
-
-    /**
-     * Dedicated single-channel Street Fighter Announcer playback (never overlaps with itself or low-priority voice).
-     */
-    playAnnouncerVoice(path, onEndedCallback = null) {
-        const ch = this.announcerChannel;
-        if (!ch) {
-            if (onEndedCallback) onEndedCallback();
-            return;
-        }
-
-        // Silence low-priority hit/taunt grunts when announcer calls out ROUND 1 / FIGHT / KO / PERFECT
-        if (this._fighterVoicePriority <= 1) {
-            this.stopFighterVoice();
-        }
-
-        ch.onended = null;
-        ch.onerror = null;
-        try { ch.pause(); } catch (e) { }
-        ch.currentTime = 0;
-        ch.volume = Math.min(1.0, this._getVoiceVol(0.96));
-        ch.src = path;
-        this._duckCombatBGM(0.65);
-
-        let callbackFired = false;
-        const finish = () => {
-            if (callbackFired) return;
-            callbackFired = true;
-            ch.onended = null;
-            ch.onerror = null;
-            this._restoreCombatBGM();
-            if (onEndedCallback) onEndedCallback();
-        };
-
-        ch.onended = finish;
-        ch.onerror = finish;
-
-        const p = ch.play();
-        if (p) {
-            p.catch(() => {
-                if (path.includes('assets/audio/voice/')) {
-                    ch.src = path.replace('assets/audio/voice/', 'assets/audio/');
-                    const p2 = ch.play();
-                    if (p2) p2.catch(finish);
-                } else {
-                    finish();
-                }
-            });
-        }
-    }
-
-    /**
-     * Dedicated single-channel Fighter Voice playback with Street Fighter priority & hit-grunt cooldown.
-     * Ensures zero voice overlapping!
-     */
     playFighterVoice(path, type = 'hit', onEndedCallback = null) {
-        const ch = this.fighterVoiceChannel;
-        if (!ch) {
+        if (!path) {
             if (onEndedCallback) onEndedCallback();
             return;
         }
+        this._initWebAudio();
 
         const PRIORITY = {
             hit: 1,
@@ -555,62 +533,157 @@ export default class AudioManager {
         };
         const prio = PRIORITY[type] || 1;
         const now = performance.now();
-        const isPlaying = !ch.paused && !ch.ended && ch.currentTime > 0;
-        const announcerSpeaking = this.announcerChannel && !this.announcerChannel.paused && !this.announcerChannel.ended && this.announcerChannel.currentTime > 0;
 
         if (type === 'hit') {
-            // Never talk over announcer or active fighter voice, and enforce 850ms cooldown between hit grunts
-            if (isPlaying || announcerSpeaking) return;
+            if (this._fighterVoicePlaying || this._announcerPlaying) return;
             if (now - this._lastHitVoiceTime < 850) return;
             this._lastHitVoiceTime = now;
         } else {
-            // Do not interrupt a higher-priority voice (e.g. KO or Win)
-            if (isPlaying && prio < this._fighterVoicePriority) return;
+            if (this._fighterVoicePlaying && prio < this._fighterVoicePriority) return;
         }
 
-        ch.onended = null;
-        try { ch.pause(); } catch (e) { }
-        ch.currentTime = 0;
+        this.stopFighterVoice();
+        const token = ++this._fighterVoiceToken;
         this._fighterVoicePriority = prio;
+        this._fighterVoicePlaying = true;
+        const requestTime = performance.now();
 
-        const baseVol = this._getVoiceVol(0.96);
-        ch.volume = Math.min(1.0, type === 'hit' ? baseVol * 0.52 : baseVol);
-        ch.src = path;
+        if (this.audioCtx && this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
+        }
 
         if (prio >= 2) {
-            this._duckCombatBGM(0.68);
+            this._duckCombatBGM(0.35);
         }
 
         let callbackFired = false;
         const finish = () => {
-            if (callbackFired) return;
+            if (callbackFired || token !== this._fighterVoiceToken) return;
             callbackFired = true;
-            ch.onended = null;
+            this._fighterVoicePlaying = false;
             this._fighterVoicePriority = 0;
+            if (this._fighterVoiceTimeout) {
+                clearTimeout(this._fighterVoiceTimeout);
+                this._fighterVoiceTimeout = null;
+            }
+            this.fighterVoiceSource = null;
             this._restoreCombatBGM();
             if (onEndedCallback) onEndedCallback();
         };
 
-        ch.onended = finish;
+        this.preloadAudio(path).then((buffer) => {
+            if (token !== this._fighterVoiceToken) return;
+            // Drop stale hit/special grunts if network took too long
+            if ((type === 'hit' || type === 'special') && performance.now() - requestTime > 700) {
+                finish();
+                return;
+            }
+            if (!buffer || !this.audioCtx) {
+                finish();
+                return;
+            }
 
-        const p = ch.play();
-        if (p) {
-            p.catch(() => {
-                if (path.includes('assets/audio/voice/')) {
-                    ch.src = path.replace('assets/audio/voice/', 'assets/audio/');
-                    const p2 = ch.play();
-                    if (p2) p2.catch(finish);
-                } else {
-                    finish();
-                }
-            });
-        }
+            this.applyMixerSettings();
+            const src = this.audioCtx.createBufferSource();
+            const clipGain = this.audioCtx.createGain();
+            clipGain.gain.value = type === 'hit' ? 0.68 : 1.0;
+            src.buffer = buffer;
+            src.connect(clipGain);
+            clipGain.connect(this.voiceGain);
+            src.onended = finish;
+            this.fighterVoiceSource = src;
+
+            try {
+                src.start(0);
+                this._fighterVoiceTimeout = setTimeout(finish, Math.ceil(buffer.duration * 1000) + 400);
+            } catch (e) {
+                finish();
+            }
+        });
     }
 
-    /**
-     * Plays authentic Street Fighter II / Alpha physical punch/kick impact SFX MP3s
-     * (with rich multi-band WebAudio punch transient reinforcement).
-     */
+    // ─── ANNOUNCER VOICE PLAYBACK (ROUND 1, FIGHT!, K.O.!, PERFECT!) ───
+    stopAnnouncerVoice() {
+        this._announcerToken++;
+        this._announcerPlaying = false;
+        if (this._announcerTimeout) {
+            clearTimeout(this._announcerTimeout);
+            this._announcerTimeout = null;
+        }
+        if (this.announcerSource) {
+            try { this.announcerSource.onended = null; } catch (e) {}
+            try { this.announcerSource.stop(0); } catch (e) {}
+            try { this.announcerSource.disconnect(); } catch (e) {}
+            this.announcerSource = null;
+        }
+        this._restoreCombatBGM();
+    }
+
+    isAnnouncerPlaying() {
+        return Boolean(this._announcerPlaying && this.announcerSource);
+    }
+
+    playAnnouncerVoice(path, onEndedCallback = null) {
+        if (!path) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
+        this._initWebAudio();
+
+        // Only silence low-priority hit grunts (never cut off intro/win speeches!)
+        if (this._fighterVoicePriority <= 1) {
+            this.stopFighterVoice();
+        }
+
+        this.stopAnnouncerVoice();
+        const token = ++this._announcerToken;
+        this._announcerPlaying = true;
+        const requestTime = performance.now();
+
+        if (this.audioCtx && this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
+        }
+
+        this._duckCombatBGM(0.35);
+
+        let callbackFired = false;
+        const finish = () => {
+            if (callbackFired || token !== this._announcerToken) return;
+            callbackFired = true;
+            this._announcerPlaying = false;
+            if (this._announcerTimeout) {
+                clearTimeout(this._announcerTimeout);
+                this._announcerTimeout = null;
+            }
+            this.announcerSource = null;
+            this._restoreCombatBGM();
+            if (onEndedCallback) onEndedCallback();
+        };
+
+        this.preloadAudio(path).then((buffer) => {
+            if (token !== this._announcerToken) return;
+            if (performance.now() - requestTime > 2500 || !buffer || !this.audioCtx) {
+                finish();
+                return;
+            }
+
+            this.applyMixerSettings();
+            const src = this.audioCtx.createBufferSource();
+            src.buffer = buffer;
+            src.connect(this.announcerGain);
+            src.onended = finish;
+            this.announcerSource = src;
+
+            try {
+                src.start(0);
+                this._announcerTimeout = setTimeout(finish, Math.ceil(buffer.duration * 1000) + 350);
+            } catch (e) {
+                finish();
+            }
+        });
+    }
+
+    // ─── STREET FIGHTER COMBAT SFX HELPERS ───
     playHitImpactSound(isHeavy = false, isSpecialHit = false) {
         if (isSpecialHit) {
             this.playSFX('assets/audio/sfx/sfx_hit_special.mp3', true);
@@ -621,113 +694,148 @@ export default class AudioManager {
         }
     }
 
-    /** Plays authentic Street Fighter martial-arts swing whoosh SFX */
     playWhooshSound(isHeavy = false) {
         this.playSFX(isHeavy ? 'assets/audio/sfx/sfx_whoosh_heavy.mp3' : 'assets/audio/sfx/sfx_whoosh_light.mp3', false);
     }
 
-    /** Plays authentic Street Fighter close-range grapple/throw slam SFX */
     playThrowSound() {
         this.playSFX('assets/audio/sfx/sfx_throw.mp3', true);
     }
 
-    /** Plays authentic Street Fighter dramatic K.O. double-impact boom SFX */
     playKOBoomSound() {
         this.playSFX('assets/audio/sfx/sfx_ko_boom.mp3', true);
     }
 
-    /** Plays authentic Street Fighter braced forearm guard block SFX (zero triangle beep!) */
     playBlockSound() {
         this.playSFX('assets/audio/sfx/sfx_block.mp3', false);
     }
 
-    // ─── PREMIUM CAESAR ENGINE SPLASH AUDIO ───
+    // ─── CINEMATIC BOOT & CAESAR SPLASH SYNTHS ───
+    playCinematicSweep() {
+        this._initWebAudio();
+        const ctx = this.audioCtx;
+        if (!ctx) return;
+
+        const now = ctx.currentTime;
+        const subOsc = ctx.createOscillator();
+        const subGain = ctx.createGain();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(120, now);
+        subOsc.frequency.exponentialRampToValueAtTime(20, now + 6);
+
+        subGain.gain.setValueAtTime(0, now);
+        subGain.gain.linearRampToValueAtTime(0.65, now + 2.0);
+        subGain.gain.setValueAtTime(0.65, now + 4.0);
+        subGain.gain.linearRampToValueAtTime(0.001, now + 6.0);
+
+        subOsc.connect(subGain);
+        subGain.connect(this.masterGain || ctx.destination);
+        subOsc.start(now);
+        subOsc.stop(now + 6.0);
+
+        [329.63, 493.88, 587.33, 783.99].forEach((freq, index) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+
+            osc.type = index % 2 === 0 ? 'sine' : 'triangle';
+            osc.frequency.setValueAtTime(freq, now);
+            osc.detune.setValueAtTime(index * 5, now);
+
+            gain.gain.setValueAtTime(0, now);
+            gain.gain.linearRampToValueAtTime(0.06, now + 2.0 + (index * 0.2));
+            gain.gain.setValueAtTime(0.06, now + 4.0);
+            gain.gain.linearRampToValueAtTime(0.001, now + 6.0);
+
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(400, now);
+            filter.frequency.linearRampToValueAtTime(3000, now + 3);
+
+            osc.connect(gain);
+            gain.connect(filter);
+            filter.connect(this.masterGain || ctx.destination);
+
+            osc.start(now);
+            osc.stop(now + 6.0);
+        });
+    }
+
     playPremiumSplash() {
-        if (!this.audioCtx || this.audioCtx.state === 'suspended') return;
+        this._initWebAudio();
+        if (!this.audioCtx) return;
+        if (this.audioCtx.state !== 'running') {
+            this.audioCtx.resume().catch(() => {});
+        }
 
         const ctx = this.audioCtx;
         const now = ctx.currentTime;
-        const duration = 5.0; // Long, cinematic decay
+        const duration = 5.0;
+        const dest = this.masterGain || ctx.destination;
 
-        // 1. The Deep Sub-Bass Drone (The THX Rumble)
         const subOsc = ctx.createOscillator();
         const subGain = ctx.createGain();
 
         subOsc.type = 'sawtooth';
-        // Start very low (20Hz) and sweep up to 55Hz for a heavy sub-boom
         subOsc.frequency.setValueAtTime(20, now);
         subOsc.frequency.exponentialRampToValueAtTime(55, now + 1.5);
         subOsc.frequency.linearRampToValueAtTime(30, now + duration);
 
-        // Sub envelope: strong swell, slow fade
         subGain.gain.setValueAtTime(0, now);
-        subGain.gain.linearRampToValueAtTime(1.0, now + 1.2);
+        subGain.gain.linearRampToValueAtTime(0.45, now + 1.2);
         subGain.gain.exponentialRampToValueAtTime(0.01, now + duration);
 
         subOsc.connect(subGain);
-        subGain.connect(this.gainNode);
+        subGain.connect(dest);
 
-        // 2. The Metallic "Netflix-Style" Riser/Chord
-        // We create a wide spread of harmonics to sound huge and futuristic
-        const chordFreqs = [110, 164.81, 220, 329.63, 440]; // A2, E3, A3, E4, A4
+        const chordFreqs = [110, 164.81, 220, 329.63, 440];
         chordFreqs.forEach((freq, i) => {
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
-
-            // Mix Square and Sawtooth for a rich, buzzy synth tone
             osc.type = i % 2 === 0 ? 'square' : 'sawtooth';
-
-            // Add a slight pitch sweep for tension (starts a semitone low, resolves up)
             osc.frequency.setValueAtTime(freq * 0.95, now);
             osc.frequency.exponentialRampToValueAtTime(freq, now + 0.8);
 
-            // Create a "stadium" fade out envelope
             gain.gain.setValueAtTime(0, now);
-            gain.gain.linearRampToValueAtTime(0.2 / chordFreqs.length, now + 0.5 + (i * 0.1)); // Arpeggiate slightly
+            gain.gain.linearRampToValueAtTime(0.12 / chordFreqs.length, now + 0.5 + (i * 0.1));
             gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.8);
 
-            // Run high frequencies through a filter to avoid piercing the ears
             const filter = ctx.createBiquadFilter();
             filter.type = 'lowpass';
             filter.frequency.setValueAtTime(500, now);
-            filter.frequency.exponentialRampToValueAtTime(4000, now + 1.5); // Filter sweeps open
+            filter.frequency.exponentialRampToValueAtTime(4000, now + 1.5);
 
             osc.connect(gain);
             gain.connect(filter);
-            filter.connect(this.gainNode);
+            filter.connect(dest);
 
             osc.start(now);
             osc.stop(now + duration);
         });
 
-        // 3. The "Impact" Shockwave
-        // Simple noise burst mimicking a cinematic drum hit at the peak of the riser
-        const bufferSize = ctx.sampleRate * 2.0; // 2 seconds of noise 
+        const bufferSize = ctx.sampleRate * 2.0;
         const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1; // White noise
+            data[i] = Math.random() * 2 - 1;
         }
 
         const noise = ctx.createBufferSource();
         noise.buffer = buffer;
         const noiseFilter = ctx.createBiquadFilter();
         noiseFilter.type = 'lowpass';
-        noiseFilter.frequency.value = 800; // Deep thud filter
+        noiseFilter.frequency.value = 800;
 
         const noiseGain = ctx.createGain();
         noiseGain.gain.setValueAtTime(0, now);
-        // Hit immediately at the peak of the sub-bass swell (1.2 seconds in)
-        noiseGain.gain.setValueAtTime(0.5, now + 1.2);
+        noiseGain.gain.setValueAtTime(0.28, now + 1.2);
         noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 3.0);
 
         noise.connect(noiseFilter);
         noiseFilter.connect(noiseGain);
-        noiseGain.connect(this.gainNode);
+        noiseGain.connect(dest);
 
         subOsc.start(now);
-        noise.start(now + 1.2); // Start the impact drum right as the swell peaks
-
+        noise.start(now + 1.2);
         subOsc.stop(now + duration);
     }
 }

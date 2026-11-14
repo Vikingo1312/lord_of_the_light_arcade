@@ -82,6 +82,17 @@ export function preloadFighterSprites(assetManager, char) {
     if (!assetManager.images[cutinKey]) {
         assetManager.queueImage(cutinKey, `assets/fx/char_projectiles/${projFile}`);
     }
+
+    // Pre-decode fighter voice clips into WebAudio buffer cache for zero-latency mobile playback
+    const voicePrefix = AUDIO_MAP[char.id] || char.id.toLowerCase();
+    const voiceClips = ['intro', 'hit', 'special', 'super', 'ko', 'win', 'taunt', 'select'];
+    const audioMgr = assetManager.game ? assetManager.game.audioManager : null;
+    for (const clip of voiceClips) {
+        const vPath = `assets/audio/voice/${voicePrefix}_${clip}.mp3`;
+        if (audioMgr && typeof audioMgr.preloadAudio === 'function') {
+            audioMgr.preloadAudio(vPath);
+        }
+    }
 }
 
 /**

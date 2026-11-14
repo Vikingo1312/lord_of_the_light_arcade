@@ -3,22 +3,24 @@ export default class BootState {
         this.game = game;
         this.engineReady = false;
         this.loaded = false;
-        // Start engine on first interaction (click OR touch for iPhone/iPad)
+        // Start engine on first interaction (click, touchend, pointerup, touchstart, or keydown for iPhone/iPad/Android/Desktop)
         const startEngine = () => {
+            this.game.audioManager._initWebAudio();
+            this.game.audioManager.unlockAudio();
             if (!this.engineReady) {
                 this.engineReady = true;
                 this.game.start();
-                this.game.audioManager._initWebAudio(); // Create AudioContext in user-gesture context
-                this.game.audioManager.unlockAudio(); // Prime audio on first touch
+                this.game.audioManager.preloadCoreAudio();
                 this.loadAssets();
             }
         };
-        window.addEventListener('click', startEngine, { once: true });
-        window.addEventListener('touchstart', startEngine, { once: true });
+        ['touchend', 'pointerup', 'click', 'keydown', 'touchstart'].forEach((evt) => {
+            window.addEventListener(evt, startEngine, { once: true, passive: true });
+        });
     }
 
     async loadAssets() {
-        console.log("Loading V2.0 Core Assets...");
+        console.log("Loading V2.20 Core Assets...");
 
         // Shared Background for Menu / Boot screen
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');

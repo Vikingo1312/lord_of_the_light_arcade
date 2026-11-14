@@ -115,27 +115,27 @@ export default class StorySequence {
         }
 
         // --- Audio Routing Logic ---
-        // During voiceover scenes, BGM plays MUFFLED (low-pass filter).
+        // During voiceover scenes, BGM plays MUFFLED (low-pass filter + auto-ducked).
         // Voice always plays CLEAN on top.
         if (this.isBirthdayScene) {
             // Birthday: main soundtrack, clean
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, false, null);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Nicht jede')) {
             // Prologue: Main Theme MUFFLED (voice narrates clean on top)
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, null);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Arenen')) {
             // Reflexion: Main Theme MUFFLED (voice narrates clean on top)
-            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM('assets/audio/music/main_soundtrack.mp3', true, this.game.settings.bgmFilterEnabled, null);
             this.startedOwnBGM = true;
         } else if (this.lines.length > 0 && this.lines[0].includes('Der letzte')) {
             // Epilogue: Valhalla music MUFFLED
-            this.game.audioManager.playBGM(this.game.audioManager.currentPath, true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM(this.game.audioManager.currentPath, true, this.game.settings.bgmFilterEnabled, null);
             this.startedOwnBGM = false;
         } else if (this.lines.length > 0 && this.lines[0].includes('Der Kampf')) {
             // Outro: Valhalla music MUFFLED
-            this.game.audioManager.playBGM(this.game.audioManager.currentPath, true, this.game.settings.bgmFilterEnabled, 0.4);
+            this.game.audioManager.playBGM(this.game.audioManager.currentPath, true, this.game.settings.bgmFilterEnabled, null);
             this.startedOwnBGM = false;
         }
 
