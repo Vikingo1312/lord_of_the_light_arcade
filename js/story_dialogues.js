@@ -201,7 +201,7 @@ export const STORY_DIALOGUES = {
         dimension: 'BLÜTEN-DIMENSION · STURM DER KIRSCHBLÜTEN',
         specialAttack: 'BLOSSOM SHOT',
         superAttack: 'PETAL STORM NOVA',
-        introQuote: 'Ich bin ein It-Girl, Schatz — mein Style ist perfekt und mein Blütensturm fegt dich weg!',
+        introQuote: 'Ich bin ein echtes It-Girl, Schatz — mein Style ist perfekt und mein Blütensturm fegt dich weg!',
         keanoReply: 'Emy, meine Schwester! Zeig ihnen deinen It-Girl-Style und deine Blüten-Power!',
         heroReply: 'Ich bin ein It-Girl — ich regle das hier mit Style und Blüten-Power!',
         winQuote: 'Ein echtes It-Girl gewinnt immer mit Style — nicht mal meine Frisur ist verrutscht!',
