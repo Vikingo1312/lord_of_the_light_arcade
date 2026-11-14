@@ -73,8 +73,11 @@ export const EXTRA_STAGES = [
 export function isFighterUnlocked(id) {
     // Main roster is always unlocked
     if (ROSTER.find(f => f.id === id)) return true;
-    // Check DEV unlock flag (optional bypass)
-    // if (localStorage.getItem('DEV_UNLOCK_ALL') === 'true') return true;
+    // Local PC Mode (localhost / 127.0.0.1): unlock all secret characters for testing!
+    // Live Vercel / iPhone: secret characters stay locked until earned in Arcade Mode.
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return true;
+    }
     // Check localStorage
     const saved = localStorage.getItem(`unlock_${id}`);
     return saved === 'true';
