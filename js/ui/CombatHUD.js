@@ -402,10 +402,20 @@ export default class CombatHUD {
             ctx.fillText(`${combat.p2.data.name.toUpperCase()}: „${dynamicIntro}“`, cx, by + 54);
 
             // Hero (Active P1 Fighter) Story Reply
-            const p1Dialogue = STORY_DIALOGUES[combat.p1.data.id];
-            const rawReply = (combat.p1.data.id !== 'Keano' && p1Dialogue && p1Dialogue.heroReply)
-                ? p1Dialogue.heroReply
-                : (combat.storyDialogue.keanoReply || '');
+            const p1Id = combat.p1.data.id;
+            const p1Dialogue = STORY_DIALOGUES[p1Id];
+            let rawReply = '';
+            if (p1Id === 'JJDark' && combat.storyDialogue.jaydenReply) {
+                rawReply = combat.storyDialogue.jaydenReply;
+            } else if (p1Id === 'JayX' && combat.storyDialogue.jayXReply) {
+                rawReply = combat.storyDialogue.jayXReply;
+            } else if ((p1Id === 'Keano' || p1Id === 'HyperKeano' || p1Id === 'SupremeKeano') && combat.storyDialogue.keanoReply) {
+                rawReply = combat.storyDialogue.keanoReply;
+            } else if (p1Dialogue && p1Dialogue.heroReply) {
+                rawReply = p1Dialogue.heroReply;
+            } else {
+                rawReply = combat.storyDialogue.keanoReply || '';
+            }
             ctx.fillStyle = '#66eeff';
             ctx.fillText(`${p1Name.toUpperCase()}: „${rawReply}“`, cx, by + 84);
             ctx.restore();
