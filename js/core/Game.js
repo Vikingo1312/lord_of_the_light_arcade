@@ -63,8 +63,8 @@ export default class Game {
         try {
             localStorage.setItem('lotl_settings', JSON.stringify(this.settings));
         } catch (e) { }
-        if (this.audioManager) {
-            this.audioManager.applyVolumeSettings();
+        if (this.audioManager && typeof this.audioManager.applyMixerSettings === 'function') {
+            this.audioManager.applyMixerSettings();
         }
     }
 

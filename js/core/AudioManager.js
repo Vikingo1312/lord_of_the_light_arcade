@@ -93,6 +93,10 @@ export default class AudioManager {
         }
     }
 
+    applyVolumeSettings() {
+        this.applyMixerSettings();
+    }
+
     _initWebAudio() {
         if (this.audioCtx && this.audioCtx.state !== 'closed') return;
         try {
@@ -209,7 +213,7 @@ export default class AudioManager {
             'assets/audio/voice/announcer_ko.mp3',
             'assets/audio/voice/announcer_perfect.mp3',
             'assets/audio/music/main_soundtrack.mp3',
-            'assets/audio/story_prologue.mp3'
+            'assets/audio/prologue_voice.mp3'
         ];
         for (const f of coreFiles) {
             this.preloadAudio(f);
