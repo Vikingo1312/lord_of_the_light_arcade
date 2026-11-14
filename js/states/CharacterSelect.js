@@ -1,4 +1,5 @@
 import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js';
+import { STORY_PROLOGUE } from '../story_data.js';
 import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js';
 
 export default class CharacterSelectState {
@@ -209,17 +210,22 @@ export default class CharacterSelectState {
         setTimeout(() => {
             if (this.arcadeMode) {
                 // Arcade Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
+                // Always play Anfang-Part (STORY_PROLOGUE), Mittelpart (STORY_REFLEXION), and Endpart (STORY_EPILOGUE/OUTRO) with Voice & Text!
                 const opponent = ROSTER[1];
                 const combatData = {
                     p1: p1Char,
                     p2: { ...opponent, rosterIndex: 1 },
                     stageId: opponent.stageId,
                     arcadeMode: true,
-                    storyMode: false,
+                    storyMode: true,
                     arcadeIndex: 1,
                     arcadeWins: 0,
                 };
-                this.game.stateManager.switchState('VersusIntro', combatData);
+                this.game.stateManager.switchState('Story', {
+                    ...STORY_PROLOGUE,
+                    nextState: 'VersusIntro',
+                    nextData: combatData,
+                });
             } else {
                 this.game.stateManager.switchState('VersusIntro', {
                     p1: p1Char,

@@ -441,7 +441,7 @@ export default class CombatState {
             this.postMatchTimer = (this.postMatchTimer || 0) + dt;
 
             if (this.autoAdvanceTimer === undefined) {
-                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 7.2 : 10.0;
+                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 9.2 : 10.0;
                 this.autoAdvanceTimer = this.autoAdvanceMax;
             }
 
@@ -1427,8 +1427,8 @@ export default class CombatState {
         const net = this.game.networkManager;
         const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
 
-        // Story Mode Midpoint Check
-        if (nextIdx === 7 && this.combatData && this.combatData.storyMode) {
+        // Story Mode Midpoint Check (Always active for EVERY character in Arcade/Story Mode!)
+        if (nextIdx === 7 && (this.arcadeMode || (this.combatData && this.combatData.storyMode))) {
             this._transitioning = true;
             const nextOpponent = ROSTER[7];
             preloadFighterSprites(this.game.assetManager, nextOpponent);
@@ -1476,7 +1476,7 @@ export default class CombatState {
                 });
             }
 
-            if (this.combatData && this.combatData.storyMode) {
+            if (this.arcadeMode || (this.combatData && this.combatData.storyMode)) {
                 this._transitioning = true;
                 const epiloguePayload = {
                     ...STORY_EPILOGUE,
@@ -1526,7 +1526,7 @@ export default class CombatState {
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
-            storyMode: this.combatData ? this.combatData.storyMode : false,
+            storyMode: true,
             coopMode: this.coopMode,
             onlineMode: this.onlineMode,
             arcadeIndex: nextIdx,

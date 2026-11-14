@@ -22,6 +22,8 @@ const AUDIO_MAP = {
     'JayX': 'jay_x',
     'GargamelHoodie': 'gargamel_hoodie',
     'Simba': 'simba',
+    'Emely': 'emely',
+    'Cayle': 'cayle',
 };
 
 /**

@@ -382,14 +382,21 @@ export default class CombatHUD {
             ctx.fillStyle = '#ffd700';
             ctx.fillText(combat.storyDialogue.dimension || 'LORD OF THE LIGHT', cx, by + 24);
 
-            // Opponent Story Quote
+            // Opponent Story Quote (dynamically addresses the active player by name, never hardcoded Keano!)
+            const p1Name = combat.p1.data.name;
+            const rawIntro = combat.storyDialogue.introQuote || '';
+            const dynamicIntro = rawIntro.replace(/\bKeano(\s+Romeo)?\b/gi, p1Name);
             ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
             ctx.fillStyle = '#ff7788';
-            ctx.fillText(`${combat.p2.data.name.toUpperCase()}: „${combat.storyDialogue.introQuote}“`, cx, by + 54);
+            ctx.fillText(`${combat.p2.data.name.toUpperCase()}: „${dynamicIntro}“`, cx, by + 54);
 
-            // Hero (Keano / P1) Story Reply
+            // Hero (Active P1 Fighter) Story Reply
+            const p1Dialogue = STORY_DIALOGUES[combat.p1.data.id];
+            const rawReply = (combat.p1.data.id !== 'Keano' && p1Dialogue && p1Dialogue.heroReply)
+                ? p1Dialogue.heroReply
+                : (combat.storyDialogue.keanoReply || '');
             ctx.fillStyle = '#66eeff';
-            ctx.fillText(`${combat.p1.data.name.toUpperCase()}: „${combat.storyDialogue.keanoReply}“`, cx, by + 84);
+            ctx.fillText(`${p1Name.toUpperCase()}: „${rawReply}“`, cx, by + 84);
             ctx.restore();
         } else if (combat.matchPhase === 'FIGHTING') {
             // Subtle Arcade Command Move Legend at bottom of screen
@@ -537,7 +544,39 @@ export default class CombatHUD {
 
     static drawPostMatch(ctx, combat) {
         const cx = combat.game.width / 2;
+        const cy = combat.game.height / 2;
         const startY = combat.game.height * 0.65;
+        const winnerFighter = combat.winner === 'p1' ? combat.p1 : combat.p2;
+
+        if (winnerFighter) {
+            ctx.save();
+            ctx.textAlign = 'center';
+            const isCoopWin = combat.winner === 'p1' && combat.coopMode && combat.ally;
+            const winnerText = isCoopWin
+                ? `${combat.p1.data.name.toUpperCase()} & ${combat.ally.data.name.toUpperCase()} WIN!`
+                : `${winnerFighter.data.name.toUpperCase()} WINS!`;
+            ctx.font = isCoopWin ? 'bold 38px "Press Start 2P"' : 'bold 48px "Press Start 2P"';
+            ctx.fillStyle = '#fdbf00';
+            ctx.shadowColor = '#000';
+            ctx.shadowBlur = 12;
+            ctx.fillText(winnerText, cx, cy - 85);
+
+            const winDialog = STORY_DIALOGUES[winnerFighter.data.id];
+            if (winDialog && winDialog.winQuote) {
+                const boxW = Math.min(1180, combat.game.width - 120);
+                ctx.fillStyle = 'rgba(8, 10, 26, 0.86)';
+                ctx.fillRect(cx - boxW / 2, cy - 52, boxW, 54);
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(cx - boxW / 2, cy - 52, boxW, 54);
+                ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 8;
+                ctx.fillText(`${winnerFighter.data.name.toUpperCase()}: „${winDialog.winQuote}“`, cx, cy - 18);
+            }
+            ctx.restore();
+        }
 
         if (combat.autoAdvanceTimer !== undefined) {
             const maxTime = combat.autoAdvanceMax || 3.0;
