@@ -176,6 +176,10 @@ export default class CombatState {
 
     _startRoundCall(immediate = false) {
         if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'STORY_DIALOGUE') return;
+        if (this.paused) {
+            this._pendingRoundCall = true;
+            return;
+        }
         // Never interrupt if fighter intro voice is still actively speaking (unless player explicitly skipped)
         if (!immediate && this.game.audioManager.isFighterVoicePlaying?.()) {
             return;
@@ -189,6 +193,10 @@ export default class CombatState {
         const delayMs = immediate ? 60 : 480;
         this._roundAnnouncerTimeout = setTimeout(() => {
             if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'STORY_DIALOGUE') return;
+            if (this.paused) {
+                this._pendingRoundCall = true;
+                return;
+            }
             this.introSubPhase = 'ROUND_CALL';
             this.introSubTimer = 0;
             this.storyBannerTimer = Math.min(this.storyBannerTimer, 0.35);
@@ -205,12 +213,20 @@ export default class CombatState {
 
     _startFightCall() {
         if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'ROUND_CALL') return;
+        if (this.paused) {
+            this._pendingFightCall = true;
+            return;
+        }
         if (this._fightAnnouncerTimeout) {
             clearTimeout(this._fightAnnouncerTimeout);
             this._fightAnnouncerTimeout = null;
         }
         this._fightAnnouncerTimeout = setTimeout(() => {
             if (this.matchPhase !== 'FIGHT_INTRO' || this.introSubPhase !== 'ROUND_CALL') return;
+            if (this.paused) {
+                this._pendingFightCall = true;
+                return;
+            }
             this.introSubPhase = 'FIGHT_CALL';
             this.introSubTimer = 0;
             playAnnouncer(this.game.audioManager, 'fight');
@@ -297,17 +313,36 @@ export default class CombatState {
         }
     }
 
-    _onMouseClick = (e) => {
-        if (!this.game || !this.game.canvas) return;
-        const rect = this.game.canvas.getBoundingClientRect();
-        const scaleX = this.game.width / rect.width;
-        const scaleY = this.game.height / rect.height;
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
+    setPaused(val) {
+        this.paused = Boolean(val);
+        this.pauseSelection = 0;
+        if (!this.paused) {
+            document.getElementById('mobile-menu')?.classList.add('hidden');
+            if (this.matchPhase === 'FIGHT_INTRO') {
+                if (this._pendingRoundCall && this.introSubPhase === 'STORY_DIALOGUE') {
+                    this._pendingRoundCall = false;
+                    this._startRoundCall(true);
+                } else if (this._pendingFightCall && this.introSubPhase === 'ROUND_CALL') {
+                    this._pendingFightCall = false;
+                    this._startFightCall();
+                }
+            }
+        }
+    }
+
+    _handleCanvasTap(x, y) {
+        const cx = this.game.width / 2;
+        const cy = this.game.height / 2;
+
+        // Top-Right MENU button or Top-Center PAUSE button toggles pause
+        const hitTopRightMenu = (x > this.game.width - 210 && y < 85);
+        const hitTopCenterPause = (x >= cx - 90 && x <= cx + 90 && y < 52);
 
         if (this.paused) {
-            const cx = this.game.width / 2;
-            const cy = this.game.height / 2;
+            if (hitTopRightMenu || hitTopCenterPause) {
+                this.setPaused(false);
+                return true;
+            }
             const startY = cy - 110;
             const rowStep = 68;
             for (let i = 0; i < 5; i++) {
@@ -315,8 +350,9 @@ export default class CombatState {
                 if (y >= ry - 36 && y <= ry + 22 && x >= cx - 420 && x <= cx + 420) {
                     this.pauseSelection = i;
                     if (i === 0) {
-                        this.paused = false;
+                        this.setPaused(false);
                     } else if (i === 4) {
+                        this.setPaused(false);
                         if (this.game.networkManager?.active) this.game.networkManager.disconnect();
                         this.game.stateManager.switchState('Menu');
                     } else if (i >= 1 && i <= 3) {
@@ -338,19 +374,35 @@ export default class CombatState {
                             this._adjustPauseVolume(i, 0.05);
                         }
                     }
-                    return;
+                    return true;
                 }
             }
             if (x < cx - 450 || x > cx + 450 || y < cy - 260 || y > cy + 260) {
-                this.paused = false;
+                this.setPaused(false);
             }
-            return;
+            return true;
         }
 
-        if (x > this.game.width - 200 && y < 80) {
-            this.paused = true;
-            this.pauseSelection = 0;
+        if (hitTopRightMenu || hitTopCenterPause) {
+            this.setPaused(true);
+            return true;
         }
+        return false;
+    }
+
+    _onMouseClick = (e) => {
+        if (!this.game || !this.game.canvas) return;
+        let pt;
+        if (window.mapTouchToCanvas) {
+            pt = window.mapTouchToCanvas(e.clientX, e.clientY, this.game.canvas);
+        } else {
+            const rect = this.game.canvas.getBoundingClientRect();
+            pt = {
+                x: (e.clientX - rect.left) * (this.game.width / Math.max(1, rect.width)),
+                y: (e.clientY - rect.top) * (this.game.height / Math.max(1, rect.height)),
+            };
+        }
+        this._handleCanvasTap(pt.x, pt.y);
     };
 
     update(dt) {
@@ -360,9 +412,14 @@ export default class CombatState {
         const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
         const isOnlineGuest = Boolean(net && net.active && net.role === 'guest' && this.onlineMode);
 
+        // If mobile top-right HTML menu (#mobile-menu) is open during Combat, automatically pause Gameplay!
+        const mobileMenuEl = document.getElementById('mobile-menu');
+        if (mobileMenuEl && !mobileMenuEl.classList.contains('hidden') && !this.paused) {
+            this.setPaused(true);
+        }
+
         if (p1.menuJust) {
-            this.paused = !this.paused;
-            this.pauseSelection = 0;
+            this.setPaused(!this.paused);
             return;
         }
 
@@ -375,10 +432,11 @@ export default class CombatState {
                 this._adjustPauseVolume(this.pauseSelection, 0.05);
             } else if (p1.lJust || p1.hJust || p1.sJust) {
                 if (this.pauseSelection === 0) {
-                    this.paused = false;
+                    this.setPaused(false);
                 } else if (this.pauseSelection >= 1 && this.pauseSelection <= 3) {
                     this._adjustPauseVolume(this.pauseSelection, 0.05);
                 } else if (this.pauseSelection === 4) {
+                    this.setPaused(false);
                     if (net && net.active) net.disconnect();
                     this.game.stateManager.switchState('Menu');
                 }

@@ -109,7 +109,7 @@ export default class TouchPad {
     }
 
     /**
-     * Handle direct touch on Combat top-right MENU button, Pause overlay, or Post-Match menu
+     * Handle direct touch on Combat top-right MENU button, top-center PAUSE button, or Pause overlay
      */
     _handleSpecialCombatTaps(changedTouches) {
         if (!changedTouches || !changedTouches.length || !this.game || !this.game.stateManager) return;
@@ -118,20 +118,8 @@ export default class TouchPad {
         if (!st || st !== combatSt) return;
 
         const pt = this._mapPoint(changedTouches[0].clientX, changedTouches[0].clientY);
-        // Top-right MENU button inside Combat HUD
-        if (!st.paused && pt.x > this.game.width - 220 && pt.y < 95) {
-            st.paused = true;
-            st.pauseSelection = 0;
-            return;
-        }
-        // If paused, tap upper half to Resume, lower half to return to Main Menu
-        if (st.paused) {
-            if (pt.y > this.game.height * 0.54 && pt.y < this.game.height * 0.72) {
-                st.paused = false;
-                this.game.stateManager.switchState('Menu');
-            } else {
-                st.paused = false;
-            }
+        if (typeof st._handleCanvasTap === 'function') {
+            st._handleCanvasTap(pt.x, pt.y);
         }
     }
 

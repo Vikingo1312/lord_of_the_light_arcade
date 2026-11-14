@@ -15,7 +15,7 @@ export const STORY_DIALOGUES = {
         introQuote: 'Digga, wer das Licht einsperrt, hat schon verloren. Komm ran, Bruder — wir klären das hier und jetzt!',
         keanoReply: 'Safe, Bruder — lass uns zeigen, wer das echte Licht auf der Straße trägt!',
         heroReply: 'Safe, Bruder — niemand hält unser Licht auf, komm ran!',
-        winQuote: 'Vallahi, nächstes Siegel gebrochen, Bruder. Das Licht gehört wieder allen!',
+        winQuote: 'Ich schwör, nächstes Siegel gebrochen, Bruder. Das Licht gehört wieder allen!',
     },
     Hattori: {
         dimension: 'DIMENSION 1 · TEMPEL DES ERSTEN SIEGELS (TOKYO)',
@@ -141,7 +141,7 @@ export const STORY_DIALOGUES = {
         introQuote: 'Digga, im Schatten macht mir keiner was vor. Komm ran, wenn du dich traust, Bruder!',
         keanoReply: 'Dein neuer Style ist heftig, Jay — aber mein Licht holt dich trotzdem ein!',
         heroReply: 'Safe, Jay X — lass die Funken fliegen, Bruder!',
-        winQuote: 'Vallahi, niemand stoppt die Familie. Der Weg nach Walhalla gehört uns!',
+        winQuote: 'Ich schwör, niemand stoppt die Familie. Der Weg nach Walhalla gehört uns!',
     },
     Putin: {
         dimension: 'DIMENSION 13 · EWIGER PERMAFROST (SCHWELLE NACH WALHALLA)',

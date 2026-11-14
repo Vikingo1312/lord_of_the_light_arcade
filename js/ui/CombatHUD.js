@@ -186,16 +186,27 @@ export default class CombatHUD {
         ctx.strokeRect(p1X + 2, barY + 2, barW - 4, barH - 4);
         ctx.strokeRect(p2X + 2, barY + 2, barW - 4, barH - 4);
 
-        // Menu Pause Button
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-        ctx.fillRect(game.width - 150, 8, 130, 42);
+        // Top-Center & Top-Right MENU / PAUSE Buttons
+        ctx.save();
+        ctx.fillStyle = combat.paused ? 'rgba(255, 0, 85, 0.85)' : 'rgba(0, 0, 0, 0.72)';
         ctx.strokeStyle = '#ffd700';
         ctx.lineWidth = 2;
+        // Top-Center Pause button above K.O. badge
+        ctx.fillRect(cx - 72, 4, 144, 32);
+        ctx.strokeRect(cx - 72, 4, 144, 32);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.textAlign = 'center';
+        ctx.fillText(combat.paused ? '▶ WEITER' : '⏸ PAUSE', cx, 26);
+
+        // Top-Right MENU button
+        ctx.fillStyle = combat.paused ? 'rgba(255, 0, 85, 0.85)' : 'rgba(0, 0, 0, 0.72)';
+        ctx.fillRect(game.width - 150, 8, 130, 42);
         ctx.strokeRect(game.width - 150, 8, 130, 42);
         ctx.fillStyle = '#fff';
-        ctx.font = '18px "Press Start 2P"';
-        ctx.textAlign = 'center';
-        ctx.fillText('MENU', game.width - 85, 35);
+        ctx.font = 'bold 16px "Press Start 2P"';
+        ctx.fillText('⏸ MENU', game.width - 85, 35);
+        ctx.restore();
 
         // ─── 3-SEGMENT STREET FIGHTER SUPER COMBO METERS ───
         const spH = 16;
