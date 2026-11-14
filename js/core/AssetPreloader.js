@@ -41,7 +41,7 @@ export function preloadFighterSprites(assetManager, char) {
         '_hit', '_ko', '_special', '_win'
     ];
 
-    const ver = '?v=2.25';
+    const ver = '?v=2.28';
     for (const suf of suffixes) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {
