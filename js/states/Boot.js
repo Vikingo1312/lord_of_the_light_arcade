@@ -33,7 +33,7 @@ export default class BootState {
         for (const char of ALL_FIGHTERS) {
             this.game.assetManager.queueImage(
                 `${char.id}_front.png`,
-                `assets/CHARACTERS/${char.folder}/_front.png`
+                `assets/CHARACTERS/${char.folder}/_front.png?v=2.25`
             );
         }
 

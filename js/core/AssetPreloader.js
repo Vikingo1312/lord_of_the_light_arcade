@@ -41,12 +41,13 @@ export function preloadFighterSprites(assetManager, char) {
         '_hit', '_ko', '_special', '_win'
     ];
 
+    const ver = '?v=2.25';
     for (const suf of suffixes) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {
-            assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png`);
+            assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png${ver}`);
             if (['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'].includes(suf)) {
-                assetManager.queueImage(`${key}_fallback`, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png`);
+                assetManager.queueImage(`${key}_fallback`, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png${ver}`);
             }
         }
     }
@@ -56,12 +57,12 @@ export function preloadFighterSprites(assetManager, char) {
         for (const frame of extraFrames) {
             const key = `${char.id}_${char.spritePrefix}_${frame}`;
             if (!assetManager.images[key]) {
-                assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${char.spritePrefix}_${frame}.png`);
+                assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${char.spritePrefix}_${frame}.png${ver}`);
             }
         }
         if ((char.cutinFile2 || char.id === 'SupremeKeano') && !assetManager.images[`${char.id}_Cutin2`]) {
             const proj2 = char.cutinFile2 || 'proj_supreme_keano_2.png';
-            assetManager.queueImage(`${char.id}_Cutin2`, `assets/fx/char_projectiles/${proj2}`);
+            assetManager.queueImage(`${char.id}_Cutin2`, `assets/fx/char_projectiles/${proj2}${ver}`);
         }
     }
 
