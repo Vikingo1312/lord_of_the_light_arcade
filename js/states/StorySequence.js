@@ -359,13 +359,15 @@ export default class StorySequence {
         // Voiceover ended → auto-advance with smooth fade (but NOT for Birthday!)
         if (this.finished && !this.fading && !this.isBirthdayScene) {
             this.finishTimer += dt;
-            if (this.finishTimer > 1) {
-                this.fading = true; // Start smooth fade-out
+            if (this.finishTimer > 2.2) {
+                this.fading = true; // Start smooth fade-out after 2.2s reading buffer
             }
         }
 
-        // Allow skip anytime after 0.3s with any button press, Enter, Space, Escape, or click
-        if (this.time > 0.3 && (p1.skipJust || remoteSkip) && !this.fading) {
+        // Only allow skipping mid-speech via explicit Escape/Menu key after 1.5s (or any button once voiceover finished)
+        // so accidental combat button presses or screen touches NEVER cut off the narrator!
+        const explicitSkip = (this.time > 1.5 && p1.menuJust) || (this.finished && this.time > 1.0 && p1.skipJust) || (this.isBirthdayScene && this.time > 2.0 && p1.skipJust);
+        if ((explicitSkip || remoteSkip) && !this.fading) {
             if (!net || !net.active || net.role === 'host' || this.isBirthdayScene) {
                 this.game.audioManager.stopVoice();
                 this.fading = true;

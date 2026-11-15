@@ -518,7 +518,7 @@ export default class AudioManager {
     }
 
     isFighterVoicePlaying() {
-        return Boolean(this._fighterVoicePlaying && this.fighterVoiceSource);
+        return Boolean(this._fighterVoicePlaying);
     }
 
     playFighterVoice(path, type = 'hit', onEndedCallback = null) {
@@ -532,11 +532,11 @@ export default class AudioManager {
             hit: 1,
             taunt: 2,
             select: 2,
-            intro: 2,
+            intro: 4,
             special: 3,
             super: 3,
-            win: 4,
-            ko: 5
+            ko: 5,
+            win: 6
         };
         const prio = PRIORITY[type] || 1;
         const now = performance.now();

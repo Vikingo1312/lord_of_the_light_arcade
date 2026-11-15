@@ -1,4 +1,4 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
 import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js';
 
@@ -454,16 +454,22 @@ export default class CharacterSelectState {
         // Name & Nickname
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fdbf00';
-        ctx.font = 'bold 28px "Press Start 2P"';
-        ctx.fillText(char.name.toUpperCase(), x + cardW / 2, y + 430);
+        ctx.font = 'bold 26px "Press Start 2P"';
+        ctx.fillText(char.name.toUpperCase(), x + cardW / 2, y + 418);
 
         ctx.fillStyle = '#aaa';
-        ctx.font = '16px "Press Start 2P"';
-        ctx.fillText(`"${char.nickname.toUpperCase()}"`, x + cardW / 2, y + 470);
-
-        ctx.fillStyle = '#fff';
         ctx.font = '14px "Press Start 2P"';
-        ctx.fillText(`FROM: ${char.country.toUpperCase()}`, x + cardW / 2, y + 510);
+        ctx.fillText(`"${char.nickname.toUpperCase()}"`, x + cardW / 2, y + 448);
+
+        // Fight Style Badge & Signature Combo
+        const style = getFighterStyle(char);
+        ctx.fillStyle = style.color || '#00ffff';
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.fillText(`STYLE: ${style.badge}`, x + cardW / 2, y + 480);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '11px "Press Start 2P"';
+        ctx.fillText(`KOMBO: ${style.sig1Badges.join(' ')}`, x + cardW / 2, y + 506);
 
         // Stats Bars
         const drawBar = (label, val, max, yPos, color) => {

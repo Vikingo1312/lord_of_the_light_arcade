@@ -5,37 +5,150 @@
  */
 // ─── MAIN ROSTER (Arcade/Story Mode Order) ───
 // Keano is the hero. The 14 opponents follow in story order.
+export const FIGHT_STYLES = {
+    LIGHT_DRAGON: {
+        id: 'LIGHT_DRAGON',
+        name: 'LIGHT DRAGON KARATE',
+        badge: '☀️ LIGHT DRAGON STYLE',
+        color: '#00ffff',
+        passive: '+20% Kombo-Tempo & Solar-Launcher beim 3. Schlag',
+        sig1Name: 'SOLAR FLASH RUSH',
+        sig1Input: 'P ➔ P ➔ P  (oder P ➔ P ➔ ↑+K)',
+        sig1Badges: ['P', '➔', 'P', '➔', 'P'],
+        sig1Dmg: '88 DMG · SOLAR DRAGON LAUNCHER',
+        sig1Desc: '2 blitzschnelle Licht-Jabs + explosiver Solar-Dragon-Uppercut, der den Gegner hoch in die Luft schleudert!',
+        sig2Name: 'HEAVENLY LIGHT FLURRY',
+        sig2Input: 'P ➔ K ➔ ↓+S',
+        sig2Badges: ['P', '➔', 'K', '➔', 'S'],
+        sig2Dmg: '96 DMG · 5-HIT LICHT-WIRBEL',
+        sig2Desc: 'Verbindet Punch und Roundhouse-Kick nahtlos mit einem 3-fachen Licht-Wirbelsturm-Kick!'
+    },
+    SHADOW_ASSASSIN: {
+        id: 'SHADOW_ASSASSIN',
+        name: 'SHADOW ASSASSIN',
+        badge: '💫 SHADOW ASSASSIN STYLE',
+        color: '#cc55ff',
+        passive: 'Phantom-Crossup: Kann mitten in der Kombo hinter den Gegner teleport-dashen!',
+        sig1Name: 'PHANTOM SHADOW BLITZ',
+        sig1Input: 'K ➔ P ➔ K  (oder P ➔ P ➔ K)',
+        sig1Badges: ['K', '➔', 'P', '➔', 'K'],
+        sig1Dmg: '92 DMG · TELEPORT-CROSSUP',
+        sig1Desc: 'Schatten-Kick, gefolgt von einem blitzschnellen Phantom-Dash durch den Gegner und Überkopf-Axttritt!',
+        sig2Name: 'ECLIPSE ASSASSIN CHAIN',
+        sig2Input: '→+P ➔ K ➔ S',
+        sig2Badges: ['→+P', '➔', 'K', '➔', 'S'],
+        sig2Dmg: '108 DMG · DECKUNGSBRECHER',
+        sig2Desc: 'Bricht geduckte Deckung mit der Rückfaust und jagt sofort die dunkle Schatten-Flamme hinterher!'
+    },
+    VALHALLA_BERSERKER: {
+        id: 'VALHALLA_BERSERKER',
+        name: 'VALHALLA BERSERKER',
+        badge: '⚡ VALHALLA BERSERKER STYLE',
+        color: '#ffcc00',
+        passive: 'Donner-Rüstung (Super-Armor bei schweren Attacken) + massiver Rückstoß',
+        sig1Name: 'THUNDER HAMMER SMASH',
+        sig1Input: '→+P ➔ P ➔ K',
+        sig1Badges: ['→+P', '➔', 'P', '➔', 'K'],
+        sig1Dmg: '104 DMG · SUPER-ARMOR BREAKER',
+        sig1Desc: 'Unaufhaltsamer Berserker-Vorstoß mit Donner-Rüstung und vernichtendem Walhalla-Hammer-Tritt!',
+        sig2Name: 'RAGNAROK EARTHQUAKE',
+        sig2Input: 'K ➔ ↓+K ➔ ↑+S',
+        sig2Badges: ['K', '➔', '↓+K', '➔', '↑+S'],
+        sig2Dmg: '112 DMG · HOCH-TIEF KOMBO',
+        sig2Desc: 'Zwingt den Gegner erst in den hohen Block, fegt ihn dann tief von den Beinen und schleudert ihn hoch!'
+    },
+    CAPOEIRA_TRICKSTER: {
+        id: 'CAPOEIRA_TRICKSTER',
+        name: 'CAPOEIRA & RASTA FLOW',
+        badge: '🤸 CAPOEIRA TRICKSTER STYLE',
+        color: '#00ff88',
+        passive: 'Triple-Kick-Flow: Kann 3 verschiedene Kicks nahtlos aneinanderketten!',
+        sig1Name: 'TRIPLE CAPOEIRA HELICOPTER',
+        sig1Input: 'K ➔ K ➔ K  (3x Kick-Taste!)',
+        sig1Badges: ['K', '➔', 'K', '➔', 'K'],
+        sig1Dmg: '94 DMG · TIEF ➔ MITTEL ➔ ÜBERKOPF',
+        sig1Desc: 'Einzigartige 3er-Kick-Kette: Tiefer Fußfeger ➔ gedrehter Spin-Kick ➔ Überkopf-Axttritt!',
+        sig2Name: 'TROPICAL CYCLONE SPIN',
+        sig2Input: '↓+K ➔ K ➔ ↓+S',
+        sig2Badges: ['↓+K', '➔', 'K', '➔', '↓+S'],
+        sig2Dmg: '102 DMG · 5-HIT WIRBELSTURM',
+        sig2Desc: 'Fegt den Gegner vom Boden in einen nicht enden wollenden Capoeira-Wirbelsturm!'
+    },
+    TITAN_GRAPPLER: {
+        id: 'TITAN_GRAPPLER',
+        name: 'TITAN GRAPPLER & BRAWLER',
+        badge: '🤼 TITAN GRAPPLER STYLE',
+        color: '#ff4444',
+        passive: 'Combo-Throw: Kann direkt aus einem Treffer einen UNBLOCKBAREN Wurf-Slam ausführen!',
+        sig1Name: 'UNBLOCKABLE COMBO SLAM',
+        sig1Input: 'P ➔ P+K  (Schlag in Wurf!)',
+        sig1Badges: ['P', '➔', 'P+K'],
+        sig1Dmg: '90 DMG · 100% UNBLOCKBARER SLAM',
+        sig1Desc: 'Nach einem Jab packt der Titan den Gegner sofort im Genick und rammt ihn unblockbar in den Boden!',
+        sig2Name: 'HEAVYWEIGHT CRUSHER',
+        sig2Input: '→+K ➔ P ➔ P+K',
+        sig2Badges: ['→+K', '➔', 'P', '➔', 'P+K'],
+        sig2Dmg: '110 DMG · BRUTALER BODENBRECHER',
+        sig2Desc: 'Bricht die Deckung von oben und beendet die Kette mit einem verheerenden Lucha-/MMA-Wurf!'
+    },
+    MASTER_STRIKER: {
+        id: 'MASTER_STRIKER',
+        name: 'GRANDE MASTER ARTS',
+        badge: '🗡️ MASTER STRIKER STYLE',
+        color: '#ffaa00',
+        passive: 'Meister-Präzision: +25% Konter-Schaden & blitzschnelle 4-Hit-Technikkette',
+        sig1Name: 'IMPERIAL 4-STRIKE BLADE',
+        sig1Input: 'P ➔ P ➔ →+K',
+        sig1Badges: ['P', '➔', 'P', '➔', '→+K'],
+        sig1Dmg: '92 DMG · PRÄZISIONS-FINISHER',
+        sig1Desc: 'Blitzschnelle Meister-Kombination mit doppeltem Vorwärtsschritt und Überkopf-Finisher!',
+        sig2Name: 'DRAGON MASTER ASCENSION',
+        sig2Input: '↓+K ➔ P ➔ ↑+S',
+        sig2Badges: ['↓+K', '➔', 'P', '➔', '↑+S'],
+        sig2Dmg: '98 DMG · KONTER-LAUNCHER',
+        sig2Desc: 'Tiefer Feger direkt gecancelt in einen aufsteigenden Meister-Drachenschlag!'
+    }
+};
+
 export const ROSTER = [
-    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 310, speed: 540, power: 105, specialName: 'LIGHT SHOT', superName: 'SOLAR NEXUS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
-    { id: 'Hattori', folder: '1.Hattori_Japan', name: 'Hattori', nickname: 'The Silent Blade', country: 'Japan', stageId: 'Japan', hp: 285, speed: 510, power: 92, specialName: 'BLADE OF DAWN', superName: 'AMATERASU SLASH', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'hattori', cutinFile: 'proj_hattori.png' },
-    { id: 'Raheel', folder: '2.Raheel', name: 'Raheel', nickname: 'Desert Storm', country: 'India', stageId: 'India', hp: 295, speed: 495, power: 95, specialName: 'AGNI FLARE', superName: 'SOLAR MANDALA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'raheel', cutinFile: 'proj_raheel.png' },
-    { id: 'Pablo', folder: '3.Pablo', name: 'Pablo', nickname: 'Capoeira King', country: 'Brazil', stageId: 'Brazil', hp: 295, speed: 530, power: 96, specialName: 'SOLAR GINGA', superName: 'SUPERNOVA RHYTHM', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'pablo', cutinFile: 'proj_pablo.png' },
-    { id: 'Tzubaza', folder: '4.Tzubaza', name: 'Tzubaza', nickname: 'The Dragon', country: 'China', stageId: 'China', hp: 300, speed: 515, power: 98, specialName: 'DRAGON PULSE', superName: 'CELESTIAL DRAGON', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'tzubaza', cutinFile: 'proj_tzubaza.png' },
-    { id: 'AlCapone', folder: '5.Al_Capone', name: 'Al Capone', nickname: 'Mob Boss', country: 'Italy', stageId: 'Italy', hp: 310, speed: 480, power: 100, specialName: 'SHADOW SALVO', superName: 'EMPIRE RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'capone', cutinFile: 'proj_al_capone.png' },
-    { id: 'Gargamel', folder: '6.C_Gargamel', name: 'C. Gargamel', nickname: 'Dark Alchemist', country: 'Germany', stageId: 'Germany', hp: 305, speed: 500, power: 102, specialName: 'AETHER FLASK', superName: "PHILOSOPHER'S NOVA", multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
-    { id: 'Marley', folder: '7.Marley_Jamaica', name: 'Marley', nickname: 'Rasta Warrior', country: 'Jamaica', stageId: 'Jamaica', hp: 310, speed: 525, power: 104, specialName: 'ZION PULSE', superName: 'LION OF LIGHT', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'marley', cutinFile: 'proj_marley.png' },
-    { id: 'Kowalski', folder: '8.Kowalski_Poland', name: 'Kowalski', nickname: 'Iron Bear', country: 'Poland', stageId: 'Poland', hp: 335, speed: 455, power: 110, specialName: 'IRON TREMOR', superName: 'TITAN BREAKER', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'kowalski', cutinFile: 'proj_kowalski.png' },
-    { id: 'Paco', folder: '9.Paco_el_Taco', name: 'Paco el Taco', nickname: 'Lucha Libre', country: 'Mexico', stageId: 'Mexico', hp: 320, speed: 530, power: 106, specialName: 'AZTEC FLARE', superName: 'FIFTH SUN ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'paco', cutinFile: 'proj_paco.png' },
-    { id: 'Juan', folder: '10.Juan', name: 'Juan', nickname: 'Matador', country: 'Spain', stageId: 'Spain', hp: 310, speed: 545, power: 108, specialName: 'CRIMSON FLASH', superName: 'ROYAL CORRIDA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'juan', cutinFile: 'proj_juan.png' },
-    { id: 'Lee', folder: '11.Lee', name: 'Lee', nickname: 'Fist of Fury', country: 'Japan', stageId: 'Japan_Night', hp: 305, speed: 590, power: 108, specialName: 'LIGHTNING FIST', superName: 'THUNDER DRAGON FURY', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'lee', cutinFile: 'proj_lee.png' },
-    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 325, speed: 565, power: 112, specialName: 'SHADOW FLAME', superName: 'ECLIPSE NOVA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
-    { id: 'Putin', folder: '13.Putin', name: 'Putin', nickname: 'Cold War', country: 'Russia', stageId: 'Russia', hp: 345, speed: 465, power: 115, specialName: 'FROST VORTEX', superName: 'ABSOLUTE ZERO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'putin', cutinFile: 'proj_putin.png' },
-    { id: 'VikingoRaw', folder: '14.1.vikingo_shirtless', name: 'Dark Vikingo', nickname: 'God of War', country: 'Valhalla', stageId: 'Valhalla', hp: 365, speed: 575, power: 122, specialName: 'ABYSS BREAKER', superName: 'RAGNAROK ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'vikingo_shirtless', cutinFile: 'proj_dark_vikingo.png' },
+    { id: 'Keano', folder: '0.Keano', name: 'Keano Romeo', nickname: 'Lord of the Light', country: 'Universal', stageId: 'Japan', hp: 310, speed: 540, power: 105, styleId: 'LIGHT_DRAGON', specialName: 'LIGHT SHOT', superName: 'SOLAR NEXUS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_keano.png' },
+    { id: 'Hattori', folder: '1.Hattori_Japan', name: 'Hattori', nickname: 'The Silent Blade', country: 'Japan', stageId: 'Japan', hp: 285, speed: 510, power: 92, styleId: 'MASTER_STRIKER', specialName: 'BLADE OF DAWN', superName: 'AMATERASU SLASH', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'hattori', cutinFile: 'proj_hattori.png' },
+    { id: 'Raheel', folder: '2.Raheel', name: 'Raheel', nickname: 'Desert Storm', country: 'India', stageId: 'India', hp: 295, speed: 495, power: 95, styleId: 'MASTER_STRIKER', specialName: 'AGNI FLARE', superName: 'SOLAR MANDALA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'raheel', cutinFile: 'proj_raheel.png' },
+    { id: 'Pablo', folder: '3.Pablo', name: 'Pablo', nickname: 'Capoeira King', country: 'Brazil', stageId: 'Brazil', hp: 295, speed: 530, power: 96, styleId: 'CAPOEIRA_TRICKSTER', specialName: 'SOLAR GINGA', superName: 'SUPERNOVA RHYTHM', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'pablo', cutinFile: 'proj_pablo.png' },
+    { id: 'Tzubaza', folder: '4.Tzubaza', name: 'Tzubaza', nickname: 'The Dragon', country: 'China', stageId: 'China', hp: 300, speed: 515, power: 98, styleId: 'MASTER_STRIKER', specialName: 'DRAGON PULSE', superName: 'CELESTIAL DRAGON', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'tzubaza', cutinFile: 'proj_tzubaza.png' },
+    { id: 'AlCapone', folder: '5.Al_Capone', name: 'Al Capone', nickname: 'Mob Boss', country: 'Italy', stageId: 'Italy', hp: 310, speed: 480, power: 100, styleId: 'TITAN_GRAPPLER', specialName: 'SHADOW SALVO', superName: 'EMPIRE RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'capone', cutinFile: 'proj_al_capone.png' },
+    { id: 'Gargamel', folder: '6.C_Gargamel', name: 'C. Gargamel', nickname: 'Dark Alchemist', country: 'Germany', stageId: 'Germany', hp: 305, speed: 500, power: 102, styleId: 'SHADOW_ASSASSIN', specialName: 'AETHER FLASK', superName: "PHILOSOPHER'S NOVA", multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
+    { id: 'Marley', folder: '7.Marley_Jamaica', name: 'Marley', nickname: 'Rasta Warrior', country: 'Jamaica', stageId: 'Jamaica', hp: 310, speed: 525, power: 104, styleId: 'CAPOEIRA_TRICKSTER', specialName: 'ZION PULSE', superName: 'LION OF LIGHT', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'marley', cutinFile: 'proj_marley.png' },
+    { id: 'Kowalski', folder: '8.Kowalski_Poland', name: 'Kowalski', nickname: 'Iron Bear', country: 'Poland', stageId: 'Poland', hp: 335, speed: 455, power: 110, styleId: 'TITAN_GRAPPLER', specialName: 'IRON TREMOR', superName: 'TITAN BREAKER', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'kowalski', cutinFile: 'proj_kowalski.png' },
+    { id: 'Paco', folder: '9.Paco_el_Taco', name: 'Paco el Taco', nickname: 'Lucha Libre', country: 'Mexico', stageId: 'Mexico', hp: 320, speed: 530, power: 106, styleId: 'TITAN_GRAPPLER', specialName: 'AZTEC FLARE', superName: 'FIFTH SUN ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'paco', cutinFile: 'proj_paco.png' },
+    { id: 'Juan', folder: '10.Juan', name: 'Juan', nickname: 'Matador', country: 'Spain', stageId: 'Spain', hp: 310, speed: 545, power: 108, styleId: 'MASTER_STRIKER', specialName: 'CRIMSON FLASH', superName: 'ROYAL CORRIDA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'juan', cutinFile: 'proj_juan.png' },
+    { id: 'Lee', folder: '11.Lee', name: 'Lee', nickname: 'Fist of Fury', country: 'Japan', stageId: 'Japan_Night', hp: 305, speed: 590, power: 108, styleId: 'MASTER_STRIKER', specialName: 'LIGHTNING FIST', superName: 'THUNDER DRAGON FURY', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'lee', cutinFile: 'proj_lee.png' },
+    { id: 'JJDark', folder: '12.JJ_Dark', name: 'JJ Dark', nickname: 'Shadow Master', country: 'Unknown', stageId: 'Dojo', hp: 325, speed: 565, power: 112, styleId: 'SHADOW_ASSASSIN', specialName: 'SHADOW FLAME', superName: 'ECLIPSE NOVA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'jayden', cutinFile: 'proj_jayden.png' },
+    { id: 'Putin', folder: '13.Putin', name: 'Putin', nickname: 'Cold War', country: 'Russia', stageId: 'Russia', hp: 345, speed: 465, power: 115, styleId: 'TITAN_GRAPPLER', specialName: 'FROST VORTEX', superName: 'ABSOLUTE ZERO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'putin', cutinFile: 'proj_putin.png' },
+    { id: 'VikingoRaw', folder: '14.1.vikingo_shirtless', name: 'Dark Vikingo', nickname: 'God of War', country: 'Valhalla', stageId: 'Valhalla', hp: 365, speed: 575, power: 122, styleId: 'VALHALLA_BERSERKER', specialName: 'ABYSS BREAKER', superName: 'RAGNAROK ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'vikingo_shirtless', cutinFile: 'proj_dark_vikingo.png' },
 ];
 // ─── SPECIAL / SECRET CHARACTERS ───
 // "unlockedBy" defines the Bloodline progression requirement (who you need to beat Arcade mode with)
 export const SPECIALS = [
-    { id: 'Vikingo', folder: '14.vikingo_coat', name: 'Vikingo', nickname: 'The Creator', country: 'Valhalla', special: true, stageId: 'Canada', unlockedBy: 'VikingoRaw', hp: 380, speed: 630, power: 132, specialName: 'VALHALLA THUNDER', superName: 'BIFROST GENESIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'vikingo_coat', cutinFile: 'proj_vikingo_coat.png' },
-    { id: 'SupremeKeano', folder: '0.1.Supreme_Keano', name: 'Supreme Keano', nickname: 'Ascended Hero', country: 'Ascended', special: true, stageId: 'Supreme_Keano', unlockedBy: 'HyperKeano', hp: 360, speed: 615, power: 126, specialType: 'SPECIAL_DASH', specialName: 'CELESTIAL FLASH', superName: 'GENESIS OF LIGHT', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_supreme_keano.png' },
-    { id: 'HyperKeano', folder: '0.2.Hyper_Keano', name: 'Hyper Keano', nickname: 'Vengeful Hero', country: 'Beyond', special: true, stageId: 'Japan', unlockedBy: 'Keano', hp: 335, speed: 610, power: 116, specialName: 'PHOTON SURGE', superName: 'ASTRAL ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_0.2.Hyper_Keano.png' },
-    { id: 'JayX', folder: '12.1.Jay_X', name: 'Jay X', nickname: 'Neon Shadow', country: 'Shadow', special: true, stageId: 'Dojo', unlockedBy: 'JJDark', hp: 330, speed: 660, power: 114, specialName: 'PHANTOM PULSE', superName: 'VOID HORIZON', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'jay_x', cutinFile: 'proj_jay_x.png' },
-    { id: 'GargamelHoodie', folder: '6.1.C_Gargamel_Hoodie', name: 'Gargamel Hoodie', nickname: 'Street Chemist', country: 'Germany', special: true, stageId: 'Germany', unlockedBy: 'Gargamel', hp: 325, speed: 535, power: 114, specialName: 'TOXIC PRISM', superName: 'DARK ALCHEMY OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
-    { id: 'Simba', folder: '16.Simba', name: 'Simba', nickname: 'Lion King', country: 'Serengeti', special: true, stageId: 'Jamaica', unlockedBy: 'Vikingo', hp: 360, speed: 610, power: 125, largeAura: true, specialName: 'SAVANNAH ROAR', superName: 'PRIDE OF ETERNITY', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'simba', cutinFile: 'proj_simba.png' },
-    { id: 'Emely', folder: '17.Emely', name: '🌸 Emy 🌸', nickname: 'Blossom Queen', country: 'Universal', special: true, stageId: 'Japan', unlockedBy: 'Simba', hp: 350, speed: 625, power: 124, specialName: 'BLOSSOM SHOT', superName: 'PETAL STORM NOVA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'emely', cutinFile: 'proj_emely.png' },
-    { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', hp: 340, speed: 645, power: 120, specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
+    { id: 'Vikingo', folder: '14.vikingo_coat', name: 'Vikingo', nickname: 'The Creator', country: 'Valhalla', special: true, stageId: 'Canada', unlockedBy: 'VikingoRaw', hp: 380, speed: 630, power: 132, styleId: 'VALHALLA_BERSERKER', specialName: 'VALHALLA THUNDER', superName: 'BIFROST GENESIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'vikingo_coat', cutinFile: 'proj_vikingo_coat.png' },
+    { id: 'SupremeKeano', folder: '0.1.Supreme_Keano', name: 'Supreme Keano', nickname: 'Ascended Hero', country: 'Ascended', special: true, stageId: 'Supreme_Keano', unlockedBy: 'HyperKeano', hp: 360, speed: 615, power: 126, styleId: 'LIGHT_DRAGON', specialType: 'SPECIAL_DASH', specialName: 'CELESTIAL FLASH', superName: 'GENESIS OF LIGHT', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_supreme_keano.png' },
+    { id: 'HyperKeano', folder: '0.2.Hyper_Keano', name: 'Hyper Keano', nickname: 'Vengeful Hero', country: 'Beyond', special: true, stageId: 'Japan', unlockedBy: 'Keano', hp: 335, speed: 610, power: 116, styleId: 'LIGHT_DRAGON', specialName: 'PHOTON SURGE', superName: 'ASTRAL ECLIPSE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'keano', cutinFile: 'proj_0.2.Hyper_Keano.png' },
+    { id: 'JayX', folder: '12.1.Jay_X', name: 'Jay X', nickname: 'Neon Shadow', country: 'Shadow', special: true, stageId: 'Dojo', unlockedBy: 'JJDark', hp: 330, speed: 660, power: 114, styleId: 'SHADOW_ASSASSIN', specialName: 'PHANTOM PULSE', superName: 'VOID HORIZON', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'jay_x', cutinFile: 'proj_jay_x.png' },
+    { id: 'GargamelHoodie', folder: '6.1.C_Gargamel_Hoodie', name: 'Gargamel Hoodie', nickname: 'Street Chemist', country: 'Germany', special: true, stageId: 'Germany', unlockedBy: 'Gargamel', hp: 325, speed: 535, power: 114, styleId: 'SHADOW_ASSASSIN', specialName: 'TOXIC PRISM', superName: 'DARK ALCHEMY OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
+    { id: 'Simba', folder: '16.Simba', name: 'Simba', nickname: 'Lion King', country: 'Serengeti', special: true, stageId: 'Jamaica', unlockedBy: 'Vikingo', hp: 360, speed: 610, power: 125, styleId: 'VALHALLA_BERSERKER', largeAura: true, specialName: 'SAVANNAH ROAR', superName: 'PRIDE OF ETERNITY', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'simba', cutinFile: 'proj_simba.png' },
+    { id: 'Emely', folder: '17.Emely', name: '🌸 Emy 🌸', nickname: 'Blossom Queen', country: 'Universal', special: true, stageId: 'Japan', unlockedBy: 'Simba', hp: 350, speed: 625, power: 124, styleId: 'LIGHT_DRAGON', specialName: 'BLOSSOM SHOT', superName: 'PETAL STORM NOVA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'emely', cutinFile: 'proj_emely.png' },
+    { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
+
+export function getFighterStyle(fighterOrId) {
+    const f = typeof fighterOrId === 'string'
+        ? ALL_FIGHTERS.find(x => x.id === fighterOrId)
+        : fighterOrId;
+    const styleKey = (f && f.styleId) || 'LIGHT_DRAGON';
+    return FIGHT_STYLES[styleKey] || FIGHT_STYLES.LIGHT_DRAGON;
+}
 /**
  * STORY/ARCADE STAGES — one per opponent, keyed by stageId
  */
@@ -70,14 +183,32 @@ export const EXTRA_STAGES = [
 /**
  * BLOODLINE / PROGRESSION HELPERS
  */
+export function syncJanBrowserUnlocks() {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
+    const host = window.location.hostname || '';
+    const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
+    const hasJanParam = window.location.search.includes('jan=1') || window.location.hash.includes('jan');
+    const hasJanExistingSave = localStorage.getItem('unlock_Vikingo') === 'true' || localStorage.getItem('unlock_Simba') === 'true';
+    if (isJanLocal || hasJanParam || hasJanExistingSave || localStorage.getItem('lotl_vip_jan') === 'true') {
+        try {
+            localStorage.setItem('lotl_vip_jan', 'true');
+            localStorage.setItem('lotl_story_complete', 'true');
+            for (const s of SPECIALS) {
+                localStorage.setItem(`unlock_${s.id}`, 'true');
+            }
+        } catch (e) {}
+        return true;
+    }
+    return false;
+}
+
+// Run immediately on module load so Jan's browser has all fighters & modes unlocked right away
+syncJanBrowserUnlocks();
+
 export function isFighterUnlocked(id) {
     // Main roster is always unlocked
     if (ROSTER.find(f => f.id === id)) return true;
-    // Local PC Mode (localhost / 127.0.0.1): unlock all secret characters for testing!
-    // Live Vercel / iPhone: secret characters stay locked until earned in Arcade Mode.
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return true;
-    }
+    if (syncJanBrowserUnlocks()) return true;
     // Check localStorage
     const saved = localStorage.getItem(`unlock_${id}`);
     return saved === 'true';

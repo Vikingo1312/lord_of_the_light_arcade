@@ -1,6 +1,7 @@
-import { ROSTER, STAGES } from '../data.js';
+import { ROSTER, ALL_FIGHTERS, STAGES, getFighterStyle } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
 import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js';
+import { getFinisherMove } from '../fx/CinematicFinisher.js';
 
 export default class MenuState {
     constructor(game) {
@@ -30,9 +31,9 @@ export default class MenuState {
         this._draggingSlider = false;
         this._lastTapAt = 0;
 
-        this.comboShowList = [
+        this.universalCombos = [
             {
-                name: '1. 3ER LIGHT-KOMBO',
+                name: '4. 3ER LIGHT-KOMBO',
                 input: 'P ➔ P ➔ P  (Tastatur: A/J 3x)',
                 badges: ['P', '➔', 'P', '➔', 'P'],
                 dmg: '79 DMG · SCHNELLER LAUNCHER',
@@ -46,25 +47,11 @@ export default class MenuState {
                 ]
             },
             {
-                name: '2. TARGET-KOMBO (L ➔ K)',
-                input: 'P ➔ K  (Tastatur: A ➔ S / J ➔ K)',
-                badges: ['P', '➔', 'K'],
-                dmg: '52 DMG · SCHNELLER 2-HIT',
-                desc: 'Direkt aus einem leichten Schlag (P) nahtlos in einen schweren Roundhouse-Kick (K) canceln!',
-                frames: [
-                    { suffix: '_windup_punch.png', dur: 0.12, x: 0, y: 0 },
-                    { suffix: '_punch.png', dur: 0.22, x: 28, y: 0, slash: 'cyan', hit: 'PUNCH!' },
-                    { suffix: '_windup_kick.png', dur: 0.12, x: 40, y: 0 },
-                    { suffix: '_kick.png', dur: 0.30, x: 68, y: -10, slash: 'gold', hit: 'HEAVY KICK!' },
-                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
-                ]
-            },
-            {
-                name: '3. SUPER-CANCEL (P ➔ K ➔ S)',
-                input: 'P ➔ K ➔ S  (bei 100% Super-Leiste)',
+                name: '5. TARGET-KOMBO & SUPER-CANCEL',
+                input: 'P ➔ K ➔ S  (Tastatur: J ➔ K ➔ L)',
                 badges: ['P', '➔', 'K', '➔', 'S'],
                 dmg: '100+ DMG · MAXIMALE KOMBO',
-                desc: 'Cancelt den schweren Kick direkt in deine ultimative Super-Art-Attacke ohne Pause!',
+                desc: 'Leichter Schlag (P) nahtlos in schweren Kick (K) und direkt in deine Super-Art (S) canceln!',
                 frames: [
                     { suffix: '_punch.png', dur: 0.20, x: 24, y: 0, slash: 'cyan', hit: 'HIT 1!' },
                     { suffix: '_kick.png', dur: 0.22, x: 52, y: 0, slash: 'gold', hit: 'HIT 2!' },
@@ -73,7 +60,7 @@ export default class MenuState {
                 ]
             },
             {
-                name: '4. OVERHEAD BACKFIST',
+                name: '6. OVERHEAD BACKFIST (→+P)',
                 input: '→ + P  (Vorwärts + Punch)',
                 badges: ['→', '+', 'P'],
                 dmg: '26 DMG · BRICHT DUCK-BLOCK!',
@@ -86,7 +73,7 @@ export default class MenuState {
                 ]
             },
             {
-                name: '5. STEP AXE KICK',
+                name: '7. STEP AXE KICK (→+K)',
                 input: '→ + K  (Vorwärts + Kick)',
                 badges: ['→', '+', 'K'],
                 dmg: '42 DMG · SCHWERER OVERHEAD',
@@ -99,7 +86,7 @@ export default class MenuState {
                 ]
             },
             {
-                name: '6. LOW SWEEP (FUSSFEGER)',
+                name: '8. LOW SWEEP (FUSSFEGER)',
                 input: '↓ + K  (Unten + Kick)',
                 badges: ['↓', '+', 'K'],
                 dmg: '32 DMG · TRIFFT STEHENDE GEGNER',
@@ -112,7 +99,7 @@ export default class MenuState {
                 ]
             },
             {
-                name: '7. DRAGON UPPERCUT (SHORYUKEN)',
+                name: '9. DRAGON UPPERCUT (↑+S)',
                 input: '↑ + S  oder  → ↓ ↘ + P',
                 badges: ['↑', '+', 'S'],
                 dmg: '46 DMG · UNVERWUNDBAR GEGEN SPRÜNGE',
@@ -126,7 +113,7 @@ export default class MenuState {
                 ]
             },
             {
-                name: '8. HURRICANE KICK (TATSUMAKI)',
+                name: '10. HURRICANE KICK (↓+S)',
                 input: '↓ + S  oder  ↓ ↙ ← + K',
                 badges: ['↓', '+', 'S'],
                 dmg: '3x 18 DMG · 3-TREFFER WIRBELKICK',
@@ -138,33 +125,9 @@ export default class MenuState {
                     { suffix: '_dive_kick.png', dur: 0.20, x: 120, y: -45, slash: 'fire', hit: 'HIT 3!' },
                     { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
                 ]
-            },
-            {
-                name: '9. UNBLOCKBARER WURF (THROW)',
-                input: 'P + K gleichzeitig (im Nahkampf)',
-                badges: ['P', '+', 'K'],
-                dmg: '42 DMG · 100% UNBLOCKBAR!',
-                desc: 'Packt den Gegner im Nahkampf und schleudert ihn durch die Luft — kann NICHT geblockt werden!',
-                frames: [
-                    { suffix: '_windup_punch.png', dur: 0.15, x: 35, y: 0 },
-                    { suffix: '_backfist.png', dur: 0.22, x: 68, y: 0, slash: 'gold', hit: 'GRAB!' },
-                    { suffix: '_hook_punch.png', dur: 0.32, x: 84, y: -10, slash: 'fire', hit: 'THROW SLAM!' },
-                    { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
-                ]
-            },
-            {
-                name: '10. SUPER ARTS (ULTIMATE)',
-                input: 'S  (bei voller 100% Energie-Leiste)',
-                badges: ['S', '100%'],
-                dmg: '48–62 DMG · ULTIMATE SPECIAL',
-                desc: 'Entfesselt die ultimative Spezial-Attacke (Feuerball-Strahl oder Blitz-Dash) deines Kämpfers!',
-                frames: [
-                    { suffix: '_windup_punch.png', dur: 0.18, x: 0, y: 0, slash: 'super' },
-                    { suffix: '_special.png', dur: 0.52, x: 45, y: 0, slash: 'super', hit: 'ULTIMATE ART!', proj: true },
-                    { suffix: '_win.png', dur: 0.42, x: 0, y: 0 }
-                ]
             }
         ];
+        this.comboShowList = this.universalCombos;
 
         // Ensure all mixer channels exist in game.settings
         Object.assign(this.game.settings, {
@@ -208,8 +171,8 @@ export default class MenuState {
         this._draggingSlider = false;
 
         // Preload Keano sprites so the Combo Live-Preview is ready immediately
-        if (ROSTER && ROSTER[0]) {
-            preloadFighterSprites(this.game.assetManager, ROSTER[0]);
+        if (ALL_FIGHTERS && ALL_FIGHTERS[0]) {
+            preloadFighterSprites(this.game.assetManager, ALL_FIGHTERS[0]);
             this.game.assetManager.loadAll();
         }
 
@@ -243,9 +206,141 @@ export default class MenuState {
         };
     }
 
+    _getComboListForFighter(fighter) {
+        const style = getFighterStyle(fighter);
+        let sig1Frames, sig2Frames;
+
+        if (style.id === 'TITAN_GRAPPLER') {
+            sig1Frames = [
+                { suffix: '_punch.png', dur: 0.22, x: 35, y: 0, slash: 'cyan', hit: 'JAB GRIP!' },
+                { suffix: '_backfist.png', dur: 0.22, x: 68, y: 0, slash: 'gold', hit: 'LOCK ON!' },
+                { suffix: '_hook_punch.png', dur: 0.36, x: 92, y: -22, slash: 'fire', hit: 'TITAN SLAM!!' },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_axe_kick.png', dur: 0.26, x: 52, y: -15, slash: 'gold', hit: 'ARMOR CRUSH!' },
+                { suffix: '_kick.png', dur: 0.26, x: 78, y: 0, slash: 'fire', hit: 'BREAKER!' },
+                { suffix: '_special.png', dur: 0.38, x: 95, y: -10, slash: 'super', hit: 'UNBLOCKABLE!' },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+        } else if (style.id === 'CAPOEIRA_TRICKSTER') {
+            sig1Frames = [
+                { suffix: '_low_kick.png', dur: 0.22, x: 36, y: 0, slash: 'cyan', hit: 'KICK 1!' },
+                { suffix: '_spin_kick.png', dur: 0.24, x: 68, y: -18, slash: 'gold', hit: 'SPIN KICK 2!' },
+                { suffix: '_axe_kick.png', dur: 0.32, x: 96, y: -28, slash: 'fire', hit: 'TRIPLE KICK!!' },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_crouch.png', dur: 0.14, x: 18, y: 0 },
+                { suffix: '_low_kick.png', dur: 0.24, x: 58, y: 0, slash: 'cyan', hit: 'LOW SWEEP!' },
+                { suffix: '_hurricane_kick.png', dur: 0.28, x: 92, y: -55, slash: 'gold', hit: 'TORNADO!' },
+                { suffix: '_dive_kick.png', dur: 0.26, x: 118, y: -35, slash: 'fire', hit: 'VORTEX!' },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+        } else if (style.id === 'SHADOW_ASSASSIN') {
+            sig1Frames = [
+                { suffix: '_kick.png', dur: 0.20, x: 35, y: 0, slash: 'cyan', hit: 'SHADOW KICK!' },
+                { suffix: '_dash_forward.png', dur: 0.14, x: 85, y: -8, slash: 'super', hit: 'PHANTOM WARP!' },
+                { suffix: '_backfist.png', dur: 0.22, x: 112, y: 0, slash: 'gold', hit: 'BLITZ STRIKE!' },
+                { suffix: '_axe_kick.png', dur: 0.30, x: 128, y: -20, slash: 'fire', hit: 'EXECUTION!!' },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_crouch.png', dur: 0.14, x: 15, y: 0 },
+                { suffix: '_low_kick.png', dur: 0.22, x: 60, y: 0, slash: 'cyan', hit: 'DARK SWEEP!' },
+                { suffix: '_special.png', dur: 0.42, x: 96, y: -15, slash: 'super', hit: 'ABYSS SURGE!!', proj: true },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+        } else if (style.id === 'VALHALLA_BERSERKER') {
+            sig1Frames = [
+                { suffix: '_backfist.png', dur: 0.24, x: 42, y: 0, slash: 'gold', hit: 'ARMOR HAMMER!' },
+                { suffix: '_hook_punch.png', dur: 0.24, x: 72, y: 0, slash: 'fire', hit: 'THUNDER HOOK!' },
+                { suffix: '_axe_kick.png', dur: 0.34, x: 98, y: -24, slash: 'super', hit: 'VALHALLA CRUSH!' },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_punch.png', dur: 0.20, x: 34, y: 0, slash: 'cyan', hit: 'RAGE HIT!' },
+                { suffix: '_axe_kick.png', dur: 0.26, x: 68, y: -18, slash: 'gold', hit: 'SUPER ARMOR!' },
+                { suffix: '_special.png', dur: 0.42, x: 96, y: -10, slash: 'fire', hit: 'ODIN SMASH!!', proj: true },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+        } else if (style.id === 'MASTER_STRIKER') {
+            sig1Frames = [
+                { suffix: '_punch.png', dur: 0.18, x: 32, y: 0, slash: 'cyan', hit: 'QUICK JAB!' },
+                { suffix: '_hook_punch.png', dur: 0.20, x: 60, y: 0, slash: 'gold', hit: 'LONG REACH!' },
+                { suffix: '_spin_kick.png', dur: 0.26, x: 88, y: -12, slash: 'fire', hit: 'SPIN KICK!' },
+                { suffix: '_axe_kick.png', dur: 0.30, x: 112, y: -22, slash: 'super', hit: 'BLADE FINISHER!' },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_backfist.png', dur: 0.22, x: 48, y: 0, slash: 'gold', hit: 'OVERHEAD!' },
+                { suffix: '_spin_kick.png', dur: 0.24, x: 78, y: -15, slash: 'cyan', hit: 'COMBO KICK!' },
+                { suffix: '_dragon_uppercut.png', dur: 0.34, x: 102, y: -95, slash: 'fire', hit: 'DRAGON SLASH!!' },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+        } else {
+            // LIGHT_DRAGON default
+            sig1Frames = [
+                { suffix: '_punch.png', dur: 0.18, x: 28, y: 0, slash: 'cyan', hit: 'LIGHT JAB!' },
+                { suffix: '_hook_punch.png', dur: 0.20, x: 56, y: 0, slash: 'gold', hit: 'SOLAR HOOK!' },
+                { suffix: '_uppercut.png', dur: 0.20, x: 78, y: -45, slash: 'fire', hit: 'LAUNCHER!' },
+                { suffix: '_dragon_uppercut.png', dur: 0.34, x: 98, y: -120, slash: 'super', hit: 'SOLAR DRAGON!!' },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_punch.png', dur: 0.18, x: 30, y: 0, slash: 'cyan', hit: 'RADIANT HIT!' },
+                { suffix: '_spin_kick.png', dur: 0.22, x: 64, y: -14, slash: 'gold', hit: 'FLASH KICK!' },
+                { suffix: '_special.png', dur: 0.44, x: 92, y: -12, slash: 'super', hit: 'LIGHT BEAM!!', proj: true },
+                { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+            ];
+        }
+
+        const fMove = getFinisherMove(fighter?.id);
+
+        return [
+            {
+                name: `1. ${style.sig1Name}`,
+                input: style.sig1Input,
+                badges: style.sig1Badges,
+                dmg: style.sig1Dmg,
+                desc: style.sig1Desc,
+                isSignature: true,
+                styleColor: style.color,
+                frames: sig1Frames
+            },
+            {
+                name: `2. ${style.sig2Name}`,
+                input: style.sig2Input,
+                badges: style.sig2Badges,
+                dmg: style.sig2Dmg,
+                desc: style.sig2Desc,
+                isSignature: true,
+                styleColor: style.color,
+                frames: sig2Frames
+            },
+            {
+                name: `3. 🎬 ${fMove.name}`,
+                input: '[S / SPEZIAL] BEI "FINISH HIM!" (0 HP)',
+                badges: ['FINISH', '➔', 'S'],
+                dmg: `FINISHER FILM-SEQUENZ · ${fMove.subtitle}`,
+                desc: `${fMove.quote} — Wenn der Gegner bei 0 HP taumelt ("FINISH HIM!"), drücke [S] oder [P/K] für die 21:9 Kino-Sequenz!`,
+                isSignature: true,
+                styleColor: fMove.color1 || '#ff2244',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.22, x: 18, y: 0, slash: 'gold', hit: 'FINISH HIM!' },
+                    { suffix: '_dragon_uppercut.png', dur: 0.26, x: 64, y: -45, slash: 'fire', hit: 'X-RAY IMPACT!' },
+                    { suffix: '_special.png', dur: 0.45, x: 105, y: -15, slash: 'super', hit: fMove.name, proj: true },
+                    { suffix: '_win.png', dur: 0.55, x: 50, y: 0, hit: 'MORTAL FINISHER!!' }
+                ]
+            },
+            ...this.universalCombos
+        ];
+    }
+
     _cycleComboPreviewChar(dir) {
-        this.comboCharIndex = (this.comboCharIndex + dir + ROSTER.length) % ROSTER.length;
-        const fighter = ROSTER[this.comboCharIndex];
+        const list = ALL_FIGHTERS && ALL_FIGHTERS.length ? ALL_FIGHTERS : ROSTER;
+        this.comboCharIndex = (this.comboCharIndex + dir + list.length) % list.length;
+        const fighter = list[this.comboCharIndex];
         if (fighter) {
             preloadFighterSprites(this.game.assetManager, fighter);
             this.game.assetManager.loadAll();
@@ -1284,27 +1379,35 @@ export default class MenuState {
         ctx.font = 'bold 12px "Press Start 2P"';
         ctx.fillText('🛡️ BLOCKEN: Rückwärts gedrückt halten (←) oder unten-rückwärts (↙) für tiefen Block!', cx - 605, 198);
 
-        // 2. Left Panel: Interactive List of All 10 Combos & Special Moves
+        const list = ALL_FIGHTERS && ALL_FIGHTERS.length ? ALL_FIGHTERS : ROSTER;
+        const fighter = list[this.comboCharIndex] || ROSTER[0];
+        const style = getFighterStyle(fighter);
+        this.comboShowList = this._getComboListForFighter(fighter);
+
+        // 2. Left Panel: Interactive List of All 10 Combos (2 Style Signatures + 8 Universal Moves)
         const listStartY = 250;
         const listStep = 62;
         for (let i = 0; i < this.comboShowList.length; i++) {
             const item = this.comboShowList[i];
             const ry = listStartY + i * listStep;
             const isSel = (i === this.comboIndex);
+            const isSig = !!item.isSignature;
 
-            ctx.fillStyle = isSel ? 'rgba(255, 204, 0, 0.22)' : 'rgba(16, 20, 40, 0.88)';
-            ctx.strokeStyle = isSel ? '#ffcc00' : '#2a385c';
-            ctx.lineWidth = isSel ? 3 : 1.5;
+            ctx.fillStyle = isSel
+                ? 'rgba(255, 204, 0, 0.24)'
+                : (isSig ? 'rgba(30, 18, 48, 0.92)' : 'rgba(16, 20, 40, 0.88)');
+            ctx.strokeStyle = isSel ? '#ffcc00' : (isSig ? (item.styleColor || '#ff00ff') : '#2a385c');
+            ctx.lineWidth = isSel ? 3 : (isSig ? 2.2 : 1.5);
             ctx.fillRect(cx - 625, ry - 27, 595, 54);
             ctx.strokeRect(cx - 625, ry - 27, 595, 54);
 
             ctx.textAlign = 'left';
-            ctx.font = 'bold 15px "Press Start 2P"';
-            ctx.fillStyle = isSel ? '#ffcc00' : '#ffffff';
+            ctx.font = 'bold 14px "Press Start 2P"';
+            ctx.fillStyle = isSel ? '#ffcc00' : (isSig ? (item.styleColor || '#ffd700') : '#ffffff');
             ctx.fillText(item.name, cx - 608, ry - 4);
 
-            ctx.font = '12px "Press Start 2P"';
-            ctx.fillStyle = isSel ? '#00ffff' : '#88aacc';
+            ctx.font = '11px "Press Start 2P"';
+            ctx.fillStyle = isSel ? '#00ffff' : (isSig ? '#ffffff' : '#88aacc');
             ctx.fillText(item.input, cx - 608, ry + 18);
         }
 
@@ -1315,29 +1418,32 @@ export default class MenuState {
         const boxH = 625;
 
         ctx.fillStyle = 'rgba(8, 12, 28, 0.96)';
-        ctx.strokeStyle = '#ffcc00';
+        ctx.strokeStyle = style.color || '#ffcc00';
         ctx.lineWidth = 3;
         ctx.fillRect(boxX, boxY, boxW, boxH);
         ctx.strokeRect(boxX, boxY, boxW, boxH);
 
-        const fighter = ROSTER[this.comboCharIndex] || ROSTER[0];
         const combo = this.comboShowList[this.comboIndex] || this.comboShowList[0];
 
-        // Fighter Switcher Bar at top of preview box
+        // Fighter Switcher Bar & Fight Style Banner at top of preview box
         ctx.fillStyle = 'rgba(0, 229, 255, 0.16)';
-        ctx.fillRect(boxX + 12, boxY + 12, boxW - 24, 52);
-        ctx.strokeStyle = '#00e5ff';
+        ctx.fillRect(boxX + 12, boxY + 10, boxW - 24, 62);
+        ctx.strokeStyle = style.color || '#00e5ff';
         ctx.lineWidth = 2;
-        ctx.strokeRect(boxX + 12, boxY + 12, boxW - 24, 52);
+        ctx.strokeRect(boxX + 12, boxY + 10, boxW - 24, 62);
 
         ctx.textAlign = 'center';
-        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.font = 'bold 16px "Press Start 2P"';
         ctx.fillStyle = '#00ffff';
-        ctx.fillText(`◀ VORSCHAU: ${fighter.name.toUpperCase()} ▶`, boxX + boxW / 2, boxY + 46);
+        ctx.fillText(`◀ ${fighter.name.toUpperCase()} · ${style.badge} ▶`, boxX + boxW / 2, boxY + 34);
+
+        ctx.font = '10px "Press Start 2P"';
+        ctx.fillStyle = style.color || '#ffd700';
+        ctx.fillText(`PASSIV: ${style.passive}`, boxX + boxW / 2, boxY + 58);
 
         // Mini Dojo Stage Background inside Preview Box
-        const stageAreaY = boxY + 76;
-        const stageAreaH = 385;
+        const stageAreaY = boxY + 80;
+        const stageAreaH = 381;
         const stageBg = this.game.assetManager.images['Stage_Japan'] || this.game.assetManager.images['menuBg'];
         ctx.save();
         ctx.beginPath();

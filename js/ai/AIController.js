@@ -34,9 +34,9 @@ export default class AIController {
         const rosterIdx = Math.max(1, Math.min(14, combat.combatData?.p2?.rosterIndex ?? 1));
         let progress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 stages
 
-        if (difficultySetting === 'EASY') progress = Math.max(0.22, progress * 0.70);
-        else if (difficultySetting === 'NORMAL') progress = Math.min(1.0, 0.38 + progress * 0.62);
-        else if (difficultySetting === 'HARD') progress = Math.min(1.20, 0.58 + progress * 0.65);
+        if (difficultySetting === 'EASY') progress = Math.max(0.08, progress * 0.42);
+        else if (difficultySetting === 'NORMAL') progress = Math.min(0.75, 0.15 + progress * 0.56);
+        else if (difficultySetting === 'HARD') progress = Math.min(1.0, 0.40 + progress * 0.58);
 
         // Initialize AI state & anti-mash trackers on p2
         if (typeof p2.aiWaitTimer === 'undefined') p2.aiWaitTimer = 0;
@@ -55,7 +55,14 @@ export default class AIController {
 
         // Decay P1 button-mash counter smoothly over time
         if (p2._p1MashCount > 0) {
-            p2._p1MashCount = Math.max(0, p2._p1MashCount - 1.35 * dt);
+            p2._p1MashCount = Math.max(0, p2._p1MashCount - 1.65 * dt);
+        }
+
+        // Give P1 breathing room when P1 has wake-up immunity!
+        if (p1.hitImmunity > 0.15) {
+            p2.aiWaitTimer = Math.max(p2.aiWaitTimer, 0.38);
+            if (dist < 170) ai[dirAwayFromP1] = true;
+            return ai;
         }
 
         // Helper for executing a Street Fighter Whiff / Guard Reversal Punish
@@ -64,11 +71,11 @@ export default class AIController {
             ai[dirAwayFromP1] = false;
             ai.down = false;
             const r = Math.random();
-            if (dist <= 148 && p1.isGrounded && p2.isGrounded && r < 0.26) {
+            if (dist <= 148 && p1.isGrounded && p2.isGrounded && r < 0.22) {
                 ai.commandMove = 'THROW';
-            } else if (p2.specialMoveCooldown <= 0 && r < 0.58) {
+            } else if (p2.specialMoveCooldown <= 0 && r < 0.48) {
                 ai.commandMove = (dist <= 155 || !p1.isGrounded) ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
-            } else if (r < 0.78) {
+            } else if (r < 0.72) {
                 if (Math.random() < 0.5) {
                     ai.down = true;
                     ai.hJust = true; // Low Sweep punish
@@ -79,7 +86,7 @@ export default class AIController {
             } else {
                 ai.lJust = true; // Fast 3-hit combo starter
             }
-            p2.aiWaitTimer = 0.14;
+            p2.aiWaitTimer = 0.52;
             return ai;
         };
 
@@ -88,17 +95,20 @@ export default class AIController {
             const canCancel = p2.state === 'IDLE' || p2.state === 'WALK' ||
                 (p2.state === 'ATTACK' && (p2.attackHasHit || p2.attackHitCount > 0) && !p2.attackWasBlocked);
             if (canCancel) {
-                const chainProb = p2.comboChainStep === 1 ? (0.58 + progress * 0.36) : (0.48 + progress * 0.44);
+                const chainProb = p2.comboChainStep === 1 ? (0.36 + progress * 0.42) : (0.28 + progress * 0.44);
                 if (Math.random() < chainProb) {
-                    if (p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < 0.45) {
+                    if (p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < 0.38) {
                         ai.sJust = true; // Hit-confirm Super Arts cancel!
-                    } else if (p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < 0.42) {
+                    } else if (p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < 0.35) {
                         ai.commandMove = Math.random() < 0.55 ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
                     } else {
                         ai.lJust = true; // Chain next step in 3-hit combo
                     }
-                    p2.aiWaitTimer = 0.14;
+                    // After finishing a combo chain, pause so the player gets a fair turn!
+                    p2.aiWaitTimer = p2.comboChainStep === 2 ? 0.75 : 0.22;
                     return ai;
+                } else {
+                    p2.aiWaitTimer = 0.55;
                 }
             }
         }
@@ -112,7 +122,7 @@ export default class AIController {
                 const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
                 if (p1.stateTimer < activeEnd) {
                     // Keep holding guard until P1's active frames finish!
-                    p2.aiBlockTimer = Math.max(p2.aiBlockTimer, 0.10);
+                    p2.aiBlockTimer = Math.max(p2.aiBlockTimer, 0.08);
                     // Match high/low guard: crouch-block lows, stand-block overheads
                     if (p1.currentAttack.isOverhead) {
                         ai.down = false;
@@ -120,8 +130,8 @@ export default class AIController {
                         ai.down = true;
                     }
                     return ai;
-                } else if (p2.blockStun <= 0 && dist <= 205 && Math.random() < (0.42 + progress * 0.48 + Math.min(0.20, p2._p1MashCount * 0.08))) {
-                    // P1 is now in recovery frames after getting blocked or whiffing — Guard Reversal Punish!
+                } else if (p2.blockStun <= 0 && dist <= 200 && Math.random() < (0.22 + progress * 0.38)) {
+                    // P1 is now in recovery frames after getting blocked — occasional Guard Reversal Punish!
                     return triggerPunishAttack();
                 }
             }
@@ -135,31 +145,12 @@ export default class AIController {
                 ((proj.facing === 1 && proj.x < p2.x) || (proj.facing === -1 && proj.x > p2.x))
         );
         if (incomingProj && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            const reactChance = 0.38 + progress * 0.52;
+            const reactChance = 0.28 + progress * 0.48;
             if (Math.random() < reactChance) {
-                if (Math.random() < 0.52 + progress * 0.30) {
+                if (Math.random() < 0.48 + progress * 0.28) {
                     ai[dirToP1] = true;
                     ai.up = true;
-                    p2.aiWaitTimer = 0.22;
-                    return ai;
-                } else {
-                    p2.aiBlockTimer = 0.32;
-                    ai[dirAwayFromP1] = true;
-                    return ai;
-                }
-            }
-        }
-
-        // ─── 2B. STREET FIGHTER SHORYUKEN ANTI-AIR REACTION (When P1 jumps in!) ───
-        if (!p1.isGrounded && dist < 235 && p1.y < p2.y - 50 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            if (Math.random() < (0.24 + progress * 0.52) * dt * 14) {
-                if (p2.specialMoveCooldown <= 0 && Math.random() < 0.58) {
-                    ai.commandMove = 'DRAGON_UPPERCUT';
-                    p2.aiWaitTimer = 0.25;
-                    return ai;
-                } else if (Math.random() < 0.65) {
-                    ai.hJust = true;
-                    p2.aiWaitTimer = 0.24;
+                    p2.aiWaitTimer = 0.35;
                     return ai;
                 } else {
                     p2.aiBlockTimer = 0.28;
@@ -169,59 +160,65 @@ export default class AIController {
             }
         }
 
-        // ─── 3. REACT TO P1 MELEE ATTACK (Anti-Mash Guard, Counter-Interrupt, or Whiff Punish) ───
-        if (p1.state === 'ATTACK' && p1.currentAttack && dist < 240) {
+        // ─── 2B. STREET FIGHTER SHORYUKEN ANTI-AIR REACTION (When P1 jumps in!) ───
+        if (!p1.isGrounded && dist < 225 && p1.y < p2.y - 60 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+            if (Math.random() < (0.12 + progress * 0.38) * dt * 10) {
+                if (p2.specialMoveCooldown <= 0 && Math.random() < 0.45) {
+                    ai.commandMove = 'DRAGON_UPPERCUT';
+                    p2.aiWaitTimer = 0.55;
+                    return ai;
+                } else if (Math.random() < 0.55) {
+                    ai.hJust = true;
+                    p2.aiWaitTimer = 0.48;
+                    return ai;
+                } else {
+                    p2.aiBlockTimer = 0.26;
+                    ai[dirAwayFromP1] = true;
+                    return ai;
+                }
+            }
+        }
+
+        // ─── 3. REACT TO P1 MELEE ATTACK (Fair Guarding without unfair 0-frame counter-interrupts!) ───
+        if (p1.state === 'ATTACK' && p1.currentAttack && dist < 235) {
             const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
 
             if (isNewP1Swing) {
-                // Block probability rises sharply if P1 is button-mashing!
-                const mashBonus = Math.min(0.38, Math.max(0, p2._p1MashCount - 1) * 0.14);
-                const blockProb = Math.min(0.92, 0.38 + progress * 0.42 + mashBonus);
+                const mashBonus = Math.min(0.25, Math.max(0, p2._p1MashCount - 1.5) * 0.10);
+                const blockProb = Math.min(0.72, 0.24 + progress * 0.36 + mashBonus);
                 const roll = Math.random();
 
                 if (roll < blockProb) {
-                    p2.aiBlockTimer = 0.24 + progress * 0.14;
+                    p2.aiBlockTimer = 0.20 + progress * 0.12;
                     ai[dirAwayFromP1] = true;
                     if (!p1.currentAttack.isOverhead && (p1.currentAttack.isLow || p1.currentAttack.type === 'SWEEP' || p1.currentAttack.type === 'CROUCH_LIGHT')) {
                         ai.down = true;
                     }
                     return ai;
-                } else if (roll < blockProb + (0.16 + progress * 0.22) && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                    // Counter-hit interrupt during P1's startup!
-                    if (p2.specialMoveCooldown <= 0 && p2._p1MashCount >= 2.2 && Math.random() < 0.52) {
-                        ai.commandMove = 'DRAGON_UPPERCUT';
-                    } else if (Math.random() < 0.35) {
-                        ai.down = true;
-                        ai.hJust = true;
-                    } else {
-                        ai.lJust = true;
-                    }
-                    p2.aiWaitTimer = 0.20;
-                    return ai;
                 }
-            } else if (p1.stateTimer >= activeEnd && p2.blockStun <= 0 &&
+            } else if (p1.stateTimer >= activeEnd + 0.06 && p2.blockStun <= 0 &&
                        (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') &&
-                       dist <= 205 && Math.random() < (0.36 + progress * 0.50)) {
-                // Whiff / Block punish P1 during recovery frames!
+                       dist <= 195 && Math.random() < (0.18 + progress * 0.36)) {
+                // Whiff punish P1 only if P1 is genuinely stuck in late recovery frames!
                 return triggerPunishAttack();
             }
         }
 
-        // ─── 4. ACTION COOLDOWN / PACING ───
+        // ─── 4. ACTION COOLDOWN / PACING (Rhythmic footsies instead of non-stop button mashing!) ───
         if (p2.aiWaitTimer > 0) {
             p2.aiWaitTimer -= dt;
-            if (progress > 0.30 && dist > 185) {
+            if (progress > 0.35 && dist > 205) {
                 ai[dirToP1] = true;
-            } else if (dist < 125 && Math.random() < 0.35) {
-                ai[dirAwayFromP1] = true; // Footsies micro-shimmy back
+            } else if (dist < 140 && Math.random() < 0.48) {
+                ai[dirAwayFromP1] = true; // Footsies micro-shimmy back to give player space
             }
             return ai;
         }
 
         const applyCooldown = () => {
             if (ai.lJust || ai.hJust || ai.sJust || ai.commandMove) {
-                const minWait = Math.max(0.08, 0.38 - progress * 0.26);
-                const randWait = Math.max(0.06, 0.22 - progress * 0.14);
+                const minWait = Math.max(0.36, 0.88 - progress * 0.44);
+                const randWait = Math.max(0.18, 0.45 - progress * 0.20);
                 p2.aiWaitTimer = minWait + Math.random() * randWait;
             }
             return ai;

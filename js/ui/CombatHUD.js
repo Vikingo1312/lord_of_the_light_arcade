@@ -1,15 +1,16 @@
-import { ROSTER } from '../data.js';
+import { ROSTER, getFighterStyle } from '../data.js';
 import { playAnnouncer } from '../core/AssetPreloader.js';
 import { STORY_DIALOGUES } from '../story_dialogues.js';
+import { getFinisherMove } from '../fx/CinematicFinisher.js';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
- * (Fight Intro, KO, Post-Match menu, Victory screen, Pause menu).
+ * (Fight Intro, FINISH HIM, KO, Post-Match menu, Victory screen, Pause menu).
  */
 export default class CombatHUD {
     static _drawReactivePortrait(ctx, game, fighter, x, y, size, flip = false) {
         ctx.save();
-        const isHit = fighter.state === 'HIT' || fighter.state === 'KO';
+        const isHit = fighter.state === 'HIT' || fighter.state === 'KO' || fighter.state === 'DIZZY';
         const jx = isHit ? (Math.random() - 0.5) * 6 : 0;
         const jy = isHit ? (Math.random() - 0.5) * 6 : 0;
 
@@ -79,7 +80,7 @@ export default class CombatHUD {
         ctx.fillText(Math.ceil(combat.timer).toString().padStart(2, '0'), cx, 138);
         ctx.restore();
 
-        // ─── FIGHTER NAMES & ROUND WIN STARS ───
+        // ─── FIGHTER NAMES & FIGHT STYLE BADGES ───
         const barW = 585, barH = 38, barY = 82;
         const p1X = 108;
         const p2X = game.width - 108 - barW;
@@ -93,6 +94,17 @@ export default class CombatHUD {
         ctx.fillText(combat.p1.data.name.toUpperCase(), p1X, 68);
         ctx.textAlign = 'right';
         ctx.fillText(combat.p2.data.name.toUpperCase(), p2X + barW, 68);
+
+        // Fight Style badges above lifebar inner corners
+        const p1Style = combat.p1.styleInfo || getFighterStyle(combat.p1.data.id);
+        const p2Style = combat.p2.styleInfo || getFighterStyle(combat.p2.data.id);
+        ctx.font = 'bold 11px "Press Start 2P"';
+        ctx.textAlign = 'right';
+        ctx.fillStyle = p1Style.color || '#00e5ff';
+        ctx.fillText(`🥋 ${p1Style.name}`, p1X + barW, 72);
+        ctx.textAlign = 'left';
+        ctx.fillStyle = p2Style.color || '#ff6600';
+        ctx.fillText(`🥋 ${p2Style.name}`, p2X, 72);
         ctx.restore();
 
         // ─── STREET FIGHTER GOLD-BEVELED LIFEBARS WITH TRAILING RED DAMAGE ───
@@ -448,6 +460,7 @@ export default class CombatHUD {
         if (subPhase === 'STORY_DIALOGUE') {
             // Phase 1: Pre-fight Face-Off while Opponent speaks full Story Intro to the end
             const alpha = Math.min(1, combat.introTimer * 2.5);
+            const voicePlaying = Boolean(combat.game.audioManager?.isFighterVoicePlaying?.());
             ctx.save();
             ctx.globalAlpha = Math.max(0, alpha);
             ctx.font = 'bold 26px "Press Start 2P"';
@@ -458,10 +471,14 @@ export default class CombatHUD {
             ctx.font = 'bold 42px "Press Start 2P"';
             ctx.fillStyle = '#fdbf00';
             ctx.fillText(`${combat.p1.data.name.toUpperCase()}  VS  ${combat.p2.data.name.toUpperCase()}`, cx, cy + 10);
-            if (combat.introTimer > 0.6) {
+            if (combat.introTimer > 0.4) {
                 ctx.font = 'bold 12px "Press Start 2P"';
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-                ctx.fillText('[SPACE / J ZUM ÜBERSPRINGEN]', cx, cy + 52);
+                ctx.fillStyle = voicePlaying ? '#ffd700' : 'rgba(255, 255, 255, 0.78)';
+                ctx.fillText(
+                    voicePlaying ? '🔊 STORY-INTRO LÄUFT VOLLSTÄNDIG...' : '[SPACE / J ZUM KAMPFSTART]',
+                    cx,
+                    cy + 52
+                );
             }
             ctx.restore();
         } else if (subPhase === 'ROUND_CALL') {
@@ -496,6 +513,54 @@ export default class CombatHUD {
             ctx.shadowBlur = 0;
             ctx.restore();
         }
+    }
+
+    static drawFinishHim(ctx, combat) {
+        const w = combat.game.width;
+        const h = combat.game.height;
+        const cx = w / 2;
+        const cy = h * 0.34;
+        const winnerFighter = combat.winner === 'p1' ? combat.p1 : combat.p2;
+        const fMove = getFinisherMove(winnerFighter?.data?.id);
+
+        ctx.save();
+        // Dramatic Mortal Kombat blood-red edge vignette
+        const vig = ctx.createRadialGradient(cx, h * 0.55, w * 0.25, cx, h * 0.55, w * 0.65);
+        vig.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        vig.addColorStop(1, 'rgba(120, 0, 15, 0.55)');
+        ctx.fillStyle = vig;
+        ctx.fillRect(0, 0, w, h);
+
+        const pulse = 1 + Math.sin((combat.time || 0) * 14) * 0.06;
+        ctx.translate(cx, cy);
+        ctx.scale(pulse, pulse);
+        ctx.textAlign = 'center';
+
+        ctx.font = 'bold 88px "Press Start 2P"';
+        ctx.fillStyle = '#ff1122';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 5;
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 26;
+        ctx.strokeText('FINISH HIM!', 0, 0);
+        ctx.fillText('FINISH HIM!', 0, 0);
+
+        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.fillStyle = fMove.color1 || '#ffd700';
+        ctx.shadowBlur = 12;
+        ctx.fillText(`🎬 ${fMove.name} — ${fMove.subtitle}`, 0, 48);
+
+        if (combat.winner === 'p1') {
+            ctx.fillStyle = 'rgba(8, 10, 26, 0.90)';
+            ctx.strokeStyle = '#ffd700';
+            ctx.lineWidth = 2.5;
+            ctx.fillRect(-480, 68, 960, 46);
+            ctx.strokeRect(-480, 68, 960, 46);
+            ctx.font = 'bold 15px "Press Start 2P"';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('DRÜCKE [S / SPEZIAL] ODER [J / K] FÜR FINISHER FILM-SEQUENZ!', 0, 98);
+        }
+        ctx.restore();
     }
 
     static drawKO(ctx, combat) {
@@ -568,6 +633,7 @@ export default class CombatHUD {
         const cy = combat.game.height / 2;
         const startY = combat.game.height * 0.65;
         const winnerFighter = combat.winner === 'p1' ? combat.p1 : combat.p2;
+        const winVoicePlaying = Boolean(combat.game.audioManager?.isFighterVoicePlaying?.());
 
         if (winnerFighter) {
             ctx.save();
@@ -607,16 +673,19 @@ export default class CombatHUD {
 
             ctx.font = '14px "Press Start 2P"';
             ctx.textAlign = 'center';
-            ctx.fillStyle = pct < 0.3 ? '#ff0000' : '#00ffff';
-            if (pct < 0.3 && Math.floor(Date.now() / 200) % 2 === 0) ctx.fillStyle = '#ffaa00';
-            ctx.fillText(combat.arcadeMode && combat.winner === 'p1' ? 'NEXT BATTLE STARTING IN...' : 'AUTO-ADVANCE IN...', cx, startY - 25);
+            ctx.fillStyle = winVoicePlaying ? '#ffd700' : (pct < 0.3 ? '#ff0000' : '#00ffff');
+            if (!winVoicePlaying && pct < 0.3 && Math.floor(Date.now() / 200) % 2 === 0) ctx.fillStyle = '#ffaa00';
+            const statusLabel = winVoicePlaying
+                ? '🔊 SIEGES-SPRUCH LÄUFT VOLLSTÄNDIG...'
+                : (combat.arcadeMode && combat.winner === 'p1' ? 'NEXT BATTLE STARTING IN...' : 'AUTO-ADVANCE IN...');
+            ctx.fillText(statusLabel, cx, startY - 25);
 
             ctx.fillStyle = 'rgba(0,0,0,0.8)';
             ctx.fillRect(cx - barW / 2, startY - 10, barW, barH);
             ctx.strokeStyle = '#444';
             ctx.strokeRect(cx - barW / 2 - 2, startY - 12, barW + 4, barH + 4);
 
-            ctx.fillStyle = pct < 0.3 ? '#ff0055' : '#00ffff';
+            ctx.fillStyle = winVoicePlaying ? '#ffd700' : (pct < 0.3 ? '#ff0055' : '#00ffff');
             ctx.fillRect(cx - barW / 2, startY - 10, barW * pct, barH);
         }
 

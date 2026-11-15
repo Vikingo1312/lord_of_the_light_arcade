@@ -14,6 +14,7 @@ import {
 import { STAGES, ROSTER, unlockFighter } from '../data.js';
 import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js';
 import { STORY_DIALOGUES } from '../story_dialogues.js';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js';
 
 export default class CombatState {
     constructor(game) {
@@ -28,6 +29,9 @@ export default class CombatState {
         this.timer = 99;
         this.introTimer = 0;
         this.koFreezeTimer = 0;
+        this.finishHimTimer = 0;
+        this.finisherTimer = 0;
+        this.finisherTriggered = false;
         this.winner = null;
         this.postMatchIndex = 0;
         this.inputCooldown = 0;
@@ -83,6 +87,11 @@ export default class CombatState {
         this.timer = (this.game.settings && this.game.settings.timer) || 99;
         this.introTimer = 0;
         this.koFreezeTimer = 0;
+        this.finishHimTimer = 0;
+        this.finisherTimer = 0;
+        this.finisherTriggered = false;
+        this._finisherImpactPlayed = false;
+        this._finisherBoomPlayed = false;
         this.winner = null;
         this.postMatchIndex = 0;
         this.postMatchTimer = 0;
@@ -459,9 +468,9 @@ export default class CombatState {
             this.introSubTimer = (this.introSubTimer || 0) + dt;
 
             if (this.introSubPhase === 'STORY_DIALOGUE') {
-                // Allow skipping the Story Intro dialogue with Attack/Space after 0.55s if desired
-                if (this.introTimer > 0.55 && p1.skipJust) {
-                    this.game.audioManager.stopFighterVoice?.();
+                // Protect Intro Voiceover: Never cut off the spoken intro while the fighter is still speaking!
+                const voiceStillPlaying = Boolean(this.game.audioManager.isFighterVoicePlaying?.());
+                if (!voiceStillPlaying && this.introTimer > 1.2 && p1.skipJust) {
                     this._startRoundCall(true);
                 }
             } else if (this.introSubPhase === 'FIGHT_CALL') {
@@ -499,14 +508,19 @@ export default class CombatState {
             this.postMatchTimer = (this.postMatchTimer || 0) + dt;
 
             if (this.autoAdvanceTimer === undefined) {
-                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 9.2 : 10.0;
+                this.autoAdvanceMax = (this.arcadeMode && this.winner === 'p1') ? 8.5 : 10.0;
                 this.autoAdvanceTimer = this.autoAdvanceMax;
             }
 
+            // Protect Victory Voiceover: Wait until the winner's victory speech finishes completely before counting down or advancing!
+            const winVoicePlaying = Boolean(this.game.audioManager.isFighterVoicePlaying?.()) && this.postMatchTimer < 14.0;
+
             if (this.inputCooldown <= 0 && !this._transitioning) {
-                this.autoAdvanceTimer -= dt;
-                const confirmPressed = p1.lJust || p1.hJust || p1.sJust;
-                const timeOut = this.autoAdvanceTimer <= 0;
+                if (!winVoicePlaying) {
+                    this.autoAdvanceTimer -= dt;
+                }
+                const confirmPressed = !winVoicePlaying && (p1.lJust || p1.hJust || p1.sJust);
+                const timeOut = !winVoicePlaying && this.autoAdvanceTimer <= 0;
 
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
@@ -584,6 +598,100 @@ export default class CombatState {
                     net.send({ type: 'STATE_SWITCH', stateName: 'Story', stateData: bdayPayload });
                 }
                 this.game.stateManager.switchState('Story', bdayPayload);
+            }
+            if (isOnlineHost) this._broadcastHostSnapshot();
+            return;
+        }
+
+        // ─── MORTAL KOMBAT STYLE "FINISH HIM!" WINDOW ───
+        if (this.matchPhase === 'FINISH_HIM') {
+            this.finishHimTimer -= dt;
+            this._updateTrailBars(dt);
+            this.updateParticles(dt);
+            this.stageObjects.update(dt);
+            if (this.shakeTimer > 0) this.shakeTimer -= dt;
+
+            const loser = this.winner === 'p1' ? this.p2 : this.p1;
+            const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
+            if (loser) {
+                loser.state = 'DIZZY';
+                loser.hp = 1;
+                loser.vx = 0;
+                loser.vy = 0;
+                loser.y = loser.groundY;
+                loser.isGrounded = true;
+                loser.animTime = (loser.animTime || 0) + dt;
+            }
+            if (winnerFighter) {
+                winnerFighter.animTime = (winnerFighter.animTime || 0) + dt;
+                winnerFighter.state = 'IDLE';
+            }
+
+            // Wait 0.35s so the player sees the "FINISH HIM!" banner, then any attack/special button triggers the Widescreen Finisher Film-Sequence!
+            const elapsedFinishWindow = 4.5 - this.finishHimTimer;
+            const p1TriggeredFinisher = this.winner === 'p1' && elapsedFinishWindow >= 0.32 && (p1.sJust || p1.lJust || p1.hJust || p1.throwJust || p1.pointerJust);
+            const aiTriggeredFinisher = this.winner === 'p2' && !this.onlineMode && elapsedFinishWindow >= 1.15;
+
+            if (p1TriggeredFinisher || aiTriggeredFinisher) {
+                this._startCinematicFinisher();
+                if (isOnlineHost) this._broadcastHostSnapshot();
+                return;
+            }
+
+            if (this.finishHimTimer <= 0) {
+                // Time expired without triggering Finisher -> normal K.O. collapse
+                if (loser) {
+                    loser.hp = 0;
+                    loser.state = 'KO';
+                }
+                if (!this._koAnnounced && loser) {
+                    this._koAnnounced = true;
+                    playCombatSound(this.game.audioManager, 'ko', loser.data.id, true, true);
+                }
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+            }
+            if (isOnlineHost) this._broadcastHostSnapshot();
+            return;
+        }
+
+        // ─── MORTAL KOMBAT WIDESCREEN CINEMATIC FINISHER ("FILM-SEQUENZ") ───
+        if (this.matchPhase === 'CINEMATIC_FINISHER') {
+            this.finisherTimer += dt;
+            if (this.shakeTimer > 0) this.shakeTimer -= dt;
+
+            const loser = this.winner === 'p1' ? this.p2 : this.p1;
+            const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
+
+            if (this.finisherTimer >= 1.10 && !this._finisherImpactPlayed) {
+                this._finisherImpactPlayed = true;
+                this.triggerShake(8, 0.35);
+                if (loser) {
+                    playCombatSound(this.game.audioManager, 'hit', loser.data.id, true, true);
+                }
+            }
+            if (this.finisherTimer >= 2.35 && !this._finisherBoomPlayed) {
+                this._finisherBoomPlayed = true;
+                this.triggerShake(12, 0.55);
+                if (loser) {
+                    this._koAnnounced = true;
+                    playCombatSound(this.game.audioManager, 'ko', loser.data.id, true, true);
+                }
+            }
+            if (this.finisherTimer >= 3.85) {
+                if (loser) {
+                    loser.hp = 0;
+                    loser.state = 'KO';
+                    if (loser === this.p2) this.p2TrailHP = 0;
+                    else this.p1TrailHP = 0;
+                }
+                if (winnerFighter) {
+                    winnerFighter.state = 'WIN';
+                }
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
             }
             if (isOnlineHost) this._broadcastHostSnapshot();
             return;
@@ -818,13 +926,17 @@ export default class CombatState {
             this.spawnGroundDust(this.p2.x, this.p2.groundY, '#ffaa44');
         }
 
-        // Street Fighter Triangle Wall-Jump shockwave sparks & callout at screen edge!
+        // Street Fighter Triangle Wall-Jump shockwave sparks & Fight Style signature callouts!
         for (const [f, side] of [[this.p1, 'p1'], [this.ally, 'p1'], [this.p2, 'p2']]) {
             if (f && f.justWallJumped) {
                 const wallX = f.justWallJumped === 1 ? 148 : (this.game.width - 148);
                 this.spawnSparks(wallX, f.y - 140, '#00ffcc', '#ffffff', 12, 'heavy');
                 this.triggerCallout('WALL JUMP!', '#00ffcc', side);
                 f.justWallJumped = 0;
+            }
+            if (f && f.pendingStyleCallout) {
+                this.triggerCallout(f.pendingStyleCallout, f.styleInfo?.color || '#ffd700', side);
+                f.pendingStyleCallout = null;
             }
         }
 
@@ -905,32 +1017,40 @@ export default class CombatState {
             }
         }
 
-        // --- Check K.O. (Prioritize P1 victory if P2 is defeated on the same frame!) ---
+        // --- Check K.O. / MORTAL KOMBAT "FINISH HIM!" PHASE ---
         const p2Defeated = this.p2.state === 'KO' || this.p2.hp <= 0;
         const teamP1Defeated = this.coopMode && this.ally
             ? ((this.p1.state === 'KO' || this.p1.hp <= 0) && (this.ally.state === 'KO' || this.ally.hp <= 0))
             : (this.p1.state === 'KO' || this.p1.hp <= 0);
 
         if (p2Defeated) {
-            this.p2.hp = 0;
-            this.p2.state = 'KO';
-            this.p2TrailHP = 0;
             if (this.p1.hp <= 0) {
                 this.p1.hp = 1;
                 this.p1.state = 'IDLE';
             }
-            this.winner = 'p1';
-            this.matchPhase = 'KO_FREEZE';
-            this.koFreezeTimer = 0;
-            this._koKnockbackApplied = false;
+            if (!this.finisherTriggered) {
+                this._enterFinishHimPhase('p1');
+            } else {
+                this.p2.hp = 0;
+                this.p2.state = 'KO';
+                this.p2TrailHP = 0;
+                this.winner = 'p1';
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+            }
         } else if (teamP1Defeated) {
-            this.p1.hp = 0;
-            this.p1.state = 'KO';
-            this.p1TrailHP = 0;
-            this.winner = 'p2';
-            this.matchPhase = 'KO_FREEZE';
-            this.koFreezeTimer = 0;
-            this._koKnockbackApplied = false;
+            if (!this.finisherTriggered) {
+                this._enterFinishHimPhase('p2');
+            } else {
+                this.p1.hp = 0;
+                this.p1.state = 'KO';
+                this.p1TrailHP = 0;
+                this.winner = 'p2';
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+            }
         }
 
         if (isOnlineHost) {
@@ -939,6 +1059,61 @@ export default class CombatState {
                 this._broadcastHostSnapshot();
             }
         }
+    }
+
+    _enterFinishHimPhase(winnerSide) {
+        this.finisherTriggered = true;
+        this.winner = winnerSide;
+        this.matchPhase = 'FINISH_HIM';
+        this.finishHimTimer = 4.5;
+
+        const loser = winnerSide === 'p1' ? this.p2 : this.p1;
+        const winnerFighter = winnerSide === 'p1' ? this.p1 : this.p2;
+
+        if (loser) {
+            loser.hp = 1;
+            loser.state = 'DIZZY';
+            loser.vx = 0;
+            loser.vy = 0;
+            loser.y = loser.groundY;
+            loser.isGrounded = true;
+            loser.activeHitbox = null;
+            loser.currentAttack = null;
+            loser.hitStop = 0;
+            loser.blockStun = 0;
+            if (loser === this.p2) this.p2TrailHP = 1;
+            else this.p1TrailHP = 1;
+        }
+        if (winnerFighter) {
+            winnerFighter.specialEnergy = 100;
+            winnerFighter.state = 'IDLE';
+            winnerFighter.vx = 0;
+            winnerFighter.vy = 0;
+            winnerFighter.y = winnerFighter.groundY;
+            winnerFighter.isGrounded = true;
+            winnerFighter.activeHitbox = null;
+            winnerFighter.currentAttack = null;
+        }
+        for (const pr of this.projectiles) pr.alive = false;
+
+        this.triggerCallout('⚡ FINISH HIM! ⚡', '#ff2200', winnerSide);
+        this.triggerShake(5, 0.28);
+    }
+
+    _startCinematicFinisher() {
+        this.matchPhase = 'CINEMATIC_FINISHER';
+        this.finisherTimer = 0;
+        this._finisherImpactPlayed = false;
+        this._finisherBoomPlayed = false;
+
+        const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
+        if (winnerFighter) {
+            const fMove = getFinisherMove(winnerFighter.data.id);
+            this.triggerCallout(`🎬 ${fMove.name}!`, fMove.color1 || '#ffd700', this.winner);
+            playCombatSound(this.game.audioManager, 'super', winnerFighter.data.id);
+            this._emitNetEvent({ combatSound: { type: 'super', charId: winnerFighter.data.id }, shake: { i: 6, d: 0.4 } });
+        }
+        this.triggerShake(6, 0.4);
     }
 
     _separateFighters(fA, fB) {
@@ -1251,8 +1426,9 @@ export default class CombatState {
                 } else if (defender === this.p1) {
                     this.p1TrailHP = 0;
                 }
-                if (!this._koAnnounced) {
-                    this._koAnnounced = true;
+                const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                if (!this._koAnnounced && (!isFinalKO || this.finisherTriggered)) {
+                    if (isFinalKO) this._koAnnounced = true;
                     playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
                     this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
                 }
@@ -1320,11 +1496,9 @@ export default class CombatState {
                 } else if (defender === this.p1) {
                     this.p1TrailHP = 0;
                 }
-                if (!this._koAnnounced) {
-                    const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
-                    if (isFinalKO) {
-                        this._koAnnounced = true;
-                    }
+                const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                if (!this._koAnnounced && (!isFinalKO || this.finisherTriggered)) {
+                    if (isFinalKO) this._koAnnounced = true;
                     playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
                     this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
                 }
@@ -1399,11 +1573,9 @@ export default class CombatState {
                         } else if (defender === this.p1) {
                             this.p1TrailHP = 0;
                         }
-                        if (!this._koAnnounced) {
-                            const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
-                            if (isFinalKO) {
-                                this._koAnnounced = true;
-                            }
+                        const isFinalKO = defender === this.p2 || (!this.ally || (this.p1.hp <= 0 && this.ally.hp <= 0));
+                        if (!this._koAnnounced && (!isFinalKO || this.finisherTriggered)) {
+                            if (isFinalKO) this._koAnnounced = true;
                             playCombatSound(this.game.audioManager, 'ko', defender.data.id, true, true);
                             this._emitNetEvent({ combatSound: { type: 'ko', charId: defender.data.id } });
                         }
@@ -1786,17 +1958,25 @@ export default class CombatState {
         ctx.restore();
 
         // 6. HUD & Overlays
-        CombatHUD.drawHUD(ctx, this);
+        if (this.matchPhase === 'CINEMATIC_FINISHER') {
+            const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
+            const loserFighter = this.winner === 'p1' ? this.p2 : this.p1;
+            CinematicFinisher.drawCinematicScene(ctx, this.game, winnerFighter, loserFighter, this.finisherTimer);
+        } else {
+            CombatHUD.drawHUD(ctx, this);
 
-        if (this.matchPhase === 'FIGHT_INTRO') {
-            CombatHUD.drawFightIntro(ctx, this);
-        } else if (this.matchPhase === 'KO_FREEZE') {
-            CombatHUD.drawKO(ctx, this);
-        } else if (this.matchPhase === 'POST_MATCH') {
-            CombatHUD.drawKO(ctx, this);
-            CombatHUD.drawPostMatch(ctx, this);
-        } else if (this.matchPhase === 'VICTORY') {
-            CombatHUD.drawVictory(ctx, this);
+            if (this.matchPhase === 'FIGHT_INTRO') {
+                CombatHUD.drawFightIntro(ctx, this);
+            } else if (this.matchPhase === 'FINISH_HIM') {
+                CombatHUD.drawFinishHim(ctx, this);
+            } else if (this.matchPhase === 'KO_FREEZE') {
+                CombatHUD.drawKO(ctx, this);
+            } else if (this.matchPhase === 'POST_MATCH') {
+                CombatHUD.drawKO(ctx, this);
+                CombatHUD.drawPostMatch(ctx, this);
+            } else if (this.matchPhase === 'VICTORY') {
+                CombatHUD.drawVictory(ctx, this);
+            }
         }
 
         if (this.paused) {
