@@ -596,7 +596,7 @@ export default class Fighter {
                     }
                 }
 
-                // Validate Frame Data phase (supports multi-hit moves like HURRICANE_KICK!)
+                // Validate Frame Data phase (supports multi-hit moves like HURRICANE_KICK and LIGHT_DRAGON DRAGON_UPPERCUT!)
                 const canStillHit = !this.attackHasHit && this.multiHitCooldown <= 0;
                 if (canStillHit && this.stateTimer >= this.currentAttack.startup && this.stateTimer < (this.currentAttack.startup + this.currentAttack.active)) {
                     // ACTIVE FRAMES: Spawn Hitbox
@@ -626,10 +626,10 @@ export default class Fighter {
             case 'HIT':
                 // In hitstun
                 this.activeHitbox = null;
-                if (this.stateTimer > 0.36) { // 360ms hitstun baseline
+                if (this.stateTimer > 0.34) { // 340ms crisp Street Fighter hitstun baseline
                     this.state = 'IDLE';
                     this.consecutiveHitsTaken = 0;
-                    this.hitImmunity = Math.max(this.hitImmunity, 0.42); // Generous 420ms wake-up/recovery immunity prevents button-mash stunlock!
+                    this.hitImmunity = Math.max(this.hitImmunity, 0.36); // Wake-up/recovery immunity prevents cheap infinite loops
                 }
                 // Decelerate pushback rapidly
                 this.vx *= 0.82;
@@ -644,6 +644,12 @@ export default class Fighter {
             case 'KO':
                 this.vx *= 0.9; // Slide on ground
                 break;
+        }
+
+        // Style Passive: MASTER_STRIKER regenerates Chi Super Energy while calm (IDLE/WALK)
+        const activeStyleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
+        if (activeStyleId === 'MASTER_STRIKER' && (this.state === 'IDLE' || this.state === 'WALK') && this.specialEnergy < 100) {
+            this.specialEnergy = Math.min(100, this.specialEnergy + 6.5 * dt);
         }
 
         // 3. Apply Deterministic Physics
@@ -665,7 +671,7 @@ export default class Fighter {
             if (!this.isGrounded) {
                 this.isGrounded = true;
                 this.hasWallJumped = false;
-                this.landingTimer = 0.14;
+                this.landingTimer = 0.12;
                 if (this.state === 'JUMP' || this.state === 'DASH') {
                     this.state = inputQueue.down ? 'CROUCH' : 'IDLE'; // Landed!
                     this.vx = 0;
@@ -675,16 +681,22 @@ export default class Fighter {
     }
 
     executeDash(dir) {
+        const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
         this.state = 'DASH';
         this.stateTimer = 0;
-        this.dashCooldown = 0.35;
+        this.dashCooldown = styleId === 'SHADOW_ASSASSIN' ? 0.26 : 0.35;
         this._ghostSpawnAccum = 0.035; // Spawn first ghost immediately
         const isForward = (dir === this.facing);
         if (isForward) {
-            this.vx = dir * 1350;
+            const boost = styleId === 'SHADOW_ASSASSIN' ? 1620 : (styleId === 'CAPOEIRA_TRICKSTER' ? 1480 : 1350);
+            this.vx = dir * boost;
+            if (styleId === 'SHADOW_ASSASSIN') {
+                // Brief phantom shadow phase-invulnerability on forward dash!
+                this.hitImmunity = Math.max(this.hitImmunity, 0.18);
+            }
         } else {
             // Evasive back-hop with brief invulnerability
-            this.vx = dir * 1050;
+            this.vx = dir * (styleId === 'SHADOW_ASSASSIN' ? 1200 : 1050);
             this.vy = -340;
             this.isGrounded = false;
             this.hitImmunity = Math.max(this.hitImmunity, 0.16);
@@ -692,16 +704,16 @@ export default class Fighter {
     }
 
     executeJump(inputQueue) {
+        const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
         this.state = 'JUMP';
         this.stateTimer = 0;
         this.isGrounded = false;
         this.hasWallJumped = false;
         this.vy = this.jumpImpulse;
 
-        // Commit to horizontal velocity based on input AT THE MOMENT of jump
-        // Give airborne movement slightly more speed so they can cross over
-        if (inputQueue.left) this.vx = -this.speed * 1.15;
-        else if (inputQueue.right) this.vx = this.speed * 1.15;
+        const airMul = styleId === 'SHADOW_ASSASSIN' ? 1.28 : (styleId === 'CAPOEIRA_TRICKSTER' ? 1.24 : 1.15);
+        if (inputQueue.left) this.vx = -this.speed * airMul;
+        else if (inputQueue.right) this.vx = this.speed * airMul;
         else this.vx = 0;
     }
 
@@ -738,8 +750,11 @@ export default class Fighter {
         this.attackHitCount = 0;
         this.multiHitCooldown = 0;
         this.activeHitbox = null;
+        const isSecondVariant = Boolean(this.data && this.data.special);
         this.currentAttack = {
-            startup: 0.08, active: 0.18, recovery: 0.24,
+            startup: isSecondVariant ? 0.06 : 0.08,
+            active: 0.18,
+            recovery: isSecondVariant ? 0.18 : 0.24,
             damage: 0, pushback: 0, hitstop: 0,
             box: null,
             type: 'SPECIAL'
@@ -754,7 +769,7 @@ export default class Fighter {
             this.specialEnergy = 0;
         } else if (type === 'DRAGON_UPPERCUT' || type === 'HURRICANE_KICK') {
             if (this.specialMoveCooldown > 0) return false;
-            this.specialMoveCooldown = 0.72;
+            this.specialMoveCooldown = 0.68;
         }
 
         this.state = 'ATTACK';
@@ -763,159 +778,184 @@ export default class Fighter {
         this.attackWasBlocked = false;
         this.attackHitCount = 0;
         this.multiHitCooldown = 0;
-        const pwrMul = this.power / 100;
-        const isAerial = !this.isGrounded;
+
         const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
-        // Style speed & range modifiers:
-        const spdMul = styleId === 'LIGHT_DRAGON' ? 0.85 : (styleId === 'MASTER_STRIKER' ? 0.90 : 1.0);
-        const reachBonus = styleId === 'MASTER_STRIKER' ? 18 : 0;
+        const isSecondVariant = Boolean(this.data && this.data.special);
+
+        // Valhalla Berserker Rage Passive (+22% damage below 45% HP) & Second Variant Power Boost (+8%)
+        const berserkerRage = (styleId === 'VALHALLA_BERSERKER' && this.hp < this.maxHP * 0.45) ? 1.22 : 1.0;
+        const variantMul = isSecondVariant ? 1.08 : 1.0;
+        const pwrMul = (this.power / 100) * berserkerRage * variantMul;
+
+        const isAerial = !this.isGrounded;
+        // Distinct Style Frame Speed & Hitbox Reach Modifiers
+        const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.80
+            : (styleId === 'LIGHT_DRAGON' ? 0.84
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.86
+            : (styleId === 'MASTER_STRIKER' ? 0.88 : 1.0)));
+        const reachBonus = styleId === 'MASTER_STRIKER' ? 38
+            : (styleId === 'VALHALLA_BERSERKER' ? 22
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0));
 
         // Play authentic martial-arts swing whoosh SFX
         const isHeavySwing = (type !== 'LIGHT' && type !== 'CROUCH_LIGHT');
         this.game?.audioManager?.playWhooshSound?.(isHeavySwing);
 
         if (type === 'LIGHT') {
-            if (this.isGrounded) this.vx = this.facing * 185;
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 260 : 195);
             this.currentAttack = {
-                startup: 0.045 * spdMul, active: 0.13, recovery: 0.20 * spdMul,
+                startup: 0.042 * spdMul, active: 0.13, recovery: 0.18 * spdMul,
                 damage: Math.round(16 * pwrMul), pushback: 185, hitstop: 0.07,
                 isOverhead: isAerial,
-                box: isAerial ? new Hitbox(14, -20, 152 + reachBonus, 145) : new Hitbox(18, 125, 162 + reachBonus, 110),
+                box: isAerial ? new Hitbox(14, -20, 155 + reachBonus, 145) : new Hitbox(18, 125, 165 + reachBonus, 110),
                 type: 'LIGHT'
             };
         } else if (type === 'COMMAND_PUNCH') {
-            // → + L: Spinning Overhead Backfist (breaks crouching block!)
-            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 460 : 310);
+            // → + L: Spinning Overhead Backfist / Phantom Blitz / Armor Hammer (breaks crouching block!)
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 540 : (styleId === 'VALHALLA_BERSERKER' ? 380 : 320));
             this.currentAttack = {
-                startup: 0.075 * spdMul, active: 0.15, recovery: 0.25 * spdMul,
-                damage: Math.round(26 * pwrMul), pushback: 265, hitstop: 0.11,
+                startup: 0.07 * spdMul, active: 0.15, recovery: 0.23 * spdMul,
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 32 : 27) * pwrMul), pushback: 265, hitstop: 0.11,
                 isOverhead: true,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER'),
-                box: new Hitbox(20, 105, 174 + reachBonus, 125),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                box: new Hitbox(20, 105, 178 + reachBonus, 125),
                 type: 'COMMAND_PUNCH'
             };
         } else if (type === 'COMBO_KICK') {
-            if (this.isGrounded) this.vx = this.facing * (styleId === 'CAPOEIRA_TRICKSTER' ? 320 : 240);
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'CAPOEIRA_TRICKSTER' ? 380 : 255);
             this.currentAttack = {
-                startup: 0.055 * spdMul, active: 0.15, recovery: 0.22 * spdMul,
-                damage: Math.round(25 * pwrMul), pushback: 230, hitstop: 0.10,
-                box: new Hitbox(20, 100, 178 + reachBonus, 115),
+                startup: 0.052 * spdMul, active: 0.15, recovery: 0.20 * spdMul,
+                damage: Math.round((styleId === 'CAPOEIRA_TRICKSTER' ? 29 : 25) * pwrMul), pushback: 230, hitstop: 0.10,
+                box: new Hitbox(20, 100, 180 + reachBonus, 115),
                 type: 'COMBO_KICK'
             };
         } else if (type === 'COMBO_FINISHER') {
-            if (this.isGrounded) this.vx = this.facing * 330;
+            if (this.isGrounded) this.vx = this.facing * 350;
             this.currentAttack = {
-                startup: 0.065 * spdMul, active: 0.17, recovery: 0.30,
-                damage: Math.round((styleId === 'LIGHT_DRAGON' ? 42 : 38) * pwrMul), pushback: 420, hitstop: 0.14,
-                lift: styleId === 'LIGHT_DRAGON' ? -340 : -240,
-                box: new Hitbox(22, 80, 188 + reachBonus, 150),
+                startup: 0.062 * spdMul, active: 0.17, recovery: 0.28,
+                damage: Math.round((styleId === 'LIGHT_DRAGON' ? 44 : 39) * pwrMul), pushback: 420, hitstop: 0.14,
+                lift: styleId === 'LIGHT_DRAGON' ? -360 : -250,
+                box: new Hitbox(22, 80, 192 + reachBonus, 150),
                 type: 'COMBO_FINISHER'
             };
         } else if (type === 'CROUCH_LIGHT') {
-            if (this.isGrounded) this.vx = this.facing * 165;
+            if (this.isGrounded) this.vx = this.facing * 175;
             this.currentAttack = {
-                startup: 0.045 * spdMul, active: 0.13, recovery: 0.19 * spdMul,
+                startup: 0.042 * spdMul, active: 0.13, recovery: 0.18 * spdMul,
                 damage: Math.round(15 * pwrMul), pushback: 170, hitstop: 0.07,
                 isLow: true,
-                box: new Hitbox(18, 15, 166 + reachBonus, 95),
+                box: new Hitbox(18, 15, 168 + reachBonus, 95),
                 type: 'CROUCH_LIGHT'
             };
         } else if (type === 'HEAVY') {
-            if (this.isGrounded) this.vx = this.facing * 280;
+            if (isAerial && (styleId === 'SHADOW_ASSASSIN' || styleId === 'CAPOEIRA_TRICKSTER')) {
+                // Signature Aerial Dive-Kick for Assassins & Capoeira Tricksters!
+                this.vx = this.facing * 720;
+                this.vy = Math.max(this.vy, 780);
+            } else if (this.isGrounded) {
+                this.vx = this.facing * 295;
+            }
             this.currentAttack = {
-                startup: 0.085 * spdMul, active: 0.16, recovery: 0.28,
-                damage: Math.round(36 * pwrMul), pushback: styleId === 'VALHALLA_BERSERKER' ? 480 : 380, hitstop: 0.14,
-                lift: isAerial ? -120 : -160,
+                startup: 0.08 * spdMul, active: 0.16, recovery: 0.26,
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 42 : 36) * pwrMul),
+                pushback: styleId === 'VALHALLA_BERSERKER' ? 490 : 380,
+                hitstop: 0.14,
+                lift: isAerial ? -140 : -170,
                 isOverhead: isAerial,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER'),
-                box: isAerial ? new Hitbox(14, -30, 164 + reachBonus, 160) : new Hitbox(22, 100, 184 + reachBonus, 130),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                box: isAerial ? new Hitbox(14, -35, 175 + reachBonus, 165) : new Hitbox(22, 100, 188 + reachBonus, 130),
                 type: 'HEAVY'
             };
         } else if (type === 'AXE_KICK') {
             // → + H: Step Axe Kick (heavy overhead chop kick!)
-            if (this.isGrounded) this.vx = this.facing * 360;
+            if (this.isGrounded) this.vx = this.facing * 380;
             this.currentAttack = {
-                startup: 0.09 * spdMul, active: 0.17, recovery: 0.28,
-                damage: Math.round(42 * pwrMul), pushback: 390, hitstop: 0.15,
-                lift: -210,
+                startup: 0.085 * spdMul, active: 0.17, recovery: 0.26,
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 46 : 42) * pwrMul), pushback: 390, hitstop: 0.15,
+                lift: -220,
                 isOverhead: true,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER'),
-                box: new Hitbox(22, 65, 186 + reachBonus, 175),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                box: new Hitbox(22, 65, 190 + reachBonus, 175),
                 type: 'AXE_KICK'
             };
         } else if (type === 'SWEEP') {
-            if (this.isGrounded) this.vx = this.facing * 410;
+            // Capoeira Tricksters slide further on Low Sweep!
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'CAPOEIRA_TRICKSTER' ? 520 : 420);
             this.currentAttack = {
-                startup: 0.075 * spdMul, active: 0.16, recovery: 0.30,
-                damage: Math.round(32 * pwrMul), pushback: 320, hitstop: 0.14,
-                lift: -280,
+                startup: 0.07 * spdMul, active: 0.16, recovery: 0.28,
+                damage: Math.round((styleId === 'CAPOEIRA_TRICKSTER' ? 36 : 32) * pwrMul), pushback: 320, hitstop: 0.14,
+                lift: -290,
                 isLow: true,
-                box: new Hitbox(22, 0, 190 + reachBonus, 92),
+                box: new Hitbox(22, 0, 194 + reachBonus, 94),
                 type: 'SWEEP'
             };
         } else if (type === 'DRAGON_UPPERCUT') {
             // → ↓ ↘ + L or ↑ + S: Rising Shoryuken Dragon Uppercut (invulnerable anti-air launcher!)
-            this.hitImmunity = Math.max(this.hitImmunity, 0.22);
+            const isDragon = (styleId === 'LIGHT_DRAGON');
+            this.hitImmunity = Math.max(this.hitImmunity, isDragon ? 0.28 : 0.22);
             this.isGrounded = false;
-            this.vy = -960;
-            this.vx = this.facing * 310;
+            this.vy = isDragon ? -1080 : -960;
+            this.vx = this.facing * (isDragon ? 360 : 310);
             this.currentAttack = {
-                startup: 0.045, active: 0.24, recovery: 0.32,
-                damage: Math.round(46 * pwrMul), pushback: 360, hitstop: 0.16,
-                lift: -540,
+                startup: 0.04, active: 0.25, recovery: 0.30,
+                damage: Math.round((isDragon ? 28 : 46) * pwrMul), pushback: 360, hitstop: 0.14,
+                lift: -560,
+                maxHits: isDragon ? 2 : 1,
                 isSpecialMove: true,
-                box: new Hitbox(14, 50, 166, 260),
+                box: new Hitbox(14, 50, 172 + reachBonus, 265),
                 type: 'DRAGON_UPPERCUT'
             };
         } else if (type === 'HURRICANE_KICK') {
-            // ↓ ↙ ← + H or ↓ + S: Tatsumaki Spinning Cyclone Kick (3-hit airborne spin!)
+            // ↓ ↙ ← + H or ↓ + S: Tatsumaki Spinning Cyclone Kick (3-hit or 4-hit airborne spin!)
+            const isCapoeira = (styleId === 'CAPOEIRA_TRICKSTER');
             this.isGrounded = false;
             this.vy = -260;
-            this.vx = this.facing * 640;
+            this.vx = this.facing * (isCapoeira ? 760 : 660);
             this.currentAttack = {
-                startup: 0.06, active: 0.38, recovery: 0.28,
+                startup: 0.055, active: isCapoeira ? 0.44 : 0.38, recovery: 0.26,
                 damage: Math.round(18 * pwrMul), pushback: 240, hitstop: 0.08,
-                lift: -190,
-                maxHits: 3,
+                lift: -195,
+                maxHits: isCapoeira ? 4 : 3,
                 isSpecialMove: true,
-                box: new Hitbox(-25, 70, 215, 130),
+                box: new Hitbox(-25, 70, 220 + reachBonus, 132),
                 type: 'HURRICANE_KICK'
             };
         } else if (type === 'THROW') {
             // L + H at close range: Unblockable Martial Arts Grapple Slam!
             const isGrappler = (styleId === 'TITAN_GRAPPLER');
-            this.vx = this.facing * (isGrappler ? 220 : 140);
+            this.vx = this.facing * (isGrappler ? 270 : 160);
             this.currentAttack = {
-                startup: 0.04, active: 0.14, recovery: 0.26,
-                damage: Math.round((isGrappler ? 48 : 42) * pwrMul), pushback: 620, hitstop: 0.16,
-                lift: -420,
+                startup: 0.038, active: 0.15, recovery: 0.25,
+                damage: Math.round((isGrappler ? 56 : 42) * pwrMul), pushback: 640, hitstop: 0.17,
+                lift: isGrappler ? -480 : -420,
                 unblockable: true,
-                box: new Hitbox(10, 65, isGrappler ? 185 : 148, 185),
+                box: new Hitbox(10, 65, isGrappler ? 225 : 158, 190),
                 type: 'THROW'
             };
         } else if (type === 'SPECIAL') {
-            if (this.isGrounded) this.vx = this.facing * 260;
+            if (this.isGrounded) this.vx = this.facing * 270;
             this.currentAttack = {
-                startup: 0.075, active: 0.18, recovery: 0.26,
+                startup: 0.07, active: 0.18, recovery: 0.24,
                 damage: Math.round(48 * pwrMul), pushback: 280, hitstop: 0.13,
                 lift: -160,
                 isSpecialMove: true,
-                box: new Hitbox(35, 75, 165, 155),
+                box: new Hitbox(35, 75, 170 + reachBonus, 155),
                 type: 'SPECIAL'
             };
         } else if (type === 'SPECIAL_DASH') {
             this.currentAttack = {
-                startup: 0.14, active: 0.32, recovery: 0.34,
-                damage: Math.round(62 * pwrMul), pushback: 650, hitstop: 0.2,
-                lift: -220,
+                startup: 0.12, active: 0.34, recovery: 0.30,
+                damage: Math.round((isSecondVariant ? 68 : 62) * pwrMul), pushback: 650, hitstop: 0.2,
+                lift: -230,
+                hasSuperArmor: true,
                 isSpecialMove: true,
-                box: new Hitbox(10, 65, 175, 175),
+                box: new Hitbox(10, 65, 185 + reachBonus, 180),
                 type: 'SPECIAL_DASH'
             };
             this.isGrounded = false;
             this.y -= 80;
             this.vy = 0;
-            this.vx = this.facing * 1800;
+            this.vx = this.facing * 1850;
         }
         return true;
     }

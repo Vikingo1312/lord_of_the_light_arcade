@@ -383,55 +383,7 @@ export default class CombatHUD {
             ctx.restore();
         }
 
-        // ─── STREET FIGHTER STORY DIALOGUE SUBTITLE BANNER ───
-        if (combat.storyDialogue && combat.storyBannerTimer > 0 && combat.matchPhase !== 'POST_MATCH' && combat.matchPhase !== 'VICTORY') {
-            const alpha = Math.min(1, combat.storyBannerTimer * 1.2);
-            const boxW = Math.min(1260, game.width - 120);
-            const boxH = 104;
-            const bx = cx - boxW / 2;
-            const by = game.height - boxH - 18;
-
-            ctx.save();
-            ctx.globalAlpha = alpha * 0.92;
-            ctx.fillStyle = 'rgba(8, 10, 26, 0.86)';
-            ctx.fillRect(bx, by, boxW, boxH);
-            ctx.strokeStyle = '#ffd700';
-            ctx.lineWidth = 2.5;
-            ctx.strokeRect(bx, by, boxW, boxH);
-
-            // Dimension Header Pill
-            ctx.textAlign = 'center';
-            ctx.font = 'bold 13px "Press Start 2P"';
-            ctx.fillStyle = '#ffd700';
-            ctx.fillText(combat.storyDialogue.dimension || 'LORD OF THE LIGHT', cx, by + 24);
-
-            // Opponent Story Quote (dynamically addresses the active player by name, never hardcoded Keano!)
-            const p1Name = combat.p1.data.name;
-            const rawIntro = combat.storyDialogue.introQuote || '';
-            const dynamicIntro = rawIntro.replace(/\bKeano(\s+Romeo)?\b/gi, p1Name);
-            ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
-            ctx.fillStyle = '#ff7788';
-            ctx.fillText(`${combat.p2.data.name.toUpperCase()}: „${dynamicIntro}“`, cx, by + 54);
-
-            // Hero (Active P1 Fighter) Story Reply
-            const p1Id = combat.p1.data.id;
-            const p1Dialogue = STORY_DIALOGUES[p1Id];
-            let rawReply = '';
-            if (p1Id === 'JJDark' && combat.storyDialogue.jaydenReply) {
-                rawReply = combat.storyDialogue.jaydenReply;
-            } else if (p1Id === 'JayX' && combat.storyDialogue.jayXReply) {
-                rawReply = combat.storyDialogue.jayXReply;
-            } else if ((p1Id === 'Keano' || p1Id === 'HyperKeano' || p1Id === 'SupremeKeano') && combat.storyDialogue.keanoReply) {
-                rawReply = combat.storyDialogue.keanoReply;
-            } else if (p1Dialogue && p1Dialogue.heroReply) {
-                rawReply = p1Dialogue.heroReply;
-            } else {
-                rawReply = combat.storyDialogue.keanoReply || '';
-            }
-            ctx.fillStyle = '#66eeff';
-            ctx.fillText(`${p1Name.toUpperCase()}: „${rawReply}“`, cx, by + 84);
-            ctx.restore();
-        } else if (combat.matchPhase === 'FIGHTING') {
+        if (combat.matchPhase === 'FIGHTING') {
             // Subtle Arcade Command Move Legend at bottom of screen
             ctx.save();
             ctx.globalAlpha = 0.78;
@@ -458,9 +410,8 @@ export default class CombatHUD {
         const subT = combat.introSubTimer || 0;
 
         if (subPhase === 'STORY_DIALOGUE') {
-            // Phase 1: Pre-fight Face-Off while Opponent speaks full Story Intro to the end
+            // Phase 1: Pre-fight Face-Off (skippable anytime with Space / J / K / Click!)
             const alpha = Math.min(1, combat.introTimer * 2.5);
-            const voicePlaying = Boolean(combat.game.audioManager?.isFighterVoicePlaying?.());
             ctx.save();
             ctx.globalAlpha = Math.max(0, alpha);
             ctx.font = 'bold 26px "Press Start 2P"';
@@ -471,14 +422,10 @@ export default class CombatHUD {
             ctx.font = 'bold 42px "Press Start 2P"';
             ctx.fillStyle = '#fdbf00';
             ctx.fillText(`${combat.p1.data.name.toUpperCase()}  VS  ${combat.p2.data.name.toUpperCase()}`, cx, cy + 10);
-            if (combat.introTimer > 0.4) {
-                ctx.font = 'bold 12px "Press Start 2P"';
-                ctx.fillStyle = voicePlaying ? '#ffd700' : 'rgba(255, 255, 255, 0.78)';
-                ctx.fillText(
-                    voicePlaying ? '🔊 STORY-INTRO LÄUFT VOLLSTÄNDIG...' : '[SPACE / J ZUM KAMPFSTART]',
-                    cx,
-                    cy + 52
-                );
+            if (combat.introTimer > 0.3) {
+                ctx.font = 'bold 13px "Press Start 2P"';
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.fillText('[SPACE / J / ENTER / KLICK ZUM ÜBERSPRINGEN ▸]', cx, cy + 52);
             }
             ctx.restore();
         } else if (subPhase === 'ROUND_CALL') {
@@ -614,17 +561,6 @@ export default class CombatHUD {
                 ctx.fillText(winnerText, cx, cy + 60);
                 ctx.shadowBlur = 0;
             }
-
-            const winDialog = STORY_DIALOGUES[winnerFighter.data.id];
-            if (winDialog && winDialog.winQuote) {
-                ctx.save();
-                ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowColor = '#000000';
-                ctx.shadowBlur = 10;
-                ctx.fillText(`„${winDialog.winQuote}“`, cx, cy + 112);
-                ctx.restore();
-            }
         }
     }
 
@@ -646,22 +582,7 @@ export default class CombatHUD {
             ctx.fillStyle = '#fdbf00';
             ctx.shadowColor = '#000';
             ctx.shadowBlur = 12;
-            ctx.fillText(winnerText, cx, cy - 85);
-
-            const winDialog = STORY_DIALOGUES[winnerFighter.data.id];
-            if (winDialog && winDialog.winQuote) {
-                const boxW = Math.min(1180, combat.game.width - 120);
-                ctx.fillStyle = 'rgba(8, 10, 26, 0.86)';
-                ctx.fillRect(cx - boxW / 2, cy - 52, boxW, 54);
-                ctx.strokeStyle = '#ffd700';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(cx - boxW / 2, cy - 52, boxW, 54);
-                ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
-                ctx.fillStyle = '#ffffff';
-                ctx.shadowColor = '#000000';
-                ctx.shadowBlur = 8;
-                ctx.fillText(`${winnerFighter.data.name.toUpperCase()}: „${winDialog.winQuote}“`, cx, cy - 18);
-            }
+            ctx.fillText(winnerText, cx, cy - 55);
             ctx.restore();
         }
 
@@ -671,12 +592,12 @@ export default class CombatHUD {
             const barW = 400;
             const barH = 12;
 
-            ctx.font = '14px "Press Start 2P"';
+            ctx.font = '13px "Press Start 2P"';
             ctx.textAlign = 'center';
             ctx.fillStyle = winVoicePlaying ? '#ffd700' : (pct < 0.3 ? '#ff0000' : '#00ffff');
             if (!winVoicePlaying && pct < 0.3 && Math.floor(Date.now() / 200) % 2 === 0) ctx.fillStyle = '#ffaa00';
             const statusLabel = winVoicePlaying
-                ? '🔊 SIEGES-SPRUCH LÄUFT VOLLSTÄNDIG...'
+                ? '🔊 SIEGES-SPRUCH LÄUFT [SPACE / J ZUM ÜBERSPRINGEN ▸]'
                 : (combat.arcadeMode && combat.winner === 'p1' ? 'NEXT BATTLE STARTING IN...' : 'AUTO-ADVANCE IN...');
             ctx.fillText(statusLabel, cx, startY - 25);
 

@@ -137,10 +137,25 @@ export const SPECIALS = [
     { id: 'GargamelHoodie', folder: '6.1.C_Gargamel_Hoodie', name: 'Gargamel Hoodie', nickname: 'Street Chemist', country: 'Germany', special: true, stageId: 'Germany', unlockedBy: 'Gargamel', hp: 325, speed: 535, power: 114, styleId: 'SHADOW_ASSASSIN', specialName: 'TOXIC PRISM', superName: 'DARK ALCHEMY OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'gargamel', cutinFile: 'proj_gargamel.png' },
     { id: 'Simba', folder: '16.Simba', name: 'Simba', nickname: 'Lion King', country: 'Serengeti', special: true, stageId: 'Jamaica', unlockedBy: 'Vikingo', hp: 360, speed: 610, power: 125, styleId: 'VALHALLA_BERSERKER', largeAura: true, specialName: 'SAVANNAH ROAR', superName: 'PRIDE OF ETERNITY', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'simba', cutinFile: 'proj_simba.png' },
     { id: 'Emely', folder: '17.Emely', name: '🌸 Emy 🌸', nickname: 'Blossom Queen', country: 'Universal', special: true, stageId: 'Japan', unlockedBy: 'Simba', hp: 350, speed: 625, power: 124, styleId: 'LIGHT_DRAGON', specialName: 'BLOSSOM SHOT', superName: 'PETAL STORM NOVA', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'emely', cutinFile: 'proj_emely.png' },
+    { id: 'HyperEmely', folder: '17.1.Hyper_Emely', name: '🌸 Hyper-Emy 🌸', nickname: 'Sakura Empress', country: 'Ascended', special: true, stageId: 'Japan', unlockedBy: 'Emely', hp: 365, speed: 655, power: 128, styleId: 'CAPOEIRA_TRICKSTER', specialName: 'HYPER SAKURA BEAM', superName: 'EMPRESS OF SAKURA OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'hyper_emely', cutinFile: 'proj_hyper_emely.png' },
     { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
+    { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'Russia', unlockedBy: 'Cayle', hp: 355, speed: 670, power: 126, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
+
+export const UNLOCK_CHAIN_GUIDE = [
+    { playId: 'Keano', unlockId: 'HyperKeano', desc: 'Story / Arcade mit Keano Romeo durchspielen' },
+    { playId: 'HyperKeano', unlockId: 'SupremeKeano', desc: 'Story / Arcade mit Hyper Keano durchspielen' },
+    { playId: 'JJDark', unlockId: 'JayX', desc: 'Story / Arcade mit JJ Dark (Jayden) durchspielen' },
+    { playId: 'JayX', unlockId: 'Cayle', desc: 'Story / Arcade mit Jay X durchspielen' },
+    { playId: 'Cayle', unlockId: 'CayleMinogue', desc: 'Story / Arcade mit Cayle durchspielen' },
+    { playId: 'VikingoRaw', unlockId: 'Vikingo', desc: 'Story / Arcade mit Dark Vikingo durchspielen' },
+    { playId: 'Vikingo', unlockId: 'Simba', desc: 'Story / Arcade mit Vikingo durchspielen' },
+    { playId: 'Simba', unlockId: 'Emely', desc: 'Story / Arcade mit Simba durchspielen' },
+    { playId: 'Emely', unlockId: 'HyperEmely', desc: 'Story / Arcade mit 🌸 Emy 🌸 durchspielen' },
+    { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
+];
 
 export function getFighterStyle(fighterOrId) {
     const f = typeof fighterOrId === 'string'

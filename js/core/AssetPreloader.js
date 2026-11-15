@@ -23,7 +23,9 @@ const AUDIO_MAP = {
     'GargamelHoodie': 'gargamel_hoodie',
     'Simba': 'simba',
     'Emely': 'emely',
+    'HyperEmely': 'hyper_emely',
     'Cayle': 'cayle',
+    'CayleMinogue': 'cayle_minogue',
 };
 
 /**
@@ -43,7 +45,7 @@ export function preloadFighterSprites(assetManager, char) {
         '_windup_kick', '_mid_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick'
     ];
 
-    const ver = '?v=2.31';
+    const ver = '?v=2.32';
     for (const suf of [...coreSuffixes, ...extraSuffixes]) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {

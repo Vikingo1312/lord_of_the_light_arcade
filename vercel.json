@@ -1,15 +1,15 @@
 {
   "headers": [
     {
-      "source": "/js/(.*)",
+      "source": "/(.*)\\.(js|html|json)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
       ]
     },
     {
-      "source": "/(index.html|sw.js)?",
+      "source": "/assets/audio/voice/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     }
   ]

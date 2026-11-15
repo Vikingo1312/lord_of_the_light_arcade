@@ -1,4 +1,4 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, getFighterStyle } from '../data.js';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js';
 import { STORY_PROLOGUE } from '../story_data.js';
 import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js';
 import { getFinisherMove } from '../fx/CinematicFinisher.js';
@@ -22,10 +22,11 @@ export default class MenuState {
 
         // Sub-menu state
         this.inOptions = false;
-        this.optionsTab = 'mixer'; // 'mixer' | 'combos'
+        this.optionsTab = 'mixer'; // 'mixer' | 'combos' | 'unlocks'
         this.optionIndex = 0;
         this.comboIndex = 0;
         this.comboCharIndex = 0;
+        this.unlockGuideIndex = 0;
         this.comboPreviewTimer = 0;
         this.isTransitioning = false;
         this._draggingSlider = false;
@@ -170,9 +171,15 @@ export default class MenuState {
         this.isTransitioning = false;
         this._draggingSlider = false;
 
-        // Preload Keano sprites so the Combo Live-Preview is ready immediately
+        // Preload Keano sprites and all fighter portraits so Combo Live-Preview & Unlock Guide are ready immediately
         if (ALL_FIGHTERS && ALL_FIGHTERS[0]) {
             preloadFighterSprites(this.game.assetManager, ALL_FIGHTERS[0]);
+            for (const f of ALL_FIGHTERS) {
+                const key = `${f.id}_front.png`;
+                if (!this.game.assetManager.images[key]) {
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.32`);
+                }
+            }
             this.game.assetManager.loadAll();
         }
 
@@ -353,25 +360,52 @@ export default class MenuState {
         const cx = this.game.width / 2;
 
         // Top-left back button or bottom back area
-        if (!isDrag && ((tx >= cx - 640 && tx <= cx - 410 && ty >= 52 && ty <= 110) || ty >= this.game.height - 88)) {
+        if (!isDrag && ((tx >= cx - 640 && tx <= cx - 415 && ty >= 52 && ty <= 110) || ty >= this.game.height - 88)) {
             this.inOptions = false;
             this.inputCooldown = 15;
             this.playBlip();
             return;
         }
 
-        // Top Tab Switcher Buttons (y: 52..110)
+        // Top 3 Tab Switcher Buttons (y: 52..110)
         if (!isDrag && ty >= 50 && ty <= 112) {
-            if (tx >= cx - 390 && tx <= cx + 80) {
+            if (tx >= cx - 405 && tx <= cx - 70) {
                 this.optionsTab = 'mixer';
                 this.playConfirm();
                 return;
-            } else if (tx > cx + 80 && tx <= cx + 630) {
+            } else if (tx > cx - 65 && tx <= cx + 275) {
                 this.optionsTab = 'combos';
                 this.comboPreviewTimer = 0;
                 this.playConfirm();
                 return;
+            } else if (tx > cx + 280 && tx <= cx + 635) {
+                this.optionsTab = 'unlocks';
+                this.playConfirm();
+                return;
             }
+        }
+
+        if (this.optionsTab === 'unlocks') {
+            if (isDrag) return;
+            // Check tap on 2x5 Unlock Guide Cards
+            const startY = 212;
+            const rowStep = 116;
+            const col0X = cx - 620;
+            const col1X = cx + 10;
+            const cardW = 610;
+            const cardH = 104;
+            for (let i = 0; i < UNLOCK_CHAIN_GUIDE.length; i++) {
+                const col = i % 2;
+                const row = Math.floor(i / 2);
+                const x = col === 0 ? col0X : col1X;
+                const y = startY + row * rowStep;
+                if (tx >= x && tx <= x + cardW && ty >= y && ty <= y + cardH) {
+                    this.unlockGuideIndex = i;
+                    this.playConfirm();
+                    return;
+                }
+            }
+            return;
         }
 
         if (this.optionsTab === 'combos') {
@@ -405,14 +439,14 @@ export default class MenuState {
             return;
         }
 
-        const startY = 192;
-        const rowStep = 59;
+        const startY = 186;
+        const rowStep = 54;
         const barX = cx - 40;
         const barW = 360;
 
-        for (let i = 0; i < 11; i++) {
+        for (let i = 0; i < 12; i++) {
             const rowY = startY + i * rowStep;
-            if (ty >= rowY - 29 && ty <= rowY + 24 && tx >= cx - 560 && tx <= cx + 560) {
+            if (ty >= rowY - 26 && ty <= rowY + 22 && tx >= cx - 560 && tx <= cx + 560) {
                 this.optionIndex = i;
                 // Rows 0..4 are volume faders
                 if (i >= 0 && i <= 4) {
@@ -430,17 +464,18 @@ export default class MenuState {
                     }
                 } else if (!isDrag) {
                     if (i === 8) {
-                        // Open STEUERUNG & KOMBO-SHOW tab!
                         this.optionsTab = 'combos';
                         this.comboPreviewTimer = 0;
                         this.playConfirm();
                     } else if (i === 9) {
-                        // Reset to Street Fighter Studio Mix defaults
+                        this.optionsTab = 'unlocks';
+                        this.playConfirm();
+                    } else if (i === 10) {
                         this.game.resetAudioMixDefaults?.();
                         this._fadeInTarget = this.game.settings.musicVolume;
                         this.playConfirm();
                         this.game.audioManager?.playHitImpactSound?.(true, true);
-                    } else if (i === 10) {
+                    } else if (i === 11) {
                         this.inOptions = false;
                         this.inputCooldown = 15;
                         this.playBlip();
@@ -681,10 +716,10 @@ export default class MenuState {
                     this.game.stateManager.switchState('OnlineLobby');
                 }, 250);
             } else if (this.selectedIndex === 4) {
-                // SOUND-MISCHPULT & KOMBO-SHOW
+                // OPTIONEN, KOMBO-SHOW & FREISCHALT-GUIDE
                 this.playConfirm();
                 this.inOptions = true;
-                this.optionsTab = 'combos';
+                this.optionsTab = 'unlocks';
                 this.optionIndex = 0;
                 this.comboPreviewTimer = 0;
                 this.inputCooldown = 15;
@@ -694,6 +729,33 @@ export default class MenuState {
 
     updateOptions(p1) {
         if (this.inputCooldown <= 0) {
+            if (this.optionsTab === 'unlocks') {
+                const count = UNLOCK_CHAIN_GUIDE.length;
+                if (p1.up) {
+                    this.unlockGuideIndex = (this.unlockGuideIndex - 2 + count) % count;
+                    this.inputCooldown = 10;
+                    this.playBlip();
+                } else if (p1.down) {
+                    this.unlockGuideIndex = (this.unlockGuideIndex + 2) % count;
+                    this.inputCooldown = 10;
+                    this.playBlip();
+                } else if (p1.left || p1.right) {
+                    this.unlockGuideIndex = (this.unlockGuideIndex + (p1.right ? 1 : -1) + count) % count;
+                    this.inputCooldown = 10;
+                    this.playBlip();
+                } else if (p1.lJust || p1.hJust) {
+                    this.optionsTab = 'combos';
+                    this.comboPreviewTimer = 0;
+                    this.inputCooldown = 14;
+                    this.playConfirm();
+                } else if (p1.s || p1.menuJust) {
+                    this.inOptions = false;
+                    this.inputCooldown = 15;
+                    this.playBlip();
+                }
+                return;
+            }
+
             if (this.optionsTab === 'combos') {
                 const comboCount = this.comboShowList.length;
                 if (p1.up) {
@@ -724,7 +786,7 @@ export default class MenuState {
                 return;
             }
 
-            const optCount = 11;
+            const optCount = 12;
             if (p1.up) {
                 this.optionIndex = (this.optionIndex - 1 + optCount) % optCount;
                 this.inputCooldown = 10;
@@ -746,12 +808,16 @@ export default class MenuState {
                     this.playConfirm();
                     this.inputCooldown = 15;
                 } else if (this.optionIndex === 9) {
+                    this.optionsTab = 'unlocks';
+                    this.playConfirm();
+                    this.inputCooldown = 15;
+                } else if (this.optionIndex === 10) {
                     this.game.resetAudioMixDefaults?.();
                     this._fadeInTarget = this.game.settings.musicVolume;
                     this.playConfirm();
                     this.game.audioManager?.playHitImpactSound?.(true, true);
                     this.inputCooldown = 15;
-                } else if (this.optionIndex === 10) {
+                } else if (this.optionIndex === 11) {
                     this.inOptions = false;
                     this.inputCooldown = 15;
                     this.playBlip();
@@ -810,12 +876,16 @@ export default class MenuState {
                 this.comboPreviewTimer = 0;
                 this.playConfirm();
                 break;
-            case 9: // Reset Studio Mix
+            case 9: // Open FREISCHALT-GUIDE
+                this.optionsTab = 'unlocks';
+                this.playConfirm();
+                break;
+            case 10: // Reset Studio Mix
                 this.game.resetAudioMixDefaults?.();
                 this._fadeInTarget = this.game.settings.musicVolume;
                 this.playConfirm();
                 break;
-            case 10: // Back to Menu
+            case 11: // Back to Menu
                 this.inOptions = false;
                 this.inputCooldown = 15;
                 break;
@@ -1218,28 +1288,40 @@ export default class MenuState {
         ctx.textAlign = 'center';
         ctx.fillText('← ZURÜCK', cx - 522, 87);
 
-        // Two Top Tab Buttons: [ 🎛️ SOUND & OPTIONEN ]  |  [ 🥋 STEUERUNG & KOMBO-SHOW ]
+        // Three Top Tab Buttons: [ 🎛️ SOUND & OPTIONEN ] | [ 🥋 KOMBO-SHOW ] | [ 🏆 FREISCHALT-GUIDE ]
+        const isMixer = this.optionsTab === 'mixer';
         const isCombos = this.optionsTab === 'combos';
+        const isUnlocks = this.optionsTab === 'unlocks';
 
-        // Tab 1: Sound & Optionen
-        ctx.fillStyle = !isCombos ? 'rgba(0, 229, 255, 0.28)' : 'rgba(20, 26, 52, 0.85)';
-        ctx.strokeStyle = !isCombos ? '#00ffff' : '#334466';
-        ctx.lineWidth = !isCombos ? 3 : 2;
-        ctx.fillRect(cx - 395, 56, 465, 48);
-        ctx.strokeRect(cx - 395, 56, 465, 48);
-        ctx.fillStyle = !isCombos ? '#00ffff' : '#8899bb';
-        ctx.font = 'bold 17px "Press Start 2P"';
-        ctx.fillText('🎛️ SOUND & SPIEL-OPTIONEN', cx - 162, 87);
+        // Tab 1: Sound & Optionen (x: cx - 405 .. cx - 73)
+        ctx.fillStyle = isMixer ? 'rgba(0, 229, 255, 0.28)' : 'rgba(20, 26, 52, 0.85)';
+        ctx.strokeStyle = isMixer ? '#00ffff' : '#334466';
+        ctx.lineWidth = isMixer ? 3 : 2;
+        ctx.fillRect(cx - 405, 56, 332, 48);
+        ctx.strokeRect(cx - 405, 56, 332, 48);
+        ctx.fillStyle = isMixer ? '#00ffff' : '#8899bb';
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.fillText('🎛️ SOUND & OPTIONEN', cx - 239, 86);
 
-        // Tab 2: Steuerung & Kombo-Show
+        // Tab 2: Steuerung & Kombo-Show (x: cx - 63 .. cx + 275)
         ctx.fillStyle = isCombos ? 'rgba(255, 204, 0, 0.28)' : 'rgba(20, 26, 52, 0.85)';
         ctx.strokeStyle = isCombos ? '#ffcc00' : '#334466';
         ctx.lineWidth = isCombos ? 3 : 2;
-        ctx.fillRect(cx + 88, 56, 535, 48);
-        ctx.strokeRect(cx + 88, 56, 535, 48);
+        ctx.fillRect(cx - 63, 56, 338, 48);
+        ctx.strokeRect(cx - 63, 56, 338, 48);
         ctx.fillStyle = isCombos ? '#ffcc00' : '#8899bb';
-        ctx.font = 'bold 17px "Press Start 2P"';
-        ctx.fillText('🥋 STEUERUNG & KOMBO-SHOW', cx + 355, 87);
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.fillText('🥋 KOMBO-SHOW', cx + 106, 86);
+
+        // Tab 3: Freischalt-Guide mit Bildern (x: cx + 285 .. cx + 630)
+        ctx.fillStyle = isUnlocks ? 'rgba(255, 85, 221, 0.28)' : 'rgba(20, 26, 52, 0.85)';
+        ctx.strokeStyle = isUnlocks ? '#ff66dd' : '#334466';
+        ctx.lineWidth = isUnlocks ? 3 : 2;
+        ctx.fillRect(cx + 285, 56, 345, 48);
+        ctx.strokeRect(cx + 285, 56, 345, 48);
+        ctx.fillStyle = isUnlocks ? '#ff88ee' : '#8899bb';
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.fillText('🏆 FREISCHALT-GUIDE', cx + 457, 86);
 
         if (isCombos) {
             this._drawComboShowcase(ctx, cx);
@@ -1247,9 +1329,15 @@ export default class MenuState {
             return;
         }
 
-        ctx.font = 'bold 13px "Press Start 2P"';
+        if (isUnlocks) {
+            this._drawUnlockGuide(ctx, cx);
+            ctx.restore();
+            return;
+        }
+
+        ctx.font = 'bold 12px "Press Start 2P"';
         ctx.fillStyle = '#ffd700';
-        ctx.fillText('AUF REGLER TIPPEN / ZIEHEN ODER OBEN AUF [🥋 STEUERUNG & KOMBO-SHOW] TIPPEN', cx, 136);
+        ctx.fillText('AUF REGLER ZIEHEN ODER OBEN AUF [🥋 KOMBO-SHOW] / [🏆 FREISCHALT-GUIDE] TIPPEN', cx, 134);
 
         const rows = [
             { label: 'MASTER VOL', type: 'slider', val: s.masterVolume ?? 1.00, max: 1.5, color: '#ffffff' },
@@ -1261,12 +1349,13 @@ export default class MenuState {
             { label: 'SCHWIERIGKEIT', type: 'value', value: s.difficulty },
             { label: 'TIMER & TEMPO', type: 'value', value: `${s.timer}s · ${Math.round((s.speed || 1) * 100)}%` },
             { label: '🥋 STEUERUNG & LIVE KOMBO-VORSCHAU ÖFFNEN', type: 'action', color: '#ffcc00' },
+            { label: '🏆 FREISCHALT-GUIDE (MIT BILDERN) ÖFFNEN', type: 'action', color: '#ff77ee' },
             { label: '↺ STANDARD-STUDIO-MIX LADEN', type: 'action', color: '#00ff88' },
             { label: '✓ SPEICHERN & ZURÜCK ZUM MENÜ', type: 'action', color: '#00ffff' },
         ];
 
-        const startY = 192;
-        const rowStep = 59;
+        const startY = 186;
+        const rowStep = 54;
         const barX = cx - 40;
         const barW = 360;
         const barH = 22;
@@ -1278,21 +1367,21 @@ export default class MenuState {
 
             if (isSel) {
                 ctx.fillStyle = 'rgba(0, 229, 255, 0.14)';
-                ctx.fillRect(cx - 560, y - 32, 1120, 48);
+                ctx.fillRect(cx - 560, y - 30, 1120, 44);
                 ctx.strokeStyle = '#00ffff';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(cx - 560, y - 32, 1120, 48);
+                ctx.strokeRect(cx - 560, y - 30, 1120, 44);
             }
 
             if (r.type === 'slider') {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.font = 'bold 19px "Press Start 2P"';
                 ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
                 ctx.fillText(r.label, cx - 530, y - 2);
 
                 // [-] button
                 ctx.fillStyle = isSel ? '#00ffff' : '#667799';
-                ctx.font = 'bold 19px "Press Start 2P"';
+                ctx.font = 'bold 18px "Press Start 2P"';
                 ctx.textAlign = 'center';
                 ctx.fillText('[-]', barX - 36, y - 2);
 
@@ -1328,12 +1417,12 @@ export default class MenuState {
 
                 // Percentage readout
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.font = 'bold 19px "Press Start 2P"';
                 ctx.fillStyle = isSel ? r.color : '#dddddd';
                 ctx.fillText(`${Math.round(r.val * 100)}%`, cx + 530, y - 2);
             } else if (r.type === 'value') {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.font = 'bold 19px "Press Start 2P"';
                 ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
                 ctx.fillText(r.label, cx - 530, y - 2);
 
@@ -1342,8 +1431,8 @@ export default class MenuState {
                 ctx.fillText(isSel ? `< ${r.value} >` : r.value, barX + barW / 2, y - 2);
             } else if (r.type === 'action') {
                 ctx.textAlign = 'center';
-                ctx.font = 'bold 21px "Press Start 2P"';
-                ctx.fillStyle = isSel ? r.color : (r.color === '#ffcc00' ? '#eebb33' : '#88aa99');
+                ctx.font = 'bold 19px "Press Start 2P"';
+                ctx.fillStyle = isSel ? r.color : (r.color === '#ffcc00' ? '#eebb33' : (r.color === '#ff77ee' ? '#dd77cc' : '#88aa99'));
                 ctx.fillText(isSel ? `> ${r.label} <` : r.label, cx, y - 2);
             }
         }
@@ -1353,6 +1442,150 @@ export default class MenuState {
         ctx.fillStyle = '#88aacc';
         ctx.fillText('[↑/↓] WÄHLEN   [←/→ ODER ZIEHEN] EINSTELLEN   [S / ESC] ZURÜCK', cx, this.game.height - 56);
         ctx.restore();
+    }
+
+    _drawUnlockGuide(ctx, cx) {
+        // 1. Header Instruction Box (y: 116 .. 198)
+        ctx.fillStyle = 'rgba(20, 14, 42, 0.95)';
+        ctx.strokeStyle = '#ff66dd';
+        ctx.lineWidth = 2;
+        ctx.fillRect(cx - 625, 116, 1250, 82);
+        ctx.strokeRect(cx - 625, 116, 1250, 82);
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 16px "Press Start 2P"';
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillText('🏆 FREISCHALT-ANLEITUNG: WELCHER SPIELER SCHALTET WEN FREI?', cx, 146);
+
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('Spiele STORY oder ARCADE mit dem linken Kämpfer durch ➔ schaltet den rechten Spezial-Kämpfer frei!', cx, 178);
+
+        // 2. 2x5 Visual Grid of Unlock Chains with Fighter Portraits
+        const startY = 212;
+        const rowStep = 116;
+        const col0X = cx - 620;
+        const col1X = cx + 10;
+        const cardW = 610;
+        const cardH = 104;
+
+        const fighterMap = {};
+        for (const f of ALL_FIGHTERS) fighterMap[f.id] = f;
+
+        for (let i = 0; i < UNLOCK_CHAIN_GUIDE.length; i++) {
+            const chain = UNLOCK_CHAIN_GUIDE[i];
+            const playChar = fighterMap[chain.playId];
+            const unlockChar = fighterMap[chain.unlockId];
+            const unlocked = isFighterUnlocked(chain.unlockId);
+            const isSel = (i === this.unlockGuideIndex);
+
+            const col = i % 2;
+            const row = Math.floor(i / 2);
+            const x = col === 0 ? col0X : col1X;
+            const y = startY + row * rowStep;
+
+            // Card background
+            ctx.fillStyle = isSel
+                ? 'rgba(255, 102, 221, 0.22)'
+                : (unlocked ? 'rgba(14, 28, 42, 0.92)' : 'rgba(22, 14, 28, 0.92)');
+            ctx.strokeStyle = isSel ? '#ffcc00' : (unlocked ? '#00ff88' : '#663355');
+            ctx.lineWidth = isSel ? 3 : 2;
+            ctx.fillRect(x, y, cardW, cardH);
+            ctx.strokeRect(x, y, cardW, cardH);
+
+            // LEFT PORTRAIT (Play with this fighter)
+            const playImg = this.game.assetManager.images[`${chain.playId}_front.png`];
+            ctx.fillStyle = '#0a0f24';
+            ctx.fillRect(x + 10, y + 8, 72, 72);
+            if (playImg) {
+                ctx.drawImage(playImg, x + 10, y + 8, 72, 72);
+            }
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + 10, y + 8, 72, 72);
+
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 9px "Press Start 2P"';
+            ctx.fillStyle = '#00ffff';
+            const playShort = (playChar ? playChar.name : chain.playId).replace(/[⚡👑🔥🌸❄️]/g, '').trim();
+            ctx.fillText(playShort.substring(0, 12), x + 46, y + 95);
+
+            // CENTER ARROW (➔ ARCADE / STORY SIEG ➔)
+            ctx.font = 'bold 10px "Press Start 2P"';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('STORY', x + 132, y + 36);
+            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillText('➔ SIEG ➔', x + 132, y + 60);
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillStyle = '#88ccff';
+            ctx.fillText('ARCADE', x + 132, y + 80);
+
+            // RIGHT PORTRAIT (Unlocked Special Fighter)
+            const unlockImg = this.game.assetManager.images[`${chain.unlockId}_front.png`];
+            ctx.fillStyle = '#140a24';
+            ctx.fillRect(x + 188, y + 8, 72, 72);
+            if (unlockImg) {
+                ctx.drawImage(unlockImg, x + 188, y + 8, 72, 72);
+            }
+            ctx.strokeStyle = unlocked ? '#ffd700' : '#ff3366';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(x + 188, y + 8, 72, 72);
+
+            ctx.font = 'bold 9px "Press Start 2P"';
+            ctx.fillStyle = unlocked ? '#00ff88' : '#ff5577';
+            ctx.fillText(unlocked ? '✓ FREI' : '🔒 GESPERRT', x + 224, y + 95);
+
+            // RIGHT INFO TEXT (Name, Outfit & Special Attack)
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 13px "Press Start 2P"';
+            ctx.fillStyle = unlocked ? '#ffd700' : '#ff99cc';
+            const unlockTitle = unlockChar ? unlockChar.name : chain.unlockId;
+            ctx.fillText(unlockTitle.substring(0, 22), x + 272, y + 28);
+
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillStyle = '#00ffff';
+            ctx.fillText(`SPIELE MIT: ${playShort.toUpperCase()}`, x + 272, y + 50);
+
+            // Word-wrap chain.desc into 2 short lines on the card
+            ctx.font = '9px "Press Start 2P"';
+            ctx.fillStyle = '#dddddd';
+            const descWords = (chain.desc || '').split(' ');
+            let l1 = '', l2 = '';
+            for (const w of descWords) {
+                if ((l1 + ' ' + w).trim().length <= 32) l1 = (l1 + ' ' + w).trim();
+                else l2 = (l2 + ' ' + w).trim();
+            }
+            ctx.fillText(l1, x + 272, y + 71);
+            if (l2) ctx.fillText(l2.substring(0, 34), x + 272, y + 88);
+        }
+
+        // 3. Bottom Highlight Banner for Selected Unlock Chain (y: 794 .. 852)
+        const selChain = UNLOCK_CHAIN_GUIDE[this.unlockGuideIndex] || UNLOCK_CHAIN_GUIDE[0];
+        const selPlay = fighterMap[selChain.playId];
+        const selUnlock = fighterMap[selChain.unlockId];
+        ctx.fillStyle = 'rgba(12, 20, 44, 0.96)';
+        ctx.strokeStyle = '#00ffff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(cx - 620, 794, 1240, 58);
+        ctx.strokeRect(cx - 620, 794, 1240, 58);
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 13px "Press Start 2P"';
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillText(
+            `${selPlay ? selPlay.name.toUpperCase() : selChain.playId}  ➔  STORY / ARCADE DURCHSPIELEN  ➔  ${selUnlock ? selUnlock.name.toUpperCase() : selChain.unlockId}`,
+            cx,
+            818
+        );
+        ctx.font = '11px "Press Start 2P"';
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText(`SPEZIAL-VARIANTE: ${selChain.desc}`, cx, 842);
+
+        // Footer hint
+        ctx.font = '13px "Press Start 2P"';
+        ctx.fillStyle = '#88aacc';
+        ctx.fillText('[PFEILTASTEN / ANTIPPEN] KÄMPFER-KETTE WÄHLEN   [P / K] ZUR KOMBO-SHOW   [S / ZURÜCK] HAUPTMENÜ', cx, this.game.height - 56);
     }
 
     _drawComboShowcase(ctx, cx) {

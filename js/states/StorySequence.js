@@ -364,9 +364,8 @@ export default class StorySequence {
             }
         }
 
-        // Only allow skipping mid-speech via explicit Escape/Menu key after 1.5s (or any button once voiceover finished)
-        // so accidental combat button presses or screen touches NEVER cut off the narrator!
-        const explicitSkip = (this.time > 1.5 && p1.menuJust) || (this.finished && this.time > 1.0 && p1.skipJust) || (this.isBirthdayScene && this.time > 2.0 && p1.skipJust);
+        // Allow immediate skipping of any story sequence / voiceover via Space, Enter, J/K/L, Escape, or Click/Tap
+        const explicitSkip = this.time > 0.35 && (p1.skipJust || p1.menuJust);
         if ((explicitSkip || remoteSkip) && !this.fading) {
             if (!net || !net.active || net.role === 'host' || this.isBirthdayScene) {
                 this.game.audioManager.stopVoice();

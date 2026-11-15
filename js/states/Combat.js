@@ -467,13 +467,19 @@ export default class CombatState {
             this.introTimer += dt;
             this.introSubTimer = (this.introSubTimer || 0) + dt;
 
-            if (this.introSubPhase === 'STORY_DIALOGUE') {
-                // Protect Intro Voiceover: Never cut off the spoken intro while the fighter is still speaking!
-                const voiceStillPlaying = Boolean(this.game.audioManager.isFighterVoicePlaying?.());
-                if (!voiceStillPlaying && this.introTimer > 1.2 && p1.skipJust) {
-                    this._startRoundCall(true);
-                }
-            } else if (this.introSubPhase === 'FIGHT_CALL') {
+            // Allow instant skipping of the entire intro & voiceover in ALL modes when player presses Skip (Space/Enter/J/K/L/Click)
+            const remoteSkip = isOnlineHost ? Boolean(net.consumeRemoteInput()?.skipJust) : false;
+            if (this.introTimer > 0.30 && (p1.skipJust || p1.menuJust || remoteSkip)) {
+                this._clearIntroTimers();
+                this.game.audioManager.stopFighterVoice?.();
+                this.game.audioManager.stopAnnouncerVoice?.();
+                this.storyBannerTimer = 0;
+                this.matchPhase = 'FIGHTING';
+                if (isOnlineHost) this._broadcastHostSnapshot();
+                return;
+            }
+
+            if (this.introSubPhase === 'FIGHT_CALL') {
                 if (this.introSubTimer >= 1.35) {
                     this.matchPhase = 'FIGHTING';
                 }
@@ -512,15 +518,19 @@ export default class CombatState {
                 this.autoAdvanceTimer = this.autoAdvanceMax;
             }
 
-            // Protect Victory Voiceover: Wait until the winner's victory speech finishes completely before counting down or advancing!
+            // If player doesn't press skip, wait until the winner's victory speech finishes completely before auto-advancing
             const winVoicePlaying = Boolean(this.game.audioManager.isFighterVoicePlaying?.()) && this.postMatchTimer < 14.0;
 
             if (this.inputCooldown <= 0 && !this._transitioning) {
                 if (!winVoicePlaying) {
                     this.autoAdvanceTimer -= dt;
                 }
-                const confirmPressed = !winVoicePlaying && (p1.lJust || p1.hJust || p1.sJust);
+                const confirmPressed = (p1.lJust || p1.hJust || p1.sJust || p1.skipJust);
                 const timeOut = !winVoicePlaying && this.autoAdvanceTimer <= 0;
+
+                if (confirmPressed && winVoicePlaying) {
+                    this.game.audioManager.stopFighterVoice?.();
+                }
 
                 if (this.arcadeMode) {
                     if (this.winner === 'p1') {
@@ -587,8 +597,9 @@ export default class CombatState {
 
         // ─── VICTORY (Arcade complete) ───
         if (this.matchPhase === 'VICTORY') {
-            if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust)) {
+            if (this.inputCooldown <= 0 && !this._transitioning && (p1.lJust || p1.hJust || p1.sJust || p1.skipJust)) {
                 this._transitioning = true;
+                this.game.audioManager.stopFighterVoice?.();
                 const bdayPayload = {
                     ...STORY_BIRTHDAY,
                     nextState: 'Menu',
@@ -727,9 +738,9 @@ export default class CombatState {
                 this.shakeIntensity = 0;
             }
 
-            if (this.koFreezeTimer >= 3.5) {
+            if (this.koFreezeTimer >= 3.5 || (this.koFreezeTimer >= 0.85 && p1.skipJust)) {
                 this.matchPhase = 'POST_MATCH';
-                this.inputCooldown = 60;
+                this.inputCooldown = 15;
                 this.shakeTimer = 0;
                 this.shakeIntensity = 0;
                 const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
@@ -1279,8 +1290,23 @@ export default class CombatState {
         if (fighter.specialEnergy < 100) return false;
         if (this.projectiles.some(p => p.owner === ownerKey && p.charId === fighter.data.id && p.alive)) return false;
 
+        const charId = fighter.data.id;
+        const isSecondVariant = Boolean(fighter.data.special);
+
         if (fighter.data.specialType === 'SPECIAL_DASH') {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
+            if (isSecondVariant) {
+                fighter.specialEnergy = 25; // Second-variant meter refund!
+            }
+            // Shirtless Vikingo & Dark Vikingo ALSO launch a trailing Bifröst Thunder Wave during their dash!
+            if (charId === 'Vikingo' || charId === 'DarkVikingo') {
+                const img = this.game.assetManager.images[`${charId}_Cutin`];
+                const bolt = new Projectile(fighter.x + fighter.facing * 70, fighter.y - 140, fighter.facing, ownerKey, img, this.game);
+                bolt.charId = charId;
+                bolt.speed = 920;
+                bolt.damage = 28;
+                this.projectiles.push(bolt);
+            }
             this.superFreezeTimer = 0.26;
             this.superFreezeFighter = fighter;
             this.cameraZoom = 1.045;
@@ -1294,6 +1320,9 @@ export default class CombatState {
         }
 
         if (!fighter.executeProjectileCast()) return false;
+        if (isSecondVariant) {
+            fighter.specialEnergy = charId === 'SupremeKeano' ? 35 : 25; // Evolved Second-Variant Super Meter Refund!
+        }
 
         this.superFreezeTimer = 0.24;
         this.superFreezeFighter = fighter;
@@ -1302,8 +1331,11 @@ export default class CombatState {
         this.cameraFocusY = fighter.y - 155;
         this.triggerCallout(fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!', '#ffd700', ownerKey);
 
-        const imgKey = `${fighter.data.id}_Cutin`;
+        const imgKey = `${charId}_Cutin`;
         const img = this.game.assetManager.images[imgKey];
+        const pwrScale = (fighter.power || 100) / 100;
+
+        // Primary Projectile
         const proj = new Projectile(
             fighter.x + fighter.facing * 80,
             fighter.y - 145,
@@ -1312,13 +1344,38 @@ export default class CombatState {
             img,
             this.game
         );
-        proj.charId = fighter.data.id;
-        proj.damage = Math.round(proj.damage * ((fighter.power || 100) / 100));
+        proj.charId = charId;
+        proj.damage = Math.round(proj.damage * pwrScale);
+        if (isSecondVariant) {
+            proj.speed = 1040; // Faster evolved projectile velocity!
+        }
         this.projectiles.push(proj);
 
+        // Evolved Second-Variant Twin / Barrage Projectile Mechanics!
+        if (charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX') {
+            if (charId === 'JayX') {
+                // Jay X lunges forward with a phantom slash while firing his Void Wave!
+                fighter.vx = fighter.facing * 680;
+                fighter.hitImmunity = Math.max(fighter.hitImmunity, 0.24);
+            }
+            const twinProj = new Projectile(
+                fighter.x + fighter.facing * 15,
+                fighter.y - (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' ? 110 : 175)),
+                fighter.facing,
+                ownerKey,
+                img,
+                this.game
+            );
+            twinProj.charId = charId;
+            twinProj.speed = 880;
+            twinProj.damage = Math.round(24 * pwrScale);
+            this.projectiles.push(twinProj);
+            this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'HyperEmely' ? '#ff66cc' : '#00ffff', '#ffffff', 14, 'heavy');
+        }
+
         playCombatSound(this.game.audioManager, 'super', fighter.data.id);
-        this.triggerShake(2, 0.08);
-        this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 2, d: 0.08 } });
+        this.triggerShake(2.5, 0.10);
+        this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 2.5, d: 0.10 } });
         return true;
     }
 
@@ -1371,7 +1428,7 @@ export default class CombatState {
             attacker.attackWasBlocked = true;
             attacker.attackHasHit = true;
         } else {
-            // Multi-hit support (e.g. HURRICANE_KICK hits up to 3 times!)
+            // Multi-hit support (e.g. HURRICANE_KICK hits up to 3-4 times, LIGHT_DRAGON DRAGON_UPPERCUT hits 2 times!)
             const maxHits = attacker.currentAttack.maxHits || 1;
             attacker.attackHitCount = (attacker.attackHitCount || 0) + 1;
             if (attacker.attackHitCount < maxHits) {
@@ -1397,9 +1454,11 @@ export default class CombatState {
             attacker.vx = -attacker.facing * pb * 0.68;
         }
 
-        // Award Special Energy
-        const gain = result === 'BLOCKED' ? 5 : 15;
-        const regenMul = attacker.data.id === 'SupremeKeano' ? 2 : 1;
+        // Award Special Energy (LIGHT_DRAGON gets +30% Solar Meter bonus!)
+        const attackerStyle = (attacker.data && attacker.data.styleId) || 'LIGHT_DRAGON';
+        const gain = result === 'BLOCKED' ? 6 : 16;
+        const styleGainMul = attackerStyle === 'LIGHT_DRAGON' ? 1.30 : 1.0;
+        const regenMul = (attacker.data.id === 'SupremeKeano' ? 2.0 : 1.0) * styleGainMul;
         attacker.specialEnergy = Math.min(attacker.maxSpecialEnergy, attacker.specialEnergy + gain * regenMul);
         defender.specialEnergy = Math.min(defender.maxSpecialEnergy, defender.specialEnergy + 10);
 
@@ -1446,12 +1505,18 @@ export default class CombatState {
                     playCombatSound(this.game.audioManager, 'special', attacker.data.id);
                 }
             } else if (wasDefenderAttacking) {
-                const bonusDmg = Math.max(2, Math.round((attacker.currentAttack.damage || 10) * 0.2));
+                const counterRatio = attackerStyle === 'MASTER_STRIKER' ? 0.28 : 0.20;
+                const bonusDmg = Math.max(3, Math.round((attacker.currentAttack.damage || 10) * counterRatio));
                 defender.hp = Math.max(0, defender.hp - bonusDmg);
                 if (defender.hp <= 0) defender.state = 'KO';
                 attacker.hitStop += 0.035;
                 defender.hitStop += 0.035;
-                this.triggerCallout('COUNTER HIT!', '#ffdd00', attackerKey);
+                this.triggerCallout(attackerStyle === 'MASTER_STRIKER' ? '⚔️ MASTER COUNTER!' : 'COUNTER HIT!', '#ffdd00', attackerKey);
+            }
+
+            // Valhalla Berserker Ground Shockwave on heavy finishers!
+            if (attackerStyle === 'VALHALLA_BERSERKER' && (atkType === 'AXE_KICK' || atkType === 'COMBO_FINISHER' || atkType === 'HEAVY')) {
+                this.spawnGroundDust(defender.x, defender.groundY, '#ff6622');
             }
 
             // Increment Combo Counter!

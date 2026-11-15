@@ -182,12 +182,28 @@ export const FINISHER_MOVES = {
         bgTint: '#1c0018',
         style: 'SOLAR_NOVA'
     },
+    HyperEmely: {
+        title: 'SAKURA EMPRESS OBLITERATION',
+        subtitle: 'GOLDENER PHÖNIX-BLÜTENSTURM',
+        color1: '#ff99cc',
+        color2: '#ffd700',
+        bgTint: '#26001a',
+        style: 'SOLAR_NOVA'
+    },
     Cayle: {
         title: 'NIGHTFALL PHANTOM REAPER',
         subtitle: 'LAUTLOSER SCHATTEN-STURM',
         color1: '#7744ff',
         color2: '#00ffcc',
         bgTint: '#08001a',
+        style: 'SHADOW_CLONES'
+    },
+    CayleMinogue: {
+        title: 'MINOGUE DIAMOND ZERO SHATTER',
+        subtitle: 'PARISER DIAMANT-KRISTALL-EXEKUTION',
+        color1: '#44bbff',
+        color2: '#ffffff',
+        bgTint: '#020b24',
         style: 'SHADOW_CLONES'
     }
 };

@@ -8,7 +8,7 @@ export default class CharacterSelectState {
         this.mainRoster = ROSTER;
         this.specials = SPECIALS;
         this.allFighters = ALL_FIGHTERS;
-        this.columns = 8; // Change back from 10 to 8 to allow bigger cells while leaving the right side open
+        this.columns = 9; // 9 columns x 3 rows fits all 25 fighters cleanly while leaving the right card open
 
         // P1 cursor
         this.p1Index = 0;
@@ -79,11 +79,11 @@ export default class CharacterSelectState {
                 return;
             }
 
-            // Fighter Grid cells (startX=60, startY=120, cellW=160, cellH=160, columns=8)
-            const startX = 60;
-            const startY = 120;
-            const cellW = 160;
-            const cellH = 160;
+            // Fighter Grid cells (startX=55, startY=115, cellW=148, cellH=175, columns=9)
+            const startX = 55;
+            const startY = 115;
+            const cellW = 148;
+            const cellH = 175;
             if (tx >= startX && tx <= startX + this.columns * cellW && ty >= startY) {
                 const col = Math.floor((tx - startX) / cellW);
                 const row = Math.floor((ty - startY) / cellH);
@@ -272,11 +272,11 @@ export default class CharacterSelectState {
         ctx.shadowBlur = 0;
 
         // ─── UNIFIED FIGHTER GRID ───
-        const cellW = 160;
-        const cellH = 160;
+        const cellW = 148;
+        const cellH = 175;
         const mainGridW = this.columns * cellW;
-        const startX = 60; // Push to the left edge to leave room on the right
-        const startY = 120; // Push down slightly
+        const startX = 55; // Push to the left edge to leave room on the right
+        const startY = 115; // Push down slightly
 
         for (let i = 0; i < this.allFighters.length; i++) {
             const col = i % this.columns;

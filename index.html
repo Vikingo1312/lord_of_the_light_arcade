@@ -168,7 +168,18 @@
                     }
                 }
                 document.getElementById('mobile-menu').classList.add('hidden');
-            " style="padding:14px 18px;color:#00ff88;font:bold 12px 'Press Start 2P';cursor:pointer;border-bottom:1px solid #333;">🥋 STEUERUNG & KOMBOS</div>
+            " style="padding:14px 18px;color:#00ff88;font:bold 12px 'Press Start 2P';cursor:pointer;">🥋 STEUERUNG & KOMBOS</div>
+            <div class="mmenu-item" onclick="
+                const g = window.__gameRef;
+                if (g && g.stateManager) {
+                    g.stateManager.switchState('Menu');
+                    if (g.stateManager.currentState) {
+                        g.stateManager.currentState.inOptions = true;
+                        g.stateManager.currentState.optionsTab = 'unlocks';
+                    }
+                }
+                document.getElementById('mobile-menu').classList.add('hidden');
+            " style="padding:14px 18px;color:#ff88ee;font:bold 12px 'Press Start 2P';cursor:pointer;border-bottom:1px solid #333;">🏆 FREISCHALT-GUIDE</div>
             <div class="mmenu-item" onclick="
                 const am=window.__gameRef?.audioManager;
                 if(am){am.bgm&&(am.bgm.muted=!am.bgm.muted)}
@@ -295,14 +306,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.31').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.32').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.31"></script>
+    <script type="module" src="js/main.js?v=2.32"></script>
 </body>
 
 </html>

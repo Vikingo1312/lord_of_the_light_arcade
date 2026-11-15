@@ -62,8 +62,8 @@ export default class Projectile {
         ctx.save();
 
         const isP1 = this.owner === 'p1';
-        const isEmely = this.charId === 'Emely';
-        const isCayle = this.charId === 'Cayle';
+        const isEmely = this.charId === 'Emely' || this.charId === 'HyperEmely';
+        const isCayle = this.charId === 'Cayle' || this.charId === 'CayleMinogue';
         const coreColor = isEmely ? '#ff66b2' : (isCayle ? '#66f0ff' : (isP1 ? '#00eeff' : '#ff5500'));
         const midRgba = isEmely ? '255, 110, 190' : (isCayle ? '80, 225, 255' : (isP1 ? '0, 210, 255' : '255, 110, 20'));
         const outerRgba = isEmely ? '220, 40, 140' : (isCayle ? '20, 150, 255' : (isP1 ? '0, 110, 255' : '220, 30, 0'));
