@@ -58,13 +58,30 @@ export default class OnlineLobbyState {
     _setupListeners() {
         this._removeListeners();
 
+        this._lastTapAt = 0;
+
         this._onCanvasTap = (e) => {
-            const rect = this.game.canvas.getBoundingClientRect();
-            const scaleX = this.game.canvas.width / rect.width;
-            const scaleY = this.game.canvas.height / rect.height;
+            const now = performance.now();
+            if (e.type === 'touchend') {
+                this._lastTapAt = now;
+            } else if (e.type === 'click' && now - this._lastTapAt < 400) {
+                // Ignore synthetic click fired right after touchend on mobile!
+                return;
+            }
+
             const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
-            const tx = (touch.clientX - rect.left) * scaleX;
-            const ty = (touch.clientY - rect.top) * scaleY;
+            let tx, ty;
+            if (typeof window.mapTouchToCanvas === 'function') {
+                const pt = window.mapTouchToCanvas(this.game.canvas, touch.clientX, touch.clientY);
+                tx = pt.x;
+                ty = pt.y;
+            } else {
+                const rect = this.game.canvas.getBoundingClientRect();
+                const scaleX = this.game.canvas.width / rect.width;
+                const scaleY = this.game.canvas.height / rect.height;
+                tx = (touch.clientX - rect.left) * scaleX;
+                ty = (touch.clientY - rect.top) * scaleY;
+            }
 
             this._handleTap(tx, ty);
         };
@@ -113,15 +130,16 @@ export default class OnlineLobbyState {
         }
 
         if (this.step === 'choice') {
-            // 3 large choice cards
+            // 5 choice cards: 1v1 Duel Host, Co-Op Host, Join with Code, Local AI Co-Op, Back
             const cards = [
-                { y: 390, action: () => this._startHosting() },
-                { y: 540, action: () => { this.step = 'enter_code'; this.enteredCode = ''; this.inputCooldown = 15; } },
-                { y: 690, action: () => this._startLocalCoopWithAI() },
-                { y: 830, action: () => this._goBack() }
+                { y: 310, action: () => this._startHosting('duel') },
+                { y: 440, action: () => this._startHosting('coop') },
+                { y: 570, action: () => { this.step = 'enter_code'; this.enteredCode = ''; this.inputCooldown = 15; } },
+                { y: 700, action: () => this._startLocalCoopWithAI() },
+                { y: 825, action: () => this._goBack() }
             ];
             for (let i = 0; i < cards.length; i++) {
-                if (Math.abs(tx - cx) < 520 && Math.abs(ty - cards[i].y) < 58) {
+                if (Math.abs(tx - cx) < 540 && Math.abs(ty - cards[i].y) < 54) {
                     this.selectedIndex = i;
                     cards[i].action();
                     return;
@@ -147,30 +165,37 @@ export default class OnlineLobbyState {
             }
         } else if (this.step === 'room') {
             const net = this.game.networkManager;
-            // Mode toggle button (y ~ 260)
-            if (Math.abs(tx - cx) < 460 && Math.abs(ty - 260) < 48) {
-                this._toggleMode();
+            // Two dedicated side-by-side Mode buttons at y ~ 256:
+            // Left button: KOOP STORY (cx - 270), Right button: 1v1 DUELL (cx + 270)
+            if (Math.abs(ty - 256) < 42 && Math.abs(tx - cx) < 540) {
+                if (tx < cx) {
+                    this._setMode('coop');
+                } else {
+                    this._setMode('duel');
+                }
                 return;
             }
 
-            // P1 character cycle (left card x ~ cx - 420, y ~ 360..700)
-            if (Math.abs(tx - (cx - 420)) < 260 && ty > 340 && ty < 720) {
+            // P1 character cycle (left card x ~ cx - 420, y ~ 340..700)
+            if (Math.abs(tx - (cx - 420)) < 260 && ty > 330 && ty < 710) {
                 if (net.role === 'host') {
                     this._cycleChar('host', tx < (cx - 420) ? -1 : 1);
                 }
                 return;
             }
 
-            // P2 character cycle (right card x ~ cx + 420, y ~ 340..720)
-            if (Math.abs(tx - (cx + 420)) < 260 && ty > 340 && ty < 720) {
+            // P2 character cycle (right card x ~ cx + 420, y ~ 330..710)
+            if (Math.abs(tx - (cx + 420)) < 260 && ty > 330 && ty < 710) {
                 this._cycleChar('guest', tx < (cx + 420) ? -1 : 1);
                 return;
             }
 
-            // Start Online Match button (y ~ 810)
-            if (Math.abs(tx - cx) < 450 && Math.abs(ty - 810) < 55) {
+            // Start Online Match button (y ~ 810) — works for BOTH Host and Guest!
+            if (Math.abs(tx - cx) < 460 && Math.abs(ty - 810) < 55) {
                 if (net.role === 'host') {
                     this._launchOnlineMatch(false);
+                } else if (net.role === 'guest' && net.status === 'connected') {
+                    net.send({ type: 'START_MATCH_REQUEST' });
                 }
                 return;
             }
@@ -192,11 +217,11 @@ export default class OnlineLobbyState {
         }
     }
 
-    async _startHosting() {
+    async _startHosting(initialMode = 'coop') {
         this.step = 'room';
         this.selectedIndex = 0;
         this.inputCooldown = 20;
-        await this.game.networkManager.hostRoom();
+        await this.game.networkManager.hostRoom(null, initialMode);
     }
 
     async _submitJoinCode() {
@@ -213,15 +238,25 @@ export default class OnlineLobbyState {
         this._startCoopStoryRun('Keano', 'JJDark', false);
     }
 
-    _toggleMode() {
+    _setMode(targetMode) {
         const net = this.game.networkManager;
-        const nextMode = net.mode === 'coop' ? 'duel' : 'coop';
+        const cleanMode = targetMode === 'duel' ? 'duel' : 'coop';
         if (net.role === 'host') {
-            net.mode = nextMode;
+            net.mode = cleanMode;
             net.syncLobby();
         } else if (net.role === 'guest') {
-            net.send({ type: 'GUEST_SELECT', mode: nextMode });
+            net.mode = cleanMode;
+            net.send({ type: 'GUEST_SELECT', mode: cleanMode });
         }
+    }
+
+    _toggleMode() {
+        const net = this.game.networkManager;
+        this._setMode(net.mode === 'coop' ? 'duel' : 'coop');
+    }
+
+    _startOnlineMatch() {
+        this._launchOnlineMatch(false);
     }
 
     _cycleChar(which, dir) {
@@ -260,7 +295,7 @@ export default class OnlineLobbyState {
         const net = this.game.networkManager;
         if (net.role !== 'host') return;
         if (net.status !== 'connected' && !allowAIAllyFallback) {
-            net.errorMsg = 'Warte noch auf das 2. iPhone (Code eingeben)!';
+            net.errorMsg = 'Warte noch auf das 2. Gerät (Code eingeben)!';
             return;
         }
 
@@ -372,16 +407,17 @@ export default class OnlineLobbyState {
 
         if (this.step === 'choice') {
             if (p1.upJust) {
-                this.selectedIndex = (this.selectedIndex - 1 + 4) % 4;
+                this.selectedIndex = (this.selectedIndex - 1 + 5) % 5;
                 this.inputCooldown = 10;
             } else if (p1.downJust) {
-                this.selectedIndex = (this.selectedIndex + 1) % 4;
+                this.selectedIndex = (this.selectedIndex + 1) % 5;
                 this.inputCooldown = 10;
             } else if (p1.lJust || p1.hJust || p1.sJust) {
                 this.inputCooldown = 18;
-                if (this.selectedIndex === 0) this._startHosting();
-                else if (this.selectedIndex === 1) { this.step = 'enter_code'; this.enteredCode = ''; }
-                else if (this.selectedIndex === 2) this._startLocalCoopWithAI();
+                if (this.selectedIndex === 0) this._startHosting('duel');
+                else if (this.selectedIndex === 1) this._startHosting('coop');
+                else if (this.selectedIndex === 2) { this.step = 'enter_code'; this.enteredCode = ''; }
+                else if (this.selectedIndex === 3) this._startLocalCoopWithAI();
                 else this._goBack();
             }
         } else if (this.step === 'enter_code') {
@@ -410,6 +446,9 @@ export default class OnlineLobbyState {
             } else if (p1.lJust || p1.hJust) {
                 if (net.role === 'host') {
                     this._launchOnlineMatch(false);
+                    this.inputCooldown = 20;
+                } else if (net.role === 'guest' && net.status === 'connected') {
+                    net.send({ type: 'START_MATCH_REQUEST' });
                     this.inputCooldown = 20;
                 }
             } else if (p1.sJust) {
@@ -443,16 +482,16 @@ export default class OnlineLobbyState {
         ctx.fillText('ZURÜCK', w - 130, 60);
 
         // Header
-        ctx.font = 'bold 52px "Press Start 2P"';
+        ctx.font = 'bold 48px "Press Start 2P"';
         ctx.fillStyle = '#00ffff';
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 18;
-        ctx.fillText('ONLINE & KOOP MODUS', cx, 110);
+        ctx.fillText('ONLINE DUELL & 2P KOOP', cx, 102);
         ctx.shadowBlur = 0;
 
-        ctx.font = '20px "Press Start 2P"';
+        ctx.font = '18px "Press Start 2P"';
         ctx.fillStyle = '#aaddff';
-        ctx.fillText('KEANO 🔥 & JJ DARK 💫 — ZUSAMMEN AUF 2 IPHONES', cx, 160);
+        ctx.fillText('1 VS 1 GEGENEINANDER ODER ZUSAMMEN GEGEN BOTS', cx, 148);
 
         if (this.step === 'choice') {
             this._drawChoiceStep(ctx, cx);
@@ -466,52 +505,58 @@ export default class OnlineLobbyState {
     _drawChoiceStep(ctx, cx) {
         const items = [
             {
-                title: '1. RAUM ERSTELLEN (SPIELER 1)',
-                sub: 'Erstellt einen 4-stelligen Code für das 2. iPhone',
-                color: '#00ffff',
-                y: 390
+                title: '1. ⚔️ ONLINE 1 VS 1 DUELL (GEGENEINANDER)',
+                sub: 'Erstellt 4-stelligen Code — Ihr kämpft direkt 1 gegen 1!',
+                color: '#ff3366',
+                y: 310
             },
             {
-                title: '2. MIT CODE BEITRETEN (SPIELER 2)',
-                sub: '4-stelligen Raum-Code vom 1. iPhone eingeben',
+                title: '2. 🤝 ONLINE 2P KOOP STORY (GEGEN BOTS)',
+                sub: 'Erstellt 4-stelligen Code — Ihr kämpft im Team gegen alle Bosse!',
+                color: '#00ff88',
+                y: 440
+            },
+            {
+                title: '3. 🔑 MIT CODE BEITRETEN (SPIELER 2)',
+                sub: '4-stelligen Raum-Code vom 1. Gerät eingeben (für Duell & Koop)',
                 color: '#bb66ff',
-                y: 540
+                y: 570
             },
             {
-                title: '3. SOFORT KOOP MIT KI-PARTNER',
-                sub: 'Keano & JJ Dark kämpfen sofort zusammen durch die Story!',
+                title: '4. 🤖 SOFORT KOOP MIT KI-PARTNER',
+                sub: 'Keano & JJ Dark kämpfen sofort zusammen gegen die Story-Gegner!',
                 color: '#ffcc00',
-                y: 690
+                y: 700
             },
             {
                 title: 'ZURÜCK ZUM HAUPTMENÜ',
                 sub: '',
                 color: '#ff4466',
-                y: 830
+                y: 825
             }
         ];
 
         for (let i = 0; i < items.length; i++) {
             const it = items[i];
             const isSel = (i === this.selectedIndex);
-            const boxW = 1040;
-            const boxH = it.sub ? 110 : 80;
+            const boxW = 1080;
+            const boxH = it.sub ? 102 : 76;
 
             ctx.save();
-            ctx.fillStyle = isSel ? 'rgba(0, 220, 255, 0.18)' : 'rgba(15, 20, 40, 0.85)';
+            ctx.fillStyle = isSel ? 'rgba(0, 220, 255, 0.20)' : 'rgba(15, 20, 40, 0.88)';
             ctx.fillRect(cx - boxW / 2, it.y - boxH / 2, boxW, boxH);
             ctx.strokeStyle = isSel ? it.color : '#334466';
             ctx.lineWidth = isSel ? 4 : 2;
             ctx.strokeRect(cx - boxW / 2, it.y - boxH / 2, boxW, boxH);
 
             ctx.fillStyle = isSel ? it.color : '#ffffff';
-            ctx.font = 'bold 28px "Press Start 2P"';
-            ctx.fillText(it.title, cx, it.sub ? it.y - 10 : it.y + 10);
+            ctx.font = 'bold 24px "Press Start 2P"';
+            ctx.fillText(it.title, cx, it.sub ? it.y - 10 : it.y + 8);
 
             if (it.sub) {
                 ctx.fillStyle = '#99bbdd';
-                ctx.font = '16px "Press Start 2P"';
-                ctx.fillText(it.sub, cx, it.y + 30);
+                ctx.font = '14px "Press Start 2P"';
+                ctx.fillText(it.sub, cx, it.y + 28);
             }
             ctx.restore();
         }
@@ -572,31 +617,46 @@ export default class OnlineLobbyState {
     _drawRoomStep(ctx, cx) {
         const net = this.game.networkManager;
         const isConnected = net.status === 'connected';
+        const isCoop = net.mode === 'coop';
 
         // Room Code Banner
-        ctx.font = 'bold 34px "Press Start 2P"';
+        ctx.font = 'bold 32px "Press Start 2P"';
         ctx.fillStyle = '#fdbf00';
-        ctx.fillText(`RAUM-CODE: ${net.roomCode || '----'}`, cx, 215);
+        ctx.fillText(`RAUM-CODE: ${net.roomCode || '----'}`, cx, 202);
 
-        // Mode Switcher Bar
-        const modeLabel = net.mode === 'coop'
-            ? '🤝 MODUS: KOOP STORY (ZUSAMMEN DURCHSPIELEN)'
-            : '⚔️ MODUS: 1 VS 1 DUELL (GEGENEINANDER)';
-        ctx.fillStyle = 'rgba(0, 212, 255, 0.16)';
-        ctx.fillRect(cx - 520, 232, 1040, 56);
-        ctx.strokeStyle = '#00d4ff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(cx - 520, 232, 1040, 56);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 20px "Press Start 2P"';
-        ctx.fillText(`◀  ${modeLabel}  ▶`, cx, 268);
+        // Two Dedicated Side-by-Side Mode Buttons (Idempotent on touch!)
+        const btnW = 510;
+        const btnH = 60;
+        const coopX = cx - 265;
+        const duelX = cx + 265;
+        const modeY = 256;
+
+        // Button 1: KOOP STORY
+        ctx.fillStyle = isCoop ? 'rgba(0, 255, 136, 0.28)' : 'rgba(18, 24, 44, 0.85)';
+        ctx.fillRect(coopX - btnW / 2, modeY - btnH / 2, btnW, btnH);
+        ctx.strokeStyle = isCoop ? '#00ff88' : '#334466';
+        ctx.lineWidth = isCoop ? 4 : 2;
+        ctx.strokeRect(coopX - btnW / 2, modeY - btnH / 2, btnW, btnH);
+        ctx.fillStyle = isCoop ? '#00ff88' : '#8899bb';
+        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.fillText('🤝 2P KOOP (GEGEN BOTS)', coopX, modeY + 7);
+
+        // Button 2: 1 VS 1 DUELL
+        ctx.fillStyle = !isCoop ? 'rgba(255, 51, 102, 0.30)' : 'rgba(18, 24, 44, 0.85)';
+        ctx.fillRect(duelX - btnW / 2, modeY - btnH / 2, btnW, btnH);
+        ctx.strokeStyle = !isCoop ? '#ff3366' : '#334466';
+        ctx.lineWidth = !isCoop ? 4 : 2;
+        ctx.strokeRect(duelX - btnW / 2, modeY - btnH / 2, btnW, btnH);
+        ctx.fillStyle = !isCoop ? '#ff3366' : '#8899bb';
+        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.fillText('⚔️ 1 VS 1 DUELL (PVP)', duelX, modeY + 7);
 
         // Player 1 & Player 2 Fighter Cards
         this._drawFighterSlot(
             ctx,
             cx - 420,
             510,
-            'SPIELER 1 (IPHONE 1)',
+            'SPIELER 1 (HOST)',
             net.getFighterById(net.hostCharId),
             '#00ffff',
             net.role === 'host'
@@ -606,55 +666,69 @@ export default class OnlineLobbyState {
             ctx,
             cx + 420,
             510,
-            isConnected ? 'SPIELER 2 (IPHONE 2 ✅)' : 'SPIELER 2 (WARTET...)',
+            isConnected ? 'SPIELER 2 (BEREIT ✅)' : 'SPIELER 2 (WARTET...)',
             net.getFighterById(net.guestCharId),
-            '#bb66ff',
+            isCoop ? '#00ff88' : '#ff3366',
             true
         );
 
-        // Center VS / TEAM Badge
-        ctx.font = 'bold 44px "Press Start 2P"';
-        ctx.fillStyle = net.mode === 'coop' ? '#00ff88' : '#ff3366';
-        ctx.fillText(net.mode === 'coop' ? 'TEAM' : 'VS', cx, 520);
+        // Center VS / TEAM Badge + Enemy Preview in Co-Op!
+        if (isCoop) {
+            ctx.font = 'bold 34px "Press Start 2P"';
+            ctx.fillStyle = '#00ff88';
+            ctx.fillText('TEAM', cx, 470);
+            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillText('GEGEN', cx, 508);
+            ctx.fillStyle = '#ff4466';
+            ctx.fillText('1. BOSS:', cx, 538);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 566);
+        } else {
+            ctx.font = 'bold 52px "Press Start 2P"';
+            ctx.fillStyle = '#ff3366';
+            ctx.shadowColor = '#ff3366';
+            ctx.shadowBlur = 16;
+            ctx.fillText('VS', cx, 520);
+            ctx.shadowBlur = 0;
+            ctx.font = 'bold 15px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillText('DIREKTES DUELL', cx, 560);
+        }
 
         // Connection Status & Ping
         ctx.font = 'bold 20px "Press Start 2P"';
         if (isConnected) {
             ctx.fillStyle = '#00ff88';
             const pingTxt = net.latencyMs ? ` (${net.latencyMs}ms)` : '';
-            ctx.fillText(`✅ BEIDE IPHONES LIVE VERBUNDEN!${pingTxt}`, cx, 735);
+            ctx.fillText(`✅ BEIDE SPIELER VERBUNDEN!${pingTxt}`, cx, 735);
         } else if (net.status === 'error') {
             ctx.fillStyle = '#ff4466';
             ctx.fillText(`⚠️ ${net.errorMsg}`, cx, 735);
         } else {
             ctx.fillStyle = '#ffcc00';
             const msg = net.role === 'host'
-                ? `⏳ Gib auf dem 2. iPhone den Code ${net.roomCode} ein...`
+                ? `⏳ Spieler 2 gibt jetzt Code ${net.roomCode} ein...`
                 : `⏳ Verbinde mit Raum ${net.roomCode}...`;
             ctx.fillText(msg, cx, 735);
         }
 
-        // Start Button (Host)
-        if (net.role === 'host') {
-            const canStart = isConnected;
-            ctx.fillStyle = canStart ? 'rgba(0, 255, 128, 0.25)' : 'rgba(80, 80, 100, 0.3)';
-            ctx.fillRect(cx - 440, 765, 880, 82);
-            ctx.strokeStyle = canStart ? '#00ff88' : '#666688';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(cx - 440, 765, 880, 82);
+        // Start Button (Host OR Connected Guest can tap!)
+        const canStart = isConnected;
+        ctx.fillStyle = canStart ? 'rgba(0, 255, 128, 0.25)' : 'rgba(80, 80, 100, 0.3)';
+        ctx.fillRect(cx - 460, 765, 920, 82);
+        ctx.strokeStyle = canStart ? '#00ff88' : '#666688';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(cx - 460, 765, 920, 82);
 
-            ctx.fillStyle = canStart ? '#00ff88' : '#8888aa';
-            ctx.font = 'bold 28px "Press Start 2P"';
-            ctx.fillText(
-                canStart ? '🚀 ONLINE KAMPF STARTEN!' : 'WARTE AUF SPIELER 2...',
-                cx,
-                816
-            );
-        } else {
-            ctx.fillStyle = '#aaddff';
-            ctx.font = '20px "Press Start 2P"';
-            ctx.fillText('Spieler 1 startet gleich das Match...', cx, 815);
-        }
+        ctx.fillStyle = canStart ? '#00ff88' : '#8888aa';
+        ctx.font = 'bold 26px "Press Start 2P"';
+        const modeStartText = isCoop ? '🚀 KOOP-KAMPF STARTEN!' : '⚔️ 1 VS 1 DUELL STARTEN!';
+        ctx.fillText(
+            canStart ? modeStartText : 'WARTE AUF SPIELER 2...',
+            cx,
+            816
+        );
     }
 
     _drawFighterSlot(ctx, x, y, header, fighter, color, canChange) {
@@ -672,11 +746,14 @@ export default class OnlineLobbyState {
         ctx.font = 'bold 18px "Press Start 2P"';
         ctx.fillText(header, x, y - boxH / 2 + 36);
 
-        const img = this.game.assetManager.images[`${fighter.id}_front.png`];
-        if (img && img.naturalWidth) {
+        const img = this.game.assetManager.images[`${fighter.id}_front.png`]
+            || this.game.assetManager.images[`${fighter.id}_right.png`];
+        if (img && (img.naturalWidth || img.width)) {
+            const iw = img.naturalWidth || img.width;
+            const ih = img.naturalHeight || img.height;
             const targetH = 210;
-            const scale = targetH / img.naturalHeight;
-            const drawW = img.naturalWidth * scale;
+            const scale = targetH / ih;
+            const drawW = iw * scale;
             ctx.drawImage(img, x - drawW / 2, y - 115, drawW, targetH);
         }
 

@@ -188,11 +188,13 @@ export default class VersusIntro {
             const cardTopY = h * 0.25;
             const targetH = 420;
 
-            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
-            if (p1Img && p1Img.naturalHeight) {
-                const scale = targetH / p1Img.naturalHeight;
-                const dw = p1Img.naturalWidth * scale;
-                const dh = p1Img.naturalHeight * scale;
+            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`] || this.game.assetManager.images[`${this.p1Data.id}_right.png`];
+            if (p1Img && (p1Img.naturalHeight || p1Img.height)) {
+                const iw = p1Img.naturalWidth || p1Img.width;
+                const ih = p1Img.naturalHeight || p1Img.height;
+                const scale = targetH / ih;
+                const dw = iw * scale;
+                const dh = ih * scale;
                 ctx.save();
                 ctx.globalAlpha = p1Slide;
                 ctx.shadowColor = '#00ffff';
@@ -206,10 +208,12 @@ export default class VersusIntro {
 
             // Draw Ally ON TOP / side-by-side with glowing purple Co-Op frame & facing right toward enemy
             const allyImg = this.game.assetManager.images[`${this.allyData.id}_front.png`] || this.game.assetManager.images[`${this.allyData.id}_right.png`];
-            if (allyImg && allyImg.naturalHeight) {
-                const scale = targetH / allyImg.naturalHeight;
-                const dw = allyImg.naturalWidth * scale;
-                const dh = allyImg.naturalHeight * scale;
+            if (allyImg && (allyImg.naturalHeight || allyImg.height)) {
+                const iw = allyImg.naturalWidth || allyImg.width;
+                const ih = allyImg.naturalHeight || allyImg.height;
+                const scale = targetH / ih;
+                const dw = iw * scale;
+                const dh = ih * scale;
                 ctx.save();
                 ctx.globalAlpha = p1Slide;
                 ctx.shadowColor = '#cc55ff';
@@ -242,11 +246,13 @@ export default class VersusIntro {
             ctx.restore();
         } else {
             const p1X = -500 + p1Slide * 500 + w * 0.18;
-            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`];
-            if (p1Img) {
-                const scale = 550 / p1Img.naturalHeight;
-                const dw = p1Img.naturalWidth * scale;
-                const dh = p1Img.naturalHeight * scale;
+            const p1Img = this.game.assetManager.images[`${this.p1Data.id}_front.png`] || this.game.assetManager.images[`${this.p1Data.id}_right.png`];
+            if (p1Img && (p1Img.naturalHeight || p1Img.height)) {
+                const iw = p1Img.naturalWidth || p1Img.width;
+                const ih = p1Img.naturalHeight || p1Img.height;
+                const scale = 550 / ih;
+                const dw = iw * scale;
+                const dh = ih * scale;
                 ctx.save();
                 ctx.globalAlpha = p1Slide;
                 ctx.shadowColor = '#00ffff';
@@ -272,18 +278,20 @@ export default class VersusIntro {
         const p2Slide = easeSnap(Math.min(1, Math.max(0, t - 0.2) / 0.6)); // Slight delay
         const p2X = w + 500 - p2Slide * 500 - w * 0.18;
 
-        const p2Img = this.game.assetManager.images[`${this.p2Data.id}_front.png`];
-        if (p2Img) {
-            const scale = 550 / p2Img.naturalHeight;
-            const dw = p2Img.naturalWidth * scale;
-            const dh = p2Img.naturalHeight * scale;
+        const p2Img = this.game.assetManager.images[`${this.p2Data.id}_front.png`] || this.game.assetManager.images[`${this.p2Data.id}_right.png`];
+        if (p2Img && (p2Img.naturalHeight || p2Img.height)) {
+            const iw = p2Img.naturalWidth || p2Img.width;
+            const ih = p2Img.naturalHeight || p2Img.height;
+            const targetH = this.allyData ? 460 : 550;
+            const scale = targetH / ih;
+            const dw = iw * scale;
+            const dh = ih * scale;
             ctx.save();
             ctx.globalAlpha = p2Slide;
             ctx.shadowColor = '#ff0055';
             ctx.shadowBlur = 30 + Math.sin(t * 10 + 2) * 15;
 
-            // Hack for JJ Dark: his portrait natively faces right, but P2 needs to face left
-            if (this.p2Data.id === 'JJDark') {
+            if (this.p2Data.id === 'JJDark' || p2Img === this.game.assetManager.images[`${this.p2Data.id}_right.png`]) {
                 ctx.translate(p2X, h * 0.25);
                 ctx.scale(-1, 1);
                 ctx.drawImage(p2Img, -dw / 2, 0, dw, dh);
@@ -293,8 +301,28 @@ export default class VersusIntro {
             ctx.restore();
         }
 
+        // Prominent "★ GEGNER ★" badge above P2 in Co-Op mode
+        if (this.allyData) {
+            ctx.save();
+            ctx.globalAlpha = p2Slide;
+            const badgeY = h * 0.25 - 32;
+            ctx.fillStyle = 'rgba(40, 8, 18, 0.92)';
+            ctx.strokeStyle = '#ff0055';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#ff0055';
+            ctx.shadowBlur = 16;
+            ctx.fillRect(p2X - 160, badgeY - 26, 320, 38);
+            ctx.strokeRect(p2X - 160, badgeY - 26, 320, 38);
+            ctx.font = 'bold 20px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ff4477';
+            ctx.fillText('★ GEGNER ★', p2X, badgeY);
+            ctx.restore();
+        }
+
         // P2 Name
         ctx.globalAlpha = p2Slide;
+        ctx.font = this.allyData ? 'bold 34px "Press Start 2P"' : 'bold 44px "Press Start 2P"';
         ctx.textAlign = 'right';
         ctx.fillStyle = '#ffffff';
         ctx.shadowColor = '#ff0055';

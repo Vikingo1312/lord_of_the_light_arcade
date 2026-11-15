@@ -158,6 +158,18 @@
             " style="padding:14px 18px;color:#00d4ff;font:bold 12px 'Press Start 2P';cursor:pointer;">⛶ VOLLBILD / DREHEN
             </div>
             <div class="mmenu-item" onclick="
+                const g = window.__gameRef;
+                if (g && g.stateManager) {
+                    g.stateManager.switchState('Menu');
+                    if (g.stateManager.currentState) {
+                        g.stateManager.currentState.inOptions = true;
+                        g.stateManager.currentState.optionsTab = 'combos';
+                        g.stateManager.currentState.comboPreviewTimer = 0;
+                    }
+                }
+                document.getElementById('mobile-menu').classList.add('hidden');
+            " style="padding:14px 18px;color:#00ff88;font:bold 12px 'Press Start 2P';cursor:pointer;border-bottom:1px solid #333;">🥋 STEUERUNG & KOMBOS</div>
+            <div class="mmenu-item" onclick="
                 const am=window.__gameRef?.audioManager;
                 if(am){am.bgm&&(am.bgm.muted=!am.bgm.muted)}
                 document.getElementById('mobile-menu').classList.add('hidden');
@@ -211,15 +223,22 @@
             }
 
             // Accurate touch/click mapping that handles both standard landscape and 90deg .force-landscape rotation
-            window.mapTouchToCanvas = function (clientX, clientY, canvas) {
-                const c = canvas || document.getElementById('gameCanvas');
+            // Supports both (clientX, clientY, canvas) and (canvas, clientX, clientY)
+            window.mapTouchToCanvas = function (arg1, arg2, arg3) {
+                let clientX, clientY, c;
+                if (arg1 && typeof arg1.getBoundingClientRect === 'function') {
+                    c = arg1;
+                    clientX = arg2;
+                    clientY = arg3;
+                } else {
+                    clientX = arg1;
+                    clientY = arg2;
+                    c = arg3 || document.getElementById('gameCanvas');
+                }
                 if (!c) return { x: clientX, y: clientY };
                 const rect = c.getBoundingClientRect();
                 const isRotated = container && container.classList.contains('force-landscape');
                 if (isRotated) {
-                    // When rotated +90deg clockwise:
-                    // Visual X (left->right of landscape game) runs along screen Y (top->bottom)
-                    // Visual Y (top->bottom of landscape game) runs along screen X (right->left)
                     const relX = (clientY - rect.top) / Math.max(1, rect.height);
                     const relY = (rect.right - clientX) / Math.max(1, rect.width);
                     return {
@@ -276,14 +295,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.28').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.29').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.28"></script>
+    <script type="module" src="js/main.js?v=2.29"></script>
 </body>
 
 </html>

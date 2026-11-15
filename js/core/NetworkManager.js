@@ -101,14 +101,14 @@ export default class NetworkManager {
     }
 
     /** Host creates a room with a 4-digit code */
-    async hostRoom(customCode = null) {
+    async hostRoom(customCode = null, initialMode = 'coop') {
         this.disconnect();
         this.role = 'host';
         this.active = true;
         this.roomCode = customCode || String(Math.floor(1000 + Math.random() * 9000));
         this.status = 'waiting';
         this.errorMsg = '';
-        this.mode = 'coop';
+        this.mode = (initialMode === 'duel') ? 'duel' : 'coop';
         this.hostCharId = 'Keano';
         this.guestCharId = 'JJDark';
 
@@ -131,7 +131,7 @@ export default class NetworkManager {
 
             this.peer.on('open', () => {
                 if (this.status === 'waiting') {
-                    console.log(`[Online] Room ${this.roomCode} ready & waiting for Player 2`);
+                    console.log(`[Online] Room ${this.roomCode} ready & waiting for Player 2 (mode: ${this.mode})`);
                 }
             });
 
@@ -144,7 +144,7 @@ export default class NetworkManager {
                 console.warn('[Online Host] Peer error:', err.type || err.message);
                 if (err.type === 'unavailable-id') {
                     // Code collision: generate a fresh 4-digit code automatically
-                    this.hostRoom(String(Math.floor(1000 + Math.random() * 9000)));
+                    this.hostRoom(String(Math.floor(1000 + Math.random() * 9000)), this.mode);
                 } else if (this.status !== 'connected') {
                     this.errorMsg = 'Netzwerk-Hinweis: ' + (err.type || 'Verbindung wird gesucht');
                 }
@@ -190,7 +190,7 @@ export default class NetworkManager {
                 if (this.status === 'connected') return; // Already connected via BC
                 const hostPeerId = `${PEER_PREFIX}${cleanCode}`;
                 const conn = this.peer.connect(hostPeerId, {
-                    reliable: false,
+                    reliable: true,
                     serialization: 'json'
                 });
                 this.conn = conn;
@@ -305,8 +305,17 @@ export default class NetworkManager {
             case 'GUEST_SELECT':
                 if (this.role === 'host') {
                     if (msg.guestCharId) this.guestCharId = msg.guestCharId;
-                    if (msg.mode) this.mode = msg.mode;
+                    if (msg.mode === 'duel' || msg.mode === 'coop') this.mode = msg.mode;
                     this.syncLobby();
+                }
+                break;
+
+            case 'START_MATCH_REQUEST':
+                if (this.role === 'host' && this.status === 'connected') {
+                    const currentState = this.game.stateManager && this.game.stateManager.currentState;
+                    if (currentState && typeof currentState._startOnlineMatch === 'function') {
+                        currentState._startOnlineMatch();
+                    }
                 }
                 break;
 

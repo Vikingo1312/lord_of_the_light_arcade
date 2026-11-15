@@ -31,35 +31,27 @@ const AUDIO_MAP = {
  */
 export function preloadFighterSprites(assetManager, char) {
     if (!assetManager || !char) return;
-    const pfx = char.spritePrefix || char.id.toLowerCase();
-    const suffixes = [
-        '_right', '_idle_2', '_left', '_front',
+    // Queue core visible sprites FIRST so P1, Ally, and P2 (Enemy) are immediately visible on screen
+    const coreSuffixes = [
+        '_front', '_right', '_punch', '_kick', '_hit', '_ko', '_special', '_win'
+    ];
+    const extraSuffixes = [
+        '_idle_2', '_left',
         '_walk', '_walk_1', '_walk_2',
         '_crouch', '_block', '_jump',
-        '_windup_punch', '_mid_punch', '_punch', '_hook_punch', '_uppercut', '_backfist', '_dragon_uppercut',
-        '_windup_kick', '_mid_kick', '_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick',
-        '_hit', '_ko', '_special', '_win'
+        '_windup_punch', '_mid_punch', '_hook_punch', '_uppercut', '_backfist', '_dragon_uppercut',
+        '_windup_kick', '_mid_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick'
     ];
 
-    const ver = '?v=2.28';
-    for (const suf of suffixes) {
+    const ver = '?v=2.29';
+    for (const suf of [...coreSuffixes, ...extraSuffixes]) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {
             assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${suf}.png${ver}`);
-            if (['_right', '_left', '_front', '_punch', '_kick', '_hit', '_ko', '_special', '_win'].includes(suf)) {
-                assetManager.queueImage(`${key}_fallback`, `assets/CHARACTERS/${char.folder}/${pfx}${suf}.png${ver}`);
-            }
         }
     }
 
     if (char.multiFrameAnim) {
-        const extraFrames = ['dive_kick', 'low_kick', 'hook_punch'];
-        for (const frame of extraFrames) {
-            const key = `${char.id}_${char.spritePrefix}_${frame}`;
-            if (!assetManager.images[key]) {
-                assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/${char.spritePrefix}_${frame}.png${ver}`);
-            }
-        }
         if ((char.cutinFile2 || char.id === 'SupremeKeano') && !assetManager.images[`${char.id}_Cutin2`]) {
             const proj2 = char.cutinFile2 || 'proj_supreme_keano_2.png';
             assetManager.queueImage(`${char.id}_Cutin2`, `assets/fx/char_projectiles/${proj2}${ver}`);

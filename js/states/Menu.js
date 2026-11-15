@@ -5,7 +5,7 @@ import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloade
 export default class MenuState {
     constructor(game) {
         this.game = game;
-        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'MISCHPULT / OPTIONEN'];
+        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'OPTIONEN & KOMBOS'];
         this.selectedIndex = 0;
         this.inputCooldown = 0;
         this.time = 0;
@@ -21,9 +21,150 @@ export default class MenuState {
 
         // Sub-menu state
         this.inOptions = false;
+        this.optionsTab = 'mixer'; // 'mixer' | 'combos'
         this.optionIndex = 0;
+        this.comboIndex = 0;
+        this.comboCharIndex = 0;
+        this.comboPreviewTimer = 0;
         this.isTransitioning = false;
         this._draggingSlider = false;
+        this._lastTapAt = 0;
+
+        this.comboShowList = [
+            {
+                name: '1. 3ER LIGHT-KOMBO',
+                input: 'P ➔ P ➔ P  (Tastatur: A/J 3x)',
+                badges: ['P', '➔', 'P', '➔', 'P'],
+                dmg: '79 DMG · SCHNELLER LAUNCHER',
+                desc: 'Schneller Jab, gefolgt vom Cross-Hook und einem explosiven Aufwärtshaken-Finisher!',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.14, x: 0, y: 0 },
+                    { suffix: '_punch.png', dur: 0.22, x: 26, y: 0, slash: 'cyan', hit: 'JAB!' },
+                    { suffix: '_hook_punch.png', dur: 0.24, x: 52, y: 0, slash: 'gold', hit: 'CROSS!' },
+                    { suffix: '_uppercut.png', dur: 0.28, x: 74, y: -25, slash: 'fire', hit: '3 HIT COMBO!' },
+                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '2. TARGET-KOMBO (L ➔ K)',
+                input: 'P ➔ K  (Tastatur: A ➔ S / J ➔ K)',
+                badges: ['P', '➔', 'K'],
+                dmg: '52 DMG · SCHNELLER 2-HIT',
+                desc: 'Direkt aus einem leichten Schlag (P) nahtlos in einen schweren Roundhouse-Kick (K) canceln!',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.12, x: 0, y: 0 },
+                    { suffix: '_punch.png', dur: 0.22, x: 28, y: 0, slash: 'cyan', hit: 'PUNCH!' },
+                    { suffix: '_windup_kick.png', dur: 0.12, x: 40, y: 0 },
+                    { suffix: '_kick.png', dur: 0.30, x: 68, y: -10, slash: 'gold', hit: 'HEAVY KICK!' },
+                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '3. SUPER-CANCEL (P ➔ K ➔ S)',
+                input: 'P ➔ K ➔ S  (bei 100% Super-Leiste)',
+                badges: ['P', '➔', 'K', '➔', 'S'],
+                dmg: '100+ DMG · MAXIMALE KOMBO',
+                desc: 'Cancelt den schweren Kick direkt in deine ultimative Super-Art-Attacke ohne Pause!',
+                frames: [
+                    { suffix: '_punch.png', dur: 0.20, x: 24, y: 0, slash: 'cyan', hit: 'HIT 1!' },
+                    { suffix: '_kick.png', dur: 0.22, x: 52, y: 0, slash: 'gold', hit: 'HIT 2!' },
+                    { suffix: '_special.png', dur: 0.45, x: 78, y: -12, slash: 'super', hit: 'SUPER ARTS!!', proj: true },
+                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '4. OVERHEAD BACKFIST',
+                input: '→ + P  (Vorwärts + Punch)',
+                badges: ['→', '+', 'P'],
+                dmg: '26 DMG · BRICHT DUCK-BLOCK!',
+                desc: 'Gedrehter Rückfaust-Schlag von oben — trifft Gegner, die geduckt blocken!',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.16, x: 10, y: 0 },
+                    { suffix: '_backfist.png', dur: 0.26, x: 55, y: 0, slash: 'gold', hit: 'OVERHEAD!' },
+                    { suffix: '_hook_punch.png', dur: 0.22, x: 64, y: 0 },
+                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '5. STEP AXE KICK',
+                input: '→ + K  (Vorwärts + Kick)',
+                badges: ['→', '+', 'K'],
+                dmg: '42 DMG · SCHWERER OVERHEAD',
+                desc: 'Mächtiger Axt-Tritt von oben herab — bricht tiefe Deckung und schleudert den Gegner hoch!',
+                frames: [
+                    { suffix: '_windup_kick.png', dur: 0.16, x: 18, y: 0 },
+                    { suffix: '_axe_kick.png', dur: 0.28, x: 62, y: -18, slash: 'fire', hit: 'AXE KICK!' },
+                    { suffix: '_kick.png', dur: 0.22, x: 70, y: 0 },
+                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '6. LOW SWEEP (FUSSFEGER)',
+                input: '↓ + K  (Unten + Kick)',
+                badges: ['↓', '+', 'K'],
+                dmg: '32 DMG · TRIFFT STEHENDE GEGNER',
+                desc: 'Tiefer Fußfeger am Boden — wirft stehend blockende Gegner sofort um!',
+                frames: [
+                    { suffix: '_crouch.png', dur: 0.16, x: 0, y: 0 },
+                    { suffix: '_low_kick.png', dur: 0.34, x: 68, y: 0, slash: 'cyan', hit: 'SWEEP!' },
+                    { suffix: '_crouch.png', dur: 0.20, x: 20, y: 0 },
+                    { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '7. DRAGON UPPERCUT (SHORYUKEN)',
+                input: '↑ + S  oder  → ↓ ↘ + P',
+                badges: ['↑', '+', 'S'],
+                dmg: '46 DMG · UNVERWUNDBAR GEGEN SPRÜNGE',
+                desc: 'Aufsteigender Drachen-Uppercut in die Luft! Perfekt als Konter gegen springende Gegner.',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.14, x: 10, y: 0 },
+                    { suffix: '_uppercut.png', dur: 0.18, x: 42, y: -45, slash: 'fire', hit: 'RISING!' },
+                    { suffix: '_dragon_uppercut.png', dur: 0.34, x: 68, y: -115, slash: 'super', hit: 'SHORYUKEN!' },
+                    { suffix: '_jump.png', dur: 0.22, x: 50, y: -45 },
+                    { suffix: '_right.png', dur: 0.35, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '8. HURRICANE KICK (TATSUMAKI)',
+                input: '↓ + S  oder  ↓ ↙ ← + K',
+                badges: ['↓', '+', 'S'],
+                dmg: '3x 18 DMG · 3-TREFFER WIRBELKICK',
+                desc: 'Fliegender Wirbelsturm-Kick quer über die Stage mit bis zu 3 Treffern hintereinander!',
+                frames: [
+                    { suffix: '_jump.png', dur: 0.12, x: 15, y: -35 },
+                    { suffix: '_hurricane_kick.png', dur: 0.18, x: 52, y: -55, slash: 'cyan', hit: 'HIT 1!' },
+                    { suffix: '_spin_kick.png', dur: 0.18, x: 88, y: -55, slash: 'gold', hit: 'HIT 2!' },
+                    { suffix: '_dive_kick.png', dur: 0.20, x: 120, y: -45, slash: 'fire', hit: 'HIT 3!' },
+                    { suffix: '_right.png', dur: 0.38, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '9. UNBLOCKBARER WURF (THROW)',
+                input: 'P + K gleichzeitig (im Nahkampf)',
+                badges: ['P', '+', 'K'],
+                dmg: '42 DMG · 100% UNBLOCKBAR!',
+                desc: 'Packt den Gegner im Nahkampf und schleudert ihn durch die Luft — kann NICHT geblockt werden!',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.15, x: 35, y: 0 },
+                    { suffix: '_backfist.png', dur: 0.22, x: 68, y: 0, slash: 'gold', hit: 'GRAB!' },
+                    { suffix: '_hook_punch.png', dur: 0.32, x: 84, y: -10, slash: 'fire', hit: 'THROW SLAM!' },
+                    { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '10. SUPER ARTS (ULTIMATE)',
+                input: 'S  (bei voller 100% Energie-Leiste)',
+                badges: ['S', '100%'],
+                dmg: '48–62 DMG · ULTIMATE SPECIAL',
+                desc: 'Entfesselt die ultimative Spezial-Attacke (Feuerball-Strahl oder Blitz-Dash) deines Kämpfers!',
+                frames: [
+                    { suffix: '_windup_punch.png', dur: 0.18, x: 0, y: 0, slash: 'super' },
+                    { suffix: '_special.png', dur: 0.52, x: 45, y: 0, slash: 'super', hit: 'ULTIMATE ART!', proj: true },
+                    { suffix: '_win.png', dur: 0.42, x: 0, y: 0 }
+                ]
+            }
+        ];
 
         // Ensure all mixer channels exist in game.settings
         Object.assign(this.game.settings, {
@@ -60,9 +201,17 @@ export default class MenuState {
         this.selectedIndex = 0;
         this.inputCooldown = 15;
         this.inOptions = false;
+        this.optionsTab = 'mixer';
+        this.comboPreviewTimer = 0;
         this._tapConfirmPending = false;
         this.isTransitioning = false;
         this._draggingSlider = false;
+
+        // Preload Keano sprites so the Combo Live-Preview is ready immediately
+        if (ROSTER && ROSTER[0]) {
+            preloadFighterSprites(this.game.assetManager, ROSTER[0]);
+            this.game.assetManager.loadAll();
+        }
 
         // Check story completion
         try {
@@ -84,8 +233,8 @@ export default class MenuState {
 
     _mapEventToCanvas(e) {
         const touch = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
-        if (window.mapTouchToCanvas) {
-            return window.mapTouchToCanvas(touch.clientX, touch.clientY, this.game.canvas);
+        if (typeof window.mapTouchToCanvas === 'function') {
+            return window.mapTouchToCanvas(this.game.canvas, touch.clientX, touch.clientY);
         }
         const rect = this.game.canvas.getBoundingClientRect();
         return {
@@ -94,24 +243,81 @@ export default class MenuState {
         };
     }
 
+    _cycleComboPreviewChar(dir) {
+        this.comboCharIndex = (this.comboCharIndex + dir + ROSTER.length) % ROSTER.length;
+        const fighter = ROSTER[this.comboCharIndex];
+        if (fighter) {
+            preloadFighterSprites(this.game.assetManager, fighter);
+            this.game.assetManager.loadAll();
+        }
+        this.comboPreviewTimer = 0;
+        this.playBlip();
+    }
+
     _handleOptionsPointer(tx, ty, isDrag = false) {
         const cx = this.game.width / 2;
-        const startY = 205;
-        const rowStep = 64;
-        const barX = cx - 40;
-        const barW = 360;
 
         // Top-left back button or bottom back area
-        if (!isDrag && ((tx < 340 && ty < 120) || ty >= this.game.height - 95)) {
+        if (!isDrag && ((tx >= cx - 640 && tx <= cx - 410 && ty >= 52 && ty <= 110) || ty >= this.game.height - 88)) {
             this.inOptions = false;
             this.inputCooldown = 15;
             this.playBlip();
             return;
         }
 
-        for (let i = 0; i < 10; i++) {
+        // Top Tab Switcher Buttons (y: 52..110)
+        if (!isDrag && ty >= 50 && ty <= 112) {
+            if (tx >= cx - 390 && tx <= cx + 80) {
+                this.optionsTab = 'mixer';
+                this.playConfirm();
+                return;
+            } else if (tx > cx + 80 && tx <= cx + 630) {
+                this.optionsTab = 'combos';
+                this.comboPreviewTimer = 0;
+                this.playConfirm();
+                return;
+            }
+        }
+
+        if (this.optionsTab === 'combos') {
+            if (isDrag) return;
+            // Check tap on Left Combo List (10 items, x: cx - 620 .. cx - 40, y: 235 .. 875)
+            const listStartY = 250;
+            const listStep = 62;
+            if (tx >= cx - 630 && tx <= cx - 20) {
+                for (let i = 0; i < this.comboShowList.length; i++) {
+                    const ry = listStartY + i * listStep;
+                    if (ty >= ry - 28 && ty <= ry + 28) {
+                        this.comboIndex = i;
+                        this.comboPreviewTimer = 0;
+                        this.playConfirm();
+                        return;
+                    }
+                }
+            }
+            // Check tap on Right Preview Box Fighter Switcher (x: cx + 20 .. cx + 620, y: 225 .. 290)
+            if (tx >= cx + 20 && tx <= cx + 620 && ty >= 220 && ty <= 300) {
+                const dir = tx < cx + 320 ? -1 : 1;
+                this._cycleComboPreviewChar(dir);
+                return;
+            }
+            // Tapping on the stage preview replays the combo
+            if (tx >= cx + 20 && tx <= cx + 620 && ty > 300 && ty < 860) {
+                this.comboPreviewTimer = 0;
+                this.playBlip();
+                return;
+            }
+            return;
+        }
+
+        const startY = 192;
+        const rowStep = 59;
+        const barX = cx - 40;
+        const barW = 360;
+
+        for (let i = 0; i < 11; i++) {
             const rowY = startY + i * rowStep;
-            if (ty >= rowY - 32 && ty <= rowY + 24 && tx >= cx - 540 && tx <= cx + 540) {
+            if (ty >= rowY - 29 && ty <= rowY + 24 && tx >= cx - 560 && tx <= cx + 560) {
                 this.optionIndex = i;
                 // Rows 0..4 are volume faders
                 if (i >= 0 && i <= 4) {
@@ -129,12 +335,17 @@ export default class MenuState {
                     }
                 } else if (!isDrag) {
                     if (i === 8) {
+                        // Open STEUERUNG & KOMBO-SHOW tab!
+                        this.optionsTab = 'combos';
+                        this.comboPreviewTimer = 0;
+                        this.playConfirm();
+                    } else if (i === 9) {
                         // Reset to Street Fighter Studio Mix defaults
                         this.game.resetAudioMixDefaults?.();
                         this._fadeInTarget = this.game.settings.musicVolume;
                         this.playConfirm();
                         this.game.audioManager?.playHitImpactSound?.(true, true);
-                    } else if (i === 9) {
+                    } else if (i === 10) {
                         this.inOptions = false;
                         this.inputCooldown = 15;
                         this.playBlip();
@@ -187,6 +398,13 @@ export default class MenuState {
         this._removeMenuTap();
 
         this._onMenuTap = (e) => {
+            const now = performance.now();
+            if (e.type === 'touchend') {
+                this._lastTapAt = now;
+            } else if (e.type === 'click' && now - this._lastTapAt < 400) {
+                return;
+            }
+
             const pt = this._mapEventToCanvas(e);
             const tx = pt.x;
             const ty = pt.y;
@@ -303,6 +521,7 @@ export default class MenuState {
         }
 
         if (this.inOptions) {
+            this.comboPreviewTimer += dt;
             this.updateOptions(p1);
             return;
         }
@@ -367,18 +586,50 @@ export default class MenuState {
                     this.game.stateManager.switchState('OnlineLobby');
                 }, 250);
             } else if (this.selectedIndex === 4) {
-                // SOUND-MISCHPULT & OPTIONEN
+                // SOUND-MISCHPULT & KOMBO-SHOW
                 this.playConfirm();
                 this.inOptions = true;
+                this.optionsTab = 'combos';
                 this.optionIndex = 0;
+                this.comboPreviewTimer = 0;
                 this.inputCooldown = 15;
             }
         }
     }
 
     updateOptions(p1) {
-        const optCount = 10;
         if (this.inputCooldown <= 0) {
+            if (this.optionsTab === 'combos') {
+                const comboCount = this.comboShowList.length;
+                if (p1.up) {
+                    this.comboIndex = (this.comboIndex - 1 + comboCount) % comboCount;
+                    this.comboPreviewTimer = 0;
+                    this.inputCooldown = 10;
+                    this.playBlip();
+                } else if (p1.down) {
+                    this.comboIndex = (this.comboIndex + 1) % comboCount;
+                    this.comboPreviewTimer = 0;
+                    this.inputCooldown = 10;
+                    this.playBlip();
+                } else if (p1.right) {
+                    this._cycleComboPreviewChar(1);
+                    this.inputCooldown = 12;
+                } else if (p1.left) {
+                    this._cycleComboPreviewChar(-1);
+                    this.inputCooldown = 12;
+                } else if (p1.lJust || p1.hJust) {
+                    this.comboPreviewTimer = 0;
+                    this.inputCooldown = 12;
+                    this.playConfirm();
+                } else if (p1.s || p1.menuJust) {
+                    this.inOptions = false;
+                    this.inputCooldown = 15;
+                    this.playBlip();
+                }
+                return;
+            }
+
+            const optCount = 11;
             if (p1.up) {
                 this.optionIndex = (this.optionIndex - 1 + optCount) % optCount;
                 this.inputCooldown = 10;
@@ -395,12 +646,17 @@ export default class MenuState {
                 this.inputCooldown = 8;
             } else if (p1.lJust || p1.hJust) {
                 if (this.optionIndex === 8) {
+                    this.optionsTab = 'combos';
+                    this.comboPreviewTimer = 0;
+                    this.playConfirm();
+                    this.inputCooldown = 15;
+                } else if (this.optionIndex === 9) {
                     this.game.resetAudioMixDefaults?.();
                     this._fadeInTarget = this.game.settings.musicVolume;
                     this.playConfirm();
                     this.game.audioManager?.playHitImpactSound?.(true, true);
                     this.inputCooldown = 15;
-                } else if (this.optionIndex === 9) {
+                } else if (this.optionIndex === 10) {
                     this.inOptions = false;
                     this.inputCooldown = 15;
                     this.playBlip();
@@ -454,12 +710,17 @@ export default class MenuState {
                 }
                 this.game.saveSettings?.();
                 break;
-            case 8: // Reset Studio Mix
+            case 8: // Open STEUERUNG & KOMBO-SHOW
+                this.optionsTab = 'combos';
+                this.comboPreviewTimer = 0;
+                this.playConfirm();
+                break;
+            case 9: // Reset Studio Mix
                 this.game.resetAudioMixDefaults?.();
                 this._fadeInTarget = this.game.settings.musicVolume;
                 this.playConfirm();
                 break;
-            case 9: // Back to Menu
+            case 10: // Back to Menu
                 this.inOptions = false;
                 this.inputCooldown = 15;
                 break;
@@ -837,7 +1098,7 @@ export default class MenuState {
     }
 
     drawOptions(ctx) {
-        ctx.fillStyle = 'rgba(4, 6, 18, 0.92)';
+        ctx.fillStyle = 'rgba(4, 6, 18, 0.94)';
         ctx.fillRect(0, 0, this.game.width, this.game.height);
 
         const cx = this.game.width / 2;
@@ -845,34 +1106,55 @@ export default class MenuState {
 
         ctx.save();
         // Studio Console Outer Frame
-        ctx.fillStyle = 'rgba(10, 14, 34, 0.95)';
+        ctx.fillStyle = 'rgba(10, 14, 34, 0.96)';
         ctx.strokeStyle = '#00e5ff';
         ctx.lineWidth = 3;
-        ctx.fillRect(cx - 560, 48, 1120, this.game.height - 96);
-        ctx.strokeRect(cx - 560, 48, 1120, this.game.height - 96);
+        ctx.fillRect(cx - 650, 38, 1300, this.game.height - 76);
+        ctx.strokeRect(cx - 650, 38, 1300, this.game.height - 76);
 
         // Top-left back button pill for mobile/touch
-        ctx.fillStyle = 'rgba(255, 0, 85, 0.22)';
+        ctx.fillStyle = 'rgba(255, 0, 85, 0.25)';
         ctx.strokeStyle = '#ff0055';
-        ctx.lineWidth = 2;
-        ctx.fillRect(cx - 535, 66, 210, 44);
-        ctx.strokeRect(cx - 535, 66, 210, 44);
+        ctx.lineWidth = 2.5;
+        ctx.fillRect(cx - 625, 56, 205, 48);
+        ctx.strokeRect(cx - 625, 56, 205, 48);
         ctx.font = 'bold 16px "Press Start 2P"';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('← ZURÜCK', cx - 430, 95);
+        ctx.fillText('← ZURÜCK', cx - 522, 87);
 
-        // Title
-        ctx.font = 'bold 42px "Press Start 2P"';
-        ctx.fillStyle = '#00ffff';
-        ctx.shadowColor = '#00ffff';
-        ctx.shadowBlur = 14;
-        ctx.fillText('SOUND-MISCHPULT & OPTIONEN', cx + 70, 102);
-        ctx.shadowBlur = 0;
+        // Two Top Tab Buttons: [ 🎛️ SOUND & OPTIONEN ]  |  [ 🥋 STEUERUNG & KOMBO-SHOW ]
+        const isCombos = this.optionsTab === 'combos';
+
+        // Tab 1: Sound & Optionen
+        ctx.fillStyle = !isCombos ? 'rgba(0, 229, 255, 0.28)' : 'rgba(20, 26, 52, 0.85)';
+        ctx.strokeStyle = !isCombos ? '#00ffff' : '#334466';
+        ctx.lineWidth = !isCombos ? 3 : 2;
+        ctx.fillRect(cx - 395, 56, 465, 48);
+        ctx.strokeRect(cx - 395, 56, 465, 48);
+        ctx.fillStyle = !isCombos ? '#00ffff' : '#8899bb';
+        ctx.font = 'bold 17px "Press Start 2P"';
+        ctx.fillText('🎛️ SOUND & SPIEL-OPTIONEN', cx - 162, 87);
+
+        // Tab 2: Steuerung & Kombo-Show
+        ctx.fillStyle = isCombos ? 'rgba(255, 204, 0, 0.28)' : 'rgba(20, 26, 52, 0.85)';
+        ctx.strokeStyle = isCombos ? '#ffcc00' : '#334466';
+        ctx.lineWidth = isCombos ? 3 : 2;
+        ctx.fillRect(cx + 88, 56, 535, 48);
+        ctx.strokeRect(cx + 88, 56, 535, 48);
+        ctx.fillStyle = isCombos ? '#ffcc00' : '#8899bb';
+        ctx.font = 'bold 17px "Press Start 2P"';
+        ctx.fillText('🥋 STEUERUNG & KOMBO-SHOW', cx + 355, 87);
+
+        if (isCombos) {
+            this._drawComboShowcase(ctx, cx);
+            ctx.restore();
+            return;
+        }
 
         ctx.font = 'bold 13px "Press Start 2P"';
         ctx.fillStyle = '#ffd700';
-        ctx.fillText('DIREKT AUF DIE REGLER TIPPEN / ZIEHEN ODER MIT [← / →] EINSTELLEN', cx, 142);
+        ctx.fillText('AUF REGLER TIPPEN / ZIEHEN ODER OBEN AUF [🥋 STEUERUNG & KOMBO-SHOW] TIPPEN', cx, 136);
 
         const rows = [
             { label: 'MASTER VOL', type: 'slider', val: s.masterVolume ?? 1.00, max: 1.5, color: '#ffffff' },
@@ -883,15 +1165,16 @@ export default class MenuState {
             { label: 'VOICE-DUCKING (EQ)', type: 'value', value: s.bgmFilterEnabled ? 'AN (AUTO-MIX)' : 'AUS' },
             { label: 'SCHWIERIGKEIT', type: 'value', value: s.difficulty },
             { label: 'TIMER & TEMPO', type: 'value', value: `${s.timer}s · ${Math.round((s.speed || 1) * 100)}%` },
+            { label: '🥋 STEUERUNG & LIVE KOMBO-VORSCHAU ÖFFNEN', type: 'action', color: '#ffcc00' },
             { label: '↺ STANDARD-STUDIO-MIX LADEN', type: 'action', color: '#00ff88' },
             { label: '✓ SPEICHERN & ZURÜCK ZUM MENÜ', type: 'action', color: '#00ffff' },
         ];
 
-        const startY = 205;
-        const rowStep = 64;
+        const startY = 192;
+        const rowStep = 59;
         const barX = cx - 40;
         const barW = 360;
-        const barH = 24;
+        const barH = 22;
 
         for (let i = 0; i < rows.length; i++) {
             const r = rows[i];
@@ -900,26 +1183,26 @@ export default class MenuState {
 
             if (isSel) {
                 ctx.fillStyle = 'rgba(0, 229, 255, 0.14)';
-                ctx.fillRect(cx - 520, y - 34, 1040, 50);
+                ctx.fillRect(cx - 560, y - 32, 1120, 48);
                 ctx.strokeStyle = '#00ffff';
                 ctx.lineWidth = 2;
-                ctx.strokeRect(cx - 520, y - 34, 1040, 50);
+                ctx.strokeRect(cx - 560, y - 32, 1120, 48);
             }
 
             if (r.type === 'slider') {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.font = 'bold 20px "Press Start 2P"';
                 ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
-                ctx.fillText(r.label, cx - 495, y - 2);
+                ctx.fillText(r.label, cx - 530, y - 2);
 
                 // [-] button
                 ctx.fillStyle = isSel ? '#00ffff' : '#667799';
-                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.font = 'bold 19px "Press Start 2P"';
                 ctx.textAlign = 'center';
                 ctx.fillText('[-]', barX - 36, y - 2);
 
                 // Fader Track
-                const by = y - 23;
+                const by = y - 22;
                 const ratio = Math.max(0, Math.min(1, r.val / r.max));
                 ctx.fillStyle = '#121629';
                 ctx.fillRect(barX, by, barW, barH);
@@ -950,30 +1233,277 @@ export default class MenuState {
 
                 // Percentage readout
                 ctx.textAlign = 'right';
-                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.font = 'bold 20px "Press Start 2P"';
                 ctx.fillStyle = isSel ? r.color : '#dddddd';
-                ctx.fillText(`${Math.round(r.val * 100)}%`, cx + 495, y - 2);
+                ctx.fillText(`${Math.round(r.val * 100)}%`, cx + 530, y - 2);
             } else if (r.type === 'value') {
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.font = 'bold 20px "Press Start 2P"';
                 ctx.fillStyle = isSel ? '#ffffff' : '#bbbbbb';
-                ctx.fillText(r.label, cx - 495, y - 2);
+                ctx.fillText(r.label, cx - 530, y - 2);
 
                 ctx.textAlign = 'center';
                 ctx.fillStyle = isSel ? '#00ffff' : '#cccccc';
                 ctx.fillText(isSel ? `< ${r.value} >` : r.value, barX + barW / 2, y - 2);
             } else if (r.type === 'action') {
                 ctx.textAlign = 'center';
-                ctx.font = 'bold 23px "Press Start 2P"';
-                ctx.fillStyle = isSel ? r.color : '#88aa99';
+                ctx.font = 'bold 21px "Press Start 2P"';
+                ctx.fillStyle = isSel ? r.color : (r.color === '#ffcc00' ? '#eebb33' : '#88aa99');
                 ctx.fillText(isSel ? `> ${r.label} <` : r.label, cx, y - 2);
             }
         }
 
-        ctx.font = '14px "Press Start 2P"';
+        ctx.font = '13px "Press Start 2P"';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#88aacc';
-        ctx.fillText('[↑/↓] KANAL WÄHLEN   [←/→ ODER ZIEHEN] MIX ANPASSEN   [S / ESC] ZURÜCK', cx, this.game.height - 66);
+        ctx.fillText('[↑/↓] WÄHLEN   [←/→ ODER ZIEHEN] EINSTELLEN   [S / ESC] ZURÜCK', cx, this.game.height - 56);
         ctx.restore();
+    }
+
+    _drawComboShowcase(ctx, cx) {
+        // 1. Top Control Legend Banner (y: 120 .. 205)
+        ctx.fillStyle = 'rgba(14, 22, 48, 0.95)';
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2;
+        ctx.fillRect(cx - 625, 118, 1250, 88);
+        ctx.strokeRect(cx - 625, 118, 1250, 88);
+
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 14px "Press Start 2P"';
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText('📱 HANDY / TOUCH:', cx - 605, 146);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('[P] = PUNCH (SCHLAG)   [K] = KICK (TRITT)   [S] = SUPER / SPECIAL   [D] = DASH', cx - 340, 146);
+
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillText('⌨️ TASTATUR & PAD:', cx - 605, 174);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('P1: [W/A/S/D] + [J]=P  [K]=K  [L]=S   |   PFEILTASTEN + [A]=P  [S]=K  [D]=S', cx - 340, 174);
+
+        ctx.fillStyle = '#00ff88';
+        ctx.font = 'bold 12px "Press Start 2P"';
+        ctx.fillText('🛡️ BLOCKEN: Rückwärts gedrückt halten (←) oder unten-rückwärts (↙) für tiefen Block!', cx - 605, 198);
+
+        // 2. Left Panel: Interactive List of All 10 Combos & Special Moves
+        const listStartY = 250;
+        const listStep = 62;
+        for (let i = 0; i < this.comboShowList.length; i++) {
+            const item = this.comboShowList[i];
+            const ry = listStartY + i * listStep;
+            const isSel = (i === this.comboIndex);
+
+            ctx.fillStyle = isSel ? 'rgba(255, 204, 0, 0.22)' : 'rgba(16, 20, 40, 0.88)';
+            ctx.strokeStyle = isSel ? '#ffcc00' : '#2a385c';
+            ctx.lineWidth = isSel ? 3 : 1.5;
+            ctx.fillRect(cx - 625, ry - 27, 595, 54);
+            ctx.strokeRect(cx - 625, ry - 27, 595, 54);
+
+            ctx.textAlign = 'left';
+            ctx.font = 'bold 15px "Press Start 2P"';
+            ctx.fillStyle = isSel ? '#ffcc00' : '#ffffff';
+            ctx.fillText(item.name, cx - 608, ry - 4);
+
+            ctx.font = '12px "Press Start 2P"';
+            ctx.fillStyle = isSel ? '#00ffff' : '#88aacc';
+            ctx.fillText(item.input, cx - 608, ry + 18);
+        }
+
+        // 3. Right Panel: LIVE SHOW-VORSCHAU Stage Box (x: cx + 10 .. cx + 625, y: 222 .. 850)
+        const boxX = cx + 10;
+        const boxY = 222;
+        const boxW = 615;
+        const boxH = 625;
+
+        ctx.fillStyle = 'rgba(8, 12, 28, 0.96)';
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = 3;
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.strokeRect(boxX, boxY, boxW, boxH);
+
+        const fighter = ROSTER[this.comboCharIndex] || ROSTER[0];
+        const combo = this.comboShowList[this.comboIndex] || this.comboShowList[0];
+
+        // Fighter Switcher Bar at top of preview box
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.16)';
+        ctx.fillRect(boxX + 12, boxY + 12, boxW - 24, 52);
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(boxX + 12, boxY + 12, boxW - 24, 52);
+
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.fillStyle = '#00ffff';
+        ctx.fillText(`◀ VORSCHAU: ${fighter.name.toUpperCase()} ▶`, boxX + boxW / 2, boxY + 46);
+
+        // Mini Dojo Stage Background inside Preview Box
+        const stageAreaY = boxY + 76;
+        const stageAreaH = 385;
+        const stageBg = this.game.assetManager.images['Stage_Japan'] || this.game.assetManager.images['menuBg'];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(boxX + 12, stageAreaY, boxW - 24, stageAreaH);
+        ctx.clip();
+        if (stageBg) {
+            ctx.globalAlpha = 0.45;
+            ctx.drawImage(stageBg, boxX + 12, stageAreaY, boxW - 24, stageAreaH);
+            ctx.globalAlpha = 1.0;
+        }
+        // Floor line
+        const groundY = stageAreaY + 345;
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.22)';
+        ctx.fillRect(boxX + 12, groundY, boxW - 24, 4);
+
+        // Determine current frame in the combo animation loop
+        const frames = combo.frames;
+        let totalDur = 0;
+        for (const f of frames) totalDur += f.dur;
+        const loopT = this.comboPreviewTimer % totalDur;
+        let acc = 0;
+        let activeFrame = frames[0];
+        let activeStepIdx = 0;
+        for (let i = 0; i < frames.length; i++) {
+            if (loopT <= acc + frames[i].dur) {
+                activeFrame = frames[i];
+                activeStepIdx = i;
+                break;
+            }
+            acc += frames[i].dur;
+        }
+
+        // Draw Training Dummy Silhouette on the right side of the preview stage
+        const dummyX = boxX + 445 + (activeFrame.hit ? 10 : 0);
+        ctx.save();
+        ctx.globalAlpha = activeFrame.hit ? 0.85 : 0.45;
+        ctx.fillStyle = activeFrame.hit ? '#ff3366' : '#334466';
+        ctx.strokeStyle = activeFrame.hit ? '#ffffff' : '#6688aa';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(dummyX, groundY - 210, 26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillRect(dummyX - 28, groundY - 178, 56, 105);
+        ctx.strokeRect(dummyX - 28, groundY - 178, 56, 105);
+        ctx.fillRect(dummyX - 24, groundY - 73, 20, 73);
+        ctx.fillRect(dummyX + 4, groundY - 73, 20, 73);
+        ctx.font = 'bold 11px "Press Start 2P"';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('DUMMY', dummyX, groundY - 246);
+        ctx.restore();
+
+        // Draw Animated Fighter performing the Combo!
+        const spriteKey = `${fighter.id}${activeFrame.suffix}`;
+        const spriteImg = this.game.assetManager.images[spriteKey]
+            || this.game.assetManager.images[`${fighter.id}_punch.png`]
+            || this.game.assetManager.images[`${fighter.id}_right.png`];
+
+        const fighterX = boxX + 215 + (activeFrame.x || 0);
+        const fighterY = groundY + (activeFrame.y || 0);
+
+        if (spriteImg && (spriteImg.naturalHeight || spriteImg.height)) {
+            const iw = spriteImg.naturalWidth || spriteImg.width;
+            const ih = spriteImg.naturalHeight || spriteImg.height;
+            const scale = 285 / ih;
+            const dw = iw * scale;
+            const dh = ih * scale;
+            ctx.drawImage(spriteImg, fighterX - dw / 2, fighterY - dh, dw, dh);
+        }
+
+        // Draw Slash / Impact Arc & Callout when striking
+        if (activeFrame.slash) {
+            const slashX = fighterX + 95;
+            const slashY = fighterY - 155;
+            ctx.save();
+            ctx.strokeStyle = activeFrame.slash === 'fire' ? '#ff4400'
+                : (activeFrame.slash === 'gold' ? '#ffcc00'
+                : (activeFrame.slash === 'super' ? '#ff00ff' : '#00ffff'));
+            ctx.shadowColor = ctx.strokeStyle;
+            ctx.shadowBlur = 18;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.arc(slashX, slashY, 64, -Math.PI * 0.45, Math.PI * 0.45);
+            ctx.stroke();
+
+            if (activeFrame.proj) {
+                const projX = slashX + ((loopT * 360) % 160);
+                const grad = ctx.createRadialGradient(projX, slashY, 4, projX, slashY, 34);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.5, '#00ffff');
+                grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(projX, slashY, 34, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        if (activeFrame.hit) {
+            ctx.save();
+            ctx.font = 'bold 22px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.shadowColor = '#ff2200';
+            ctx.shadowBlur = 12;
+            ctx.fillText(activeFrame.hit, boxX + boxW / 2 + 45, stageAreaY + 55);
+            ctx.restore();
+        }
+        ctx.restore();
+
+        // Draw Glowing Button Input Badges below Stage Preview
+        const badgeY = stageAreaY + stageAreaH + 38;
+        const badges = combo.badges || [];
+        const badgeSpacing = 68;
+        const startBadgeX = boxX + boxW / 2 - ((badges.length - 1) * badgeSpacing) / 2;
+
+        for (let b = 0; b < badges.length; b++) {
+            const bx = startBadgeX + b * badgeSpacing;
+            const txt = badges[b];
+            const isArrowConnector = (txt === '➔' || txt === '+');
+            const isActiveBadge = (b === activeStepIdx);
+
+            if (isArrowConnector) {
+                ctx.font = 'bold 20px "Press Start 2P"';
+                ctx.fillStyle = '#00ffff';
+                ctx.fillText(txt, bx, badgeY + 8);
+            } else {
+                ctx.fillStyle = isActiveBadge ? '#ffcc00' : 'rgba(0, 229, 255, 0.22)';
+                ctx.strokeStyle = isActiveBadge ? '#ffffff' : '#00ffff';
+                ctx.lineWidth = 2.5;
+                ctx.fillRect(bx - 28, badgeY - 22, 56, 44);
+                ctx.strokeRect(bx - 28, badgeY - 22, 56, 44);
+
+                ctx.font = 'bold 18px "Press Start 2P"';
+                ctx.fillStyle = isActiveBadge ? '#000000' : '#ffffff';
+                ctx.fillText(txt, bx, badgeY + 8);
+            }
+        }
+
+        // Damage & Move Description at bottom of Right Preview Box
+        ctx.textAlign = 'center';
+        ctx.font = 'bold 15px "Press Start 2P"';
+        ctx.fillStyle = '#00ff88';
+        ctx.fillText(combo.dmg, boxX + boxW / 2, badgeY + 54);
+
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillStyle = '#ddeeaa';
+        // Word-wrap description into 2 clean lines
+        const words = (combo.desc || '').split(' ');
+        let line1 = '';
+        let line2 = '';
+        for (const w of words) {
+            if ((line1 + ' ' + w).trim().length <= 44) {
+                line1 = (line1 + ' ' + w).trim();
+            } else {
+                line2 = (line2 + ' ' + w).trim();
+            }
+        }
+        ctx.fillText(line1, boxX + boxW / 2, badgeY + 84);
+        if (line2) {
+            ctx.fillText(line2, boxX + boxW / 2, badgeY + 106);
+        }
+
+        // Footer hint
+        ctx.font = '13px "Press Start 2P"';
+        ctx.fillStyle = '#88aacc';
+        ctx.fillText('[↑/↓ ODER ANTIPPEN] KOMBO WÄHLEN   [←/→] KÄMPFER WECHSELN   [S / ZURÜCK] HAUPTMENÜ', cx, this.game.height - 56);
     }
 }

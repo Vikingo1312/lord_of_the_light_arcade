@@ -1059,14 +1059,29 @@ export default class Fighter {
                 spriteImage = this._getSprite('_kick.png') || this._getSprite('_punch.png');
             }
             if (!spriteImage) {
-                spriteImage = this._getSprite('_right.png');
+                spriteImage = this._getSprite('_right.png') || this._getSprite('_front.png');
             }
 
             if (!spriteImage) {
-                if (!this._loggedMissingSprite) {
-                    console.error(`[Fighter] SCENE ERROR: Missing sprite for ${this.data.id} in state ${this.state} (Tried: ${suffix} & Fallbacks)`);
-                    this._loggedMissingSprite = true;
-                }
+                // Emergency visual fallback while sprites finish streaming over mobile network so a fighter is NEVER invisible!
+                const drawFacing = this.facing || 1;
+                ctx.scale(drawFacing, 1);
+                ctx.fillStyle = this.color === 'red' ? 'rgba(255, 40, 80, 0.85)' : (this.color === 'purple' ? 'rgba(180, 80, 255, 0.85)' : 'rgba(0, 220, 255, 0.85)');
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(0, -320, 42, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillRect(-48, -270, 96, 160);
+                ctx.strokeRect(-48, -270, 96, 160);
+                ctx.fillRect(-44, -110, 36, 110);
+                ctx.fillRect(8, -110, 36, 110);
+                ctx.scale(drawFacing, 1);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 18px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText((this.data && this.data.name) || 'FIGHTER', 0, -380);
                 ctx.restore();
                 return;
             }

@@ -5,69 +5,91 @@ export default class AssetManager {
         this.audioBuffer = {};
 
         this.queue = [];
+        this.loadingKeys = new Set();
         this.loadedCount = 0;
+        this._activeLoadPromises = [];
+
+        // Tiny 1x1 reusable canvas to inspect corner transparency without allocating 1024x1024 canvases
+        this._probeCanvas = null;
+        this._probeCtx = null;
     }
 
     queueImage(key, path) {
+        if (!key || !path) return;
+        if (this.images[key] || this.loadingKeys.has(key)) return;
+        if (this.queue.some(item => item.key === key)) return;
         this.queue.push({ type: 'image', key, path });
     }
 
     queueAudio(key, path) {
+        if (!key || !path) return;
+        if (this.audioBuffer[key] || this.loadingKeys.has(key)) return;
+        if (this.queue.some(item => item.key === key)) return;
         this.queue.push({ type: 'audio', key, path });
     }
 
     async loadAll(onProgressCallback) {
         if (this.queue.length === 0) {
-                if (onProgressCallback) onProgressCallback(1);
-                return Promise.resolve();
+            if (this._activeLoadPromises.length > 0) {
+                await Promise.all(this._activeLoadPromises);
             }
+            if (onProgressCallback) onProgressCallback(1);
+            return Promise.resolve();
+        }
 
         const currentQueue = [...this.queue];
         this.queue = [];
-        this.loadedCount = 0;
+        let batchLoaded = 0;
 
-        const promises = currentQueue.map(item => {
-            return new Promise((resolve, reject) => {
+        for (const item of currentQueue) {
+            this.loadingKeys.add(item.key);
+        }
+
+        const batchPromise = Promise.all(currentQueue.map(item => {
+            return new Promise((resolve) => {
                 if (item.type === 'image') {
                     const img = new Image();
-                    // NOTE: Do NOT set crossOrigin for same-origin images (localhost).
-                    // Python SimpleHTTP has no CORS headers → tainted canvas → getImageData fails!
                     img.onload = () => {
+                        // Store raw image immediately so a fighter is NEVER invisible even while/if chroma-keying runs
+                        this.images[item.key] = img;
                         this.processChromaKey(img, item.key, () => {
+                            this.loadingKeys.delete(item.key);
+                            batchLoaded++;
                             this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
+                            if (onProgressCallback) onProgressCallback(batchLoaded / currentQueue.length);
                             resolve();
                         });
                     };
                     img.onerror = () => {
-                        // Check if we queued a fallback image for this key
+                        this.loadingKeys.delete(item.key);
                         const fallbackKey = item.key + '_fallback';
                         const fallbackItem = currentQueue.find(q => q.key === fallbackKey);
 
                         if (fallbackItem && !item.key.endsWith('_fallback')) {
-                            console.log(`[AssetManager] Image ${item.path} not found. Attempting fallback: ${fallbackItem.path}`);
-                            // We don't resolve the primary promise yet, the fallback will resolve it
-                            // when the queue naturally gets to the fallbackItem.
-                            this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
+                            batchLoaded++;
+                            if (onProgressCallback) onProgressCallback(batchLoaded / currentQueue.length);
                             resolve();
                         } else {
-                            // If it's already a fallback that failed or no fallback exists
-                            console.warn(`[AssetManager] Failed to load image: ${item.path}`);
-                            this.loadedCount++;
-                            if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
-                            resolve(); // Resolve anyway so the game doesn't hang, but it will be a missing texture
+                            if (!item.key.endsWith('_fallback')) {
+                                console.warn(`[AssetManager] Failed to load image: ${item.path}`);
+                            }
+                            batchLoaded++;
+                            if (onProgressCallback) onProgressCallback(batchLoaded / currentQueue.length);
+                            resolve();
                         }
                     };
-                    img.src = item.path + '?v=' + Date.now(); // Cache buster
+                    // Avoid malformed double "?v=2.28?v=..." URLs and allow session caching
+                    img.src = item.path.includes('?') ? item.path : `${item.path}?v=2.29`;
                 } else if (item.type === 'audio') {
                     this.audioBuffer[item.key] = true;
                     let settled = false;
                     const finishAudio = () => {
                         if (settled) return;
                         settled = true;
+                        this.loadingKeys.delete(item.key);
+                        batchLoaded++;
                         this.loadedCount++;
-                        if (onProgressCallback) onProgressCallback(this.loadedCount / currentQueue.length);
+                        if (onProgressCallback) onProgressCallback(batchLoaded / currentQueue.length);
                         resolve();
                     };
                     const timer = setTimeout(finishAudio, 2500);
@@ -81,20 +103,56 @@ export default class AssetManager {
                     }
                 }
             });
-        });
+        }));
 
-        await Promise.all(promises);
+        this._activeLoadPromises.push(batchPromise);
+        try {
+            await Promise.all(this._activeLoadPromises);
+        } finally {
+            this._activeLoadPromises = this._activeLoadPromises.filter(p => p !== batchPromise);
+        }
     }
 
     /**
-     * Applies Background Removal using Edge-Sampling.
-     * Samples border pixels to detect the background color, then removes
-     * all matching pixels. Much safer than hardcoded thresholds.
+     * Fast corner alpha probe using a single shared 4x1 canvas (0 MB memory overhead).
+     * Returns true if the 4 extreme corners of the image are already transparent.
+     */
+    _areCornersTransparent(img) {
+        try {
+            if (!this._probeCanvas) {
+                this._probeCanvas = document.createElement('canvas');
+                this._probeCanvas.width = 4;
+                this._probeCanvas.height = 1;
+                this._probeCtx = this._probeCanvas.getContext('2d', { willReadFrequently: true });
+            }
+            const ctx = this._probeCtx;
+            if (!ctx) return true;
+            const w = img.naturalWidth || img.width;
+            const h = img.naturalHeight || img.height;
+            if (!w || !h) return true;
+
+            ctx.clearRect(0, 0, 4, 1);
+            ctx.drawImage(img, 0, 0, 1, 1, 0, 0, 1, 1);
+            ctx.drawImage(img, w - 1, 0, 1, 1, 1, 0, 1, 1);
+            ctx.drawImage(img, 0, h - 1, 1, 1, 2, 0, 1, 1);
+            ctx.drawImage(img, w - 1, h - 1, 1, 1, 3, 0, 1, 1);
+            const d = ctx.getImageData(0, 0, 4, 1).data;
+            // If all 4 extreme corner pixels are transparent, the PNG already has its alpha channel!
+            return (d[3] < 40 && d[7] < 40 && d[11] < 40 && d[15] < 40);
+        } catch (e) {
+            return true;
+        }
+    }
+
+    /**
+     * Applies Background Removal ONLY if the image actually has an opaque background at its corners.
+     * Pre-cleaned RGBA character sprites skip full-canvas processing immediately —
+     * preserving white/grey clothing details and using 0 MB of iOS Safari canvas memory!
      */
     processChromaKey(img, key, callback) {
         const k = key.toLowerCase();
-        // Skip background stripping for UI elements, Stages, and Projectile Cut-ins
-        if (k.startsWith('stage_') || k.startsWith('menu') || k.includes('cutin') || k.includes('caesar')) {
+        // Skip background stripping for UI elements, Stages, Portraits (_front), and Projectile Cut-ins
+        if (k.startsWith('stage_') || k.startsWith('menu') || k.includes('cutin') || k.includes('caesar') || k.includes('_front')) {
             this.images[key] = img;
             callback();
             return;
@@ -107,64 +165,52 @@ export default class AssetManager {
             return;
         }
 
-        console.log(`🎨 ChromaKey START: ${key} (${img.width}x${img.height})`);
-
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        ctx.drawImage(img, 0, 0);
-        let imgData;
-        try {
-            imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        } catch (e) {
-            console.warn(`🔴 CORS BLOCKED getImageData: ${key}`, e.message);
-            // Safari/iOS strict mode fallback: Use the RAW image so they aren't invisible!
+        // FAST PATH: If the PNG already has transparent corners, DO NOT run destructive ChromaKey on clothes
+        // and DO NOT allocate a 1024x1024 canvas!
+        if (this._areCornersTransparent(img)) {
             this.images[key] = img;
             callback();
             return;
         }
 
-        const data = imgData.data;
-        const w = canvas.width;
-        const h = canvas.height;
+        let canvas = null;
+        try {
+            canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            if (!ctx) {
+                this.images[key] = img;
+                callback();
+                return;
+            }
 
-        // --- Step 1: Sample border pixels to find background color ---
-        const borderPixels = [];
-        const sampleDepth = Math.max(3, Math.floor(Math.min(w, h) * 0.03)); // 3% border
+            ctx.drawImage(img, 0, 0);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+            const w = canvas.width;
+            const h = canvas.height;
 
-        for (let y = 0; y < h; y++) {
+            // Sample only the 2px outer perimeter for background color
+            const borderPixels = [];
             for (let x = 0; x < w; x++) {
-                // Only sample the border strip
-                if (x >= sampleDepth && x < w - sampleDepth &&
-                    y >= sampleDepth && y < h - sampleDepth) continue;
-
-                const idx = (y * w + x) * 4;
-                const a = data[idx + 3];
-                if (a > 200) { // Only opaque border pixels
-                    borderPixels.push({
-                        r: data[idx],
-                        g: data[idx + 1],
-                        b: data[idx + 2]
-                    });
+                for (const y of [0, 1, h - 2, h - 1]) {
+                    const idx = (y * w + x) * 4;
+                    if (data[idx + 3] > 200) {
+                        borderPixels.push({ r: data[idx], g: data[idx + 1], b: data[idx + 2] });
+                    }
                 }
             }
-        }
 
-        // If no opaque border pixels found, image is already transparent (or background doesn't touch edges)
-        if (borderPixels.length === 0) {
-            console.log(`⏩ ChromaKey SKIPPED (No opaque border pixels): ${key}`);
-            this.images[key] = img;
-            callback();
-            return;
-        }
+            if (borderPixels.length === 0) {
+                canvas.width = 0;
+                canvas.height = 0;
+                this.images[key] = img;
+                callback();
+                return;
+            }
 
-        // --- Step 2: Find the dominant border color ---
-        let avgR = 0, avgG = 0, avgB = 0;
-        let hasBorderColor = borderPixels.length > 0;
-
-        if (hasBorderColor) {
+            let avgR = 0, avgG = 0, avgB = 0;
             for (const p of borderPixels) {
                 avgR += p.r;
                 avgG += p.g;
@@ -173,92 +219,50 @@ export default class AssetManager {
             avgR = Math.round(avgR / borderPixels.length);
             avgG = Math.round(avgG / borderPixels.length);
             avgB = Math.round(avgB / borderPixels.length);
-        }
 
-        // --- Step 3: Remove matching pixels ---
-        const tolerance = 50;
-
-        for (let i = 0; i < data.length; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            const a = data[i + 3];
-
-            if (a === 0) continue; // Already transparent
-
-            // 0. GREEN SCREEN — AGGRESSIVE detection for any green background
-            // Check if green is clearly the dominant color FIRST to prevent green halos
-            if (g > r * 1.1 && g > b * 1.1 && g > 40) {
-                data[i + 3] = 0;
-                continue;
-            }
-
-            // PASS 1: Edge-sampling — remove pixels matching detected border color
-            if (hasBorderColor) {
-                const dr = r - avgR;
-                const dg = g - avgG;
-                const db = b - avgB;
+            const tolerance = 42;
+            for (let i = 0; i < data.length; i += 4) {
+                const a = data[i + 3];
+                if (a === 0) continue;
+                const r = data[i], g = data[i + 1], b = data[i + 2];
+                const dr = r - avgR, dg = g - avgG, db = b - avgB;
                 const dist = Math.sqrt(dr * dr + dg * dg + db * db);
-
                 if (dist < tolerance) {
                     data[i + 3] = 0;
-                    continue;
-                }
-                if (dist < tolerance * 1.5) {
-                    const alpha = Math.floor(((dist - tolerance) / (tolerance * 0.5)) * 255);
+                } else if (dist < tolerance * 1.35) {
+                    const alpha = Math.floor(((dist - tolerance) / (tolerance * 0.35)) * 255);
                     data[i + 3] = Math.min(a, alpha);
-                    continue;
                 }
             }
 
-            // PASS 2: Proven brightness/saturation thresholds (original working values)
-            // Even if the image has a transparent outer border, it might have a white box
-            // in the middle of the image, so always check for pure white/grey.
-            const maxC = Math.max(r, g, b);
-            const minC = Math.min(r, g, b);
-            const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC;
-            const brightness = (r + g + b) / 3;
+            ctx.putImageData(imgData, 0, 0);
+            const dataUrl = canvas.toDataURL();
+            // Immediately release WebKit canvas backing store memory!
+            canvas.width = 0;
+            canvas.height = 0;
 
-            // 1. Pure white / near-white
-            if (r >= 240 && g >= 240 && b >= 240) {
-                data[i + 3] = 0;
-            }
-            // 2. Light grey, low saturation
-            else if (brightness > 200 && saturation < 0.08) {
-                data[i + 3] = 0;
-            }
-            // 3. Off-white / lighter grey
-            else if (brightness > 170 && saturation < 0.20) {
-                data[i + 3] = 0;
-            }
-            // 4. Medium grey
-            else if (brightness > 130 && saturation < 0.15) {
-                data[i + 3] = 0;
-            }
-            // 5. Darker neutral grey — feathered
-            else if (brightness > 100 && saturation < 0.10) {
-                data[i + 3] = Math.max(0, Math.min(a, Math.floor((130 - brightness) * 8)));
-            }
-        }
-
-        ctx.putImageData(imgData, 0, 0);
-
-        const newImg = new Image();
-        newImg.onload = () => {
-            // Safari Silent Failure Check: If Canvas dropped the image due to memory limits, it returns a 1x1 blank image.
-            if (newImg.width < 10 || newImg.height < 10) {
-                console.warn(`⚠️ Safari Canvas Memory Drop detected for ${key}. Falling back to un-keyed image!`);
+            const newImg = new Image();
+            newImg.onload = () => {
+                if (newImg.width >= 10 && newImg.height >= 10) {
+                    this.images[key] = newImg;
+                } else {
+                    this.images[key] = img;
+                }
+                callback();
+            };
+            newImg.onerror = () => {
                 this.images[key] = img;
-            } else {
-                this.images[key] = newImg;
+                callback();
+            };
+            newImg.src = dataUrl;
+        } catch (e) {
+            if (canvas) {
+                canvas.width = 0;
+                canvas.height = 0;
             }
+            this.images[key] = img;
             callback();
-        };
-        newImg.onerror = () => {
-            console.error("❌ Failed to re-encode processed pixel data for:", key);
-            this.images[key] = img; // Fallback to raw image so they aren't invisible
-            callback();
-        };
-        newImg.src = canvas.toDataURL();
+        }
     }
 }
+
