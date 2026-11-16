@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.33';
+import Hitbox from './Hitbox.js?v=2.34';
 
 export default class Projectile {
     constructor(x, y, facing, owner, img, game) {
@@ -35,6 +35,16 @@ export default class Projectile {
 
         this.x += this.speed * this.facing * dt;
         this.y += this.vy * dt; // Apply vertical movement
+
+        // Diagonal air fireballs explode when they strike the arena floor!
+        const floorY = (this.game && this.game.height) ? this.game.height * 0.9 : 810;
+        if (this.vy > 0 && this.y >= floorY - 16) {
+            this.y = floorY - 16;
+            this.hitGround = true;
+            this.alive = false;
+            return;
+        }
+
         this.life -= dt;
         if (this.life <= 0) this.alive = false;
     }
@@ -54,6 +64,8 @@ export default class Projectile {
             pushback: this.pushback,
             hitstop: this.hitstop,
             lift: this.lift,
+            type: 'PROJECTILE',
+            isOverhead: this.vy > 120 // Diagonal air fireballs hit from above like Street Fighter Zanku Hadoken!
         };
     }
 
@@ -77,9 +89,9 @@ export default class Projectile {
             ctx.scale(-1, 1);
         }
 
-        // Slight pitch rotation if projectile has vertical velocity (e.g., angled shots)
+        // Rotate along diagonal trajectory for angled / airborne fireballs
         if (this.vy !== 0) {
-            const angle = Math.atan2(this.vy, this.speed) * 0.65;
+            const angle = Math.atan2(this.vy, this.speed) * 0.85;
             ctx.rotate(angle);
         }
 

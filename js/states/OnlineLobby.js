@@ -1,12 +1,12 @@
 /**
- * OnlineLobbyState — Mobile- & Controller-friendly Online Multiplayer Lobby.
- * Allows two iPhones (or PCs) to connect via a 4-digit Room Code for:
- *  1) CO-OP STORY MODE (Keano & JJ Dark fight side-by-side through the Story & unlock secret fighters!)
- *  2) 1v1 DUEL MODE (Keano vs JJ Dark head-to-head!)
+ * OnlineLobbyState — Sleek Rounded Arcade-Neon Online Multiplayer Lobby.
+ * Connects two iPhones, Androids, or PCs anywhere via a 4-digit Room Code for:
+ *  1) 1 VS 1 DUELL (Head-to-head PvP!)
+ *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.33';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.33';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.33';
+import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.34';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.34';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.34';
 
 export default class OnlineLobbyState {
     constructor(game) {
@@ -28,7 +28,6 @@ export default class OnlineLobbyState {
     _refreshSelectableFighters() {
         const unlockedSpecials = SPECIALS.filter(s => isFighterUnlocked(s.id));
         this.selectableFighters = [...ROSTER, ...unlockedSpecials];
-        // Preload portraits for Keano & JJ Dark immediately
         for (const f of this.selectableFighters) {
             if (f.id === 'Keano' || f.id === 'JJDark') {
                 const key = `${f.id}_front.png`;
@@ -65,7 +64,6 @@ export default class OnlineLobbyState {
             if (e.type === 'touchend') {
                 this._lastTapAt = now;
             } else if (e.type === 'click' && now - this._lastTapAt < 400) {
-                // Ignore synthetic click fired right after touchend on mobile!
                 return;
             }
 
@@ -120,33 +118,30 @@ export default class OnlineLobbyState {
 
     _handleTap(tx, ty) {
         const w = this.game.width;
-        const h = this.game.height;
         const cx = w / 2;
 
-        // Top-right BACK / MENU button
-        if (tx > w - 260 && ty < 100) {
+        // Top-left ZURÜCK pill button (x: 24..230, y: 20..88)
+        if (tx < 250 && ty < 96) {
             this._goBack();
             return;
         }
 
         if (this.step === 'choice') {
-            // 5 choice cards: 1v1 Duel Host, Co-Op Host, Join with Code, Local AI Co-Op, Back
             const cards = [
-                { y: 310, action: () => this._startHosting('duel') },
-                { y: 440, action: () => this._startHosting('coop') },
-                { y: 570, action: () => { this.step = 'enter_code'; this.enteredCode = ''; this.inputCooldown = 15; } },
-                { y: 700, action: () => this._startLocalCoopWithAI() },
-                { y: 825, action: () => this._goBack() }
+                { y: 300, action: () => this._startHosting('duel') },
+                { y: 430, action: () => this._startHosting('coop') },
+                { y: 560, action: () => { this.step = 'enter_code'; this.enteredCode = ''; this.inputCooldown = 15; } },
+                { y: 690, action: () => this._startLocalCoopWithAI() },
+                { y: 815, action: () => this._goBack() }
             ];
             for (let i = 0; i < cards.length; i++) {
-                if (Math.abs(tx - cx) < 540 && Math.abs(ty - cards[i].y) < 54) {
+                if (Math.abs(tx - cx) < 440 && Math.abs(ty - cards[i].y) < 52) {
                     this.selectedIndex = i;
                     cards[i].action();
                     return;
                 }
             }
         } else if (this.step === 'enter_code') {
-            // Check 4x3 Numpad buttons
             const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'CLR', '0', 'OK'];
             const gridStartX = cx - 220;
             const gridStartY = 430;
@@ -165,9 +160,8 @@ export default class OnlineLobbyState {
             }
         } else if (this.step === 'room') {
             const net = this.game.networkManager;
-            // Two dedicated side-by-side Mode buttons at y ~ 256:
-            // Left button: KOOP STORY (cx - 270), Right button: 1v1 DUELL (cx + 270)
-            if (Math.abs(ty - 256) < 42 && Math.abs(tx - cx) < 540) {
+            // Two dedicated side-by-side Mode pills at y ~ 256:
+            if (Math.abs(ty - 256) < 42 && Math.abs(tx - cx) < 480) {
                 if (tx < cx) {
                     this._setMode('coop');
                 } else {
@@ -176,22 +170,22 @@ export default class OnlineLobbyState {
                 return;
             }
 
-            // P1 character cycle (left card x ~ cx - 420, y ~ 340..700)
-            if (Math.abs(tx - (cx - 420)) < 260 && ty > 330 && ty < 710) {
+            // P1 character cycle (left card x ~ cx - 410, y ~ 330..700)
+            if (Math.abs(tx - (cx - 410)) < 250 && ty > 330 && ty < 700) {
                 if (net.role === 'host') {
-                    this._cycleChar('host', tx < (cx - 420) ? -1 : 1);
+                    this._cycleChar('host', tx < (cx - 410) ? -1 : 1);
                 }
                 return;
             }
 
-            // P2 character cycle (right card x ~ cx + 420, y ~ 330..710)
-            if (Math.abs(tx - (cx + 420)) < 260 && ty > 330 && ty < 710) {
-                this._cycleChar('guest', tx < (cx + 420) ? -1 : 1);
+            // P2 character cycle (right card x ~ cx + 410, y ~ 330..700)
+            if (Math.abs(tx - (cx + 410)) < 250 && ty > 330 && ty < 700) {
+                this._cycleChar('guest', tx < (cx + 410) ? -1 : 1);
                 return;
             }
 
-            // Start Online Match button (y ~ 810) — works for BOTH Host and Guest!
-            if (Math.abs(tx - cx) < 460 && Math.abs(ty - 810) < 55) {
+            // Start Online Match button (y ~ 808) — works for BOTH Host and Guest!
+            if (Math.abs(tx - cx) < 400 && Math.abs(ty - 808) < 52) {
                 if (net.role === 'host') {
                     this._launchOnlineMatch(false);
                 } else if (net.role === 'guest' && net.status === 'connected') {
@@ -233,7 +227,6 @@ export default class OnlineLobbyState {
     }
 
     _startLocalCoopWithAI() {
-        // Immediate Co-Op Story with Keano (Player 1) + JJ Dark (AI Partner)
         this.game.networkManager.disconnect();
         this._startCoopStoryRun('Keano', 'JJDark', false);
     }
@@ -270,7 +263,6 @@ export default class OnlineLobbyState {
         idx = (idx + dir + list.length) % list.length;
         const nextChar = list[idx];
 
-        // Lazy-load portrait if needed
         const key = `${nextChar.id}_front.png`;
         if (!this.game.assetManager.images[key]) {
             this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png`);
@@ -295,7 +287,7 @@ export default class OnlineLobbyState {
         const net = this.game.networkManager;
         if (net.role !== 'host') return;
         if (net.status !== 'connected' && !allowAIAllyFallback) {
-            net.errorMsg = 'Warte noch auf das 2. Gerät (Code eingeben)!';
+            net.errorMsg = 'Warte noch auf Spieler 2 (Code eingeben)!';
             return;
         }
 
@@ -457,6 +449,39 @@ export default class OnlineLobbyState {
         }
     }
 
+    /** Helper to draw sleek modern rounded Arcade-Neon pill/card buttons */
+    _drawRoundedBox(ctx, x, y, w, h, radius, fillStyle, strokeStyle, lineWidth = 2.5, glowColor = null) {
+        ctx.save();
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(x, y, w, h, radius);
+        } else {
+            ctx.rect(x, y, w, h);
+        }
+        if (glowColor) {
+            ctx.shadowColor = glowColor;
+            ctx.shadowBlur = 16;
+        }
+        ctx.fillStyle = fillStyle;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        if (strokeStyle && lineWidth > 0) {
+            ctx.strokeStyle = strokeStyle;
+            ctx.lineWidth = lineWidth;
+            ctx.stroke();
+        }
+        // Subtle top glass shine
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+            ctx.roundRect(x + 3, y + 2, w - 6, Math.max(8, h * 0.36), Math.max(4, radius - 3));
+        } else {
+            ctx.rect(x + 3, y + 2, w - 6, Math.max(8, h * 0.36));
+        }
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.055)';
+        ctx.fill();
+        ctx.restore();
+    }
+
     draw(ctx) {
         const w = this.game.width;
         const h = this.game.height;
@@ -470,28 +495,35 @@ export default class OnlineLobbyState {
         ctx.fillStyle = 'rgba(6, 8, 22, 0.88)';
         ctx.fillRect(0, 0, w, h);
 
-        // Top-right BACK button
-        ctx.fillStyle = 'rgba(255, 50, 80, 0.2)';
-        ctx.fillRect(w - 230, 24, 200, 56);
-        ctx.strokeStyle = '#ff3366';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(w - 230, 24, 200, 56);
+        // Top-left sleek rounded ZURÜCK pill button (never overlaps top-right mobile VOLLBILD / Menu buttons!)
+        this._drawRoundedBox(
+            ctx,
+            28,
+            24,
+            195,
+            52,
+            26,
+            'rgba(255, 45, 95, 0.22)',
+            '#ff3366',
+            2.5,
+            'rgba(255, 51, 102, 0.45)'
+        );
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.font = 'bold 17px "Press Start 2P"';
         ctx.textAlign = 'center';
-        ctx.fillText('ZURÜCK', w - 130, 60);
+        ctx.fillText('◀ ZURÜCK', 125, 57);
 
         // Header
-        ctx.font = 'bold 48px "Press Start 2P"';
+        ctx.font = 'bold 44px "Press Start 2P"';
         ctx.fillStyle = '#00ffff';
         ctx.shadowColor = '#00ffff';
         ctx.shadowBlur = 18;
-        ctx.fillText('ONLINE DUELL & 2P KOOP', cx, 102);
+        ctx.fillText('ONLINE & KOOP', cx, 98);
         ctx.shadowBlur = 0;
 
-        ctx.font = '18px "Press Start 2P"';
+        ctx.font = '15px "Press Start 2P"';
         ctx.fillStyle = '#aaddff';
-        ctx.fillText('1 VS 1 GEGENEINANDER ODER ZUSAMMEN GEGEN BOTS', cx, 148);
+        ctx.fillText('1 VS 1 DUELL ODER TEAM-STORY', cx, 140);
 
         if (this.step === 'choice') {
             this._drawChoiceStep(ctx, cx);
@@ -503,92 +535,116 @@ export default class OnlineLobbyState {
     }
 
     _drawChoiceStep(ctx, cx) {
+        // Clean, short titles without broken U+2694 emoji so iOS Safari centers every button 100% accurately!
         const items = [
             {
-                title: '1. ⚔️ ONLINE 1 VS 1 DUELL (GEGENEINANDER)',
-                sub: 'Erstellt 4-stelligen Code — Ihr kämpft direkt 1 gegen 1!',
+                title: '1 VS 1 DUELL',
+                sub: 'Raum-Code erstellen & gegeneinander kämpfen',
                 color: '#ff3366',
-                y: 310
+                bgActive: 'rgba(255, 51, 102, 0.24)',
+                y: 300
             },
             {
-                title: '2. 🤝 ONLINE 2P KOOP STORY (GEGEN BOTS)',
-                sub: 'Erstellt 4-stelligen Code — Ihr kämpft im Team gegen alle Bosse!',
+                title: '2P KOOP STORY',
+                sub: 'Raum-Code erstellen & im Team gegen Bosse',
                 color: '#00ff88',
-                y: 440
+                bgActive: 'rgba(0, 255, 136, 0.22)',
+                y: 430
             },
             {
-                title: '3. 🔑 MIT CODE BEITRETEN (SPIELER 2)',
-                sub: '4-stelligen Raum-Code vom 1. Gerät eingeben (für Duell & Koop)',
+                title: 'CODE EINGEBEN',
+                sub: 'Mit 4-stelligem Code von Spieler 1 beitreten',
                 color: '#bb66ff',
-                y: 570
+                bgActive: 'rgba(187, 102, 255, 0.24)',
+                y: 560
             },
             {
-                title: '4. 🤖 SOFORT KOOP MIT KI-PARTNER',
-                sub: 'Keano & JJ Dark kämpfen sofort zusammen gegen die Story-Gegner!',
+                title: 'SOLO KOOP (MIT KI)',
+                sub: 'Sofort mit KI-Partner durch die Story',
                 color: '#ffcc00',
-                y: 700
+                bgActive: 'rgba(255, 204, 0, 0.22)',
+                y: 690
             },
             {
-                title: 'ZURÜCK ZUM HAUPTMENÜ',
+                title: 'HAUPTMENÜ',
                 sub: '',
                 color: '#ff4466',
-                y: 825
+                bgActive: 'rgba(255, 68, 102, 0.22)',
+                y: 815
             }
         ];
 
         for (let i = 0; i < items.length; i++) {
             const it = items[i];
             const isSel = (i === this.selectedIndex);
-            const boxW = 1080;
-            const boxH = it.sub ? 102 : 76;
+            const boxW = it.sub ? 840 : 520;
+            const boxH = it.sub ? 96 : 68;
+            const radius = it.sub ? 22 : 34;
+
+            this._drawRoundedBox(
+                ctx,
+                cx - boxW / 2,
+                it.y - boxH / 2,
+                boxW,
+                boxH,
+                radius,
+                isSel ? it.bgActive : 'rgba(14, 20, 42, 0.88)',
+                isSel ? it.color : '#33486e',
+                isSel ? 3.5 : 2,
+                isSel ? it.color : null
+            );
 
             ctx.save();
-            ctx.fillStyle = isSel ? 'rgba(0, 220, 255, 0.20)' : 'rgba(15, 20, 40, 0.88)';
-            ctx.fillRect(cx - boxW / 2, it.y - boxH / 2, boxW, boxH);
-            ctx.strokeStyle = isSel ? it.color : '#334466';
-            ctx.lineWidth = isSel ? 4 : 2;
-            ctx.strokeRect(cx - boxW / 2, it.y - boxH / 2, boxW, boxH);
-
+            ctx.textAlign = 'center';
             ctx.fillStyle = isSel ? it.color : '#ffffff';
             ctx.font = 'bold 24px "Press Start 2P"';
-            ctx.fillText(it.title, cx, it.sub ? it.y - 10 : it.y + 8);
+            ctx.fillText(it.title, cx, it.sub ? it.y - 6 : it.y + 9);
 
             if (it.sub) {
-                ctx.fillStyle = '#99bbdd';
-                ctx.font = '14px "Press Start 2P"';
-                ctx.fillText(it.sub, cx, it.y + 28);
+                ctx.fillStyle = isSel ? '#eef6ff' : '#99bbdd';
+                ctx.font = '13px "Press Start 2P"';
+                ctx.fillText(it.sub, cx, it.y + 26);
             }
             ctx.restore();
         }
     }
 
     _drawEnterCodeStep(ctx, cx) {
-        ctx.font = 'bold 28px "Press Start 2P"';
+        ctx.font = 'bold 24px "Press Start 2P"';
         ctx.fillStyle = '#ffffff';
-        ctx.fillText('4-STELLIGEN RAUM-CODE EINGEBEN:', cx, 240);
+        ctx.textAlign = 'center';
+        ctx.fillText('RAUM-CODE EINGEBEN:', cx, 235);
 
-        // 4 Digit Slots
-        const slotW = 100;
-        const gap = 25;
+        // 4 Rounded Digit Slots
+        const slotW = 102;
+        const gap = 24;
         const startX = cx - (4 * slotW + 3 * gap) / 2 + slotW / 2;
 
         for (let i = 0; i < 4; i++) {
             const sx = startX + i * (slotW + gap);
             const sy = 315;
             const ch = this.enteredCode[i] || '_';
+            const isActiveSlot = (i === this.enteredCode.length);
 
-            ctx.fillStyle = 'rgba(0, 255, 255, 0.12)';
-            ctx.fillRect(sx - slotW / 2, sy - 50, slotW, 95);
-            ctx.strokeStyle = i === this.enteredCode.length ? '#00ffff' : '#446688';
-            ctx.lineWidth = 3;
-            ctx.strokeRect(sx - slotW / 2, sy - 50, slotW, 95);
+            this._drawRoundedBox(
+                ctx,
+                sx - slotW / 2,
+                sy - 50,
+                slotW,
+                96,
+                18,
+                'rgba(0, 235, 255, 0.12)',
+                isActiveSlot ? '#00ffff' : '#446688',
+                isActiveSlot ? 3.5 : 2,
+                isActiveSlot ? '#00ffff' : null
+            );
 
             ctx.fillStyle = '#fdbf00';
-            ctx.font = 'bold 48px "Press Start 2P"';
-            ctx.fillText(ch, sx, sy + 16);
+            ctx.font = 'bold 44px "Press Start 2P"';
+            ctx.fillText(ch, sx, sy + 15);
         }
 
-        // 4x3 Touch & Controller Numpad
+        // 4x3 Rounded Touch & Controller Numpad
         const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'CLR', '0', 'OK'];
         const gridStartX = cx - 220;
         const gridStartY = 430;
@@ -601,16 +657,25 @@ export default class OnlineLobbyState {
             const bx = gridStartX + col * cellW;
             const by = gridStartY + row * cellH;
             const isSel = (i === this.numpadIndex);
+            const k = keys[i];
+            const accent = k === 'OK' ? '#00ff88' : (k === 'CLR' ? '#ff5577' : '#00ffff');
 
-            ctx.fillStyle = isSel ? 'rgba(0, 255, 255, 0.25)' : 'rgba(20, 28, 50, 0.9)';
-            ctx.fillRect(bx - 95, by - 42, 190, 84);
-            ctx.strokeStyle = isSel ? '#00ffff' : '#445577';
-            ctx.lineWidth = isSel ? 3 : 2;
-            ctx.strokeRect(bx - 95, by - 42, 190, 84);
+            this._drawRoundedBox(
+                ctx,
+                bx - 92,
+                by - 41,
+                184,
+                82,
+                20,
+                isSel ? 'rgba(0, 235, 255, 0.24)' : 'rgba(18, 26, 48, 0.92)',
+                isSel ? accent : '#3d5278',
+                isSel ? 3 : 2,
+                isSel ? accent : null
+            );
 
-            ctx.fillStyle = keys[i] === 'OK' ? '#00ff88' : (keys[i] === 'CLR' ? '#ff5577' : '#ffffff');
-            ctx.font = 'bold 30px "Press Start 2P"';
-            ctx.fillText(keys[i], bx, by + 12);
+            ctx.fillStyle = k === 'OK' ? '#00ff88' : (k === 'CLR' ? '#ff5577' : '#ffffff');
+            ctx.font = 'bold 28px "Press Start 2P"';
+            ctx.fillText(k, bx, by + 11);
         }
     }
 
@@ -619,43 +684,70 @@ export default class OnlineLobbyState {
         const isConnected = net.status === 'connected';
         const isCoop = net.mode === 'coop';
 
-        // Room Code Banner
-        ctx.font = 'bold 32px "Press Start 2P"';
+        // Room Code Pill Banner
+        this._drawRoundedBox(
+            ctx,
+            cx - 260,
+            162,
+            520,
+            52,
+            26,
+            'rgba(253, 191, 0, 0.14)',
+            '#fdbf00',
+            2.5,
+            'rgba(253, 191, 0, 0.35)'
+        );
+        ctx.font = 'bold 26px "Press Start 2P"';
         ctx.fillStyle = '#fdbf00';
-        ctx.fillText(`RAUM-CODE: ${net.roomCode || '----'}`, cx, 202);
+        ctx.textAlign = 'center';
+        ctx.fillText(`CODE: ${net.roomCode || '----'}`, cx, 198);
 
-        // Two Dedicated Side-by-Side Mode Buttons (Idempotent on touch!)
-        const btnW = 510;
-        const btnH = 60;
-        const coopX = cx - 265;
-        const duelX = cx + 265;
+        // Two Sleek Rounded Mode Pills (Zero emoji width shift!)
+        const btnW = 390;
+        const btnH = 56;
+        const coopX = cx - 210;
+        const duelX = cx + 210;
         const modeY = 256;
 
-        // Button 1: KOOP STORY
-        ctx.fillStyle = isCoop ? 'rgba(0, 255, 136, 0.28)' : 'rgba(18, 24, 44, 0.85)';
-        ctx.fillRect(coopX - btnW / 2, modeY - btnH / 2, btnW, btnH);
-        ctx.strokeStyle = isCoop ? '#00ff88' : '#334466';
-        ctx.lineWidth = isCoop ? 4 : 2;
-        ctx.strokeRect(coopX - btnW / 2, modeY - btnH / 2, btnW, btnH);
-        ctx.fillStyle = isCoop ? '#00ff88' : '#8899bb';
+        // Pill 1: 2P KOOP
+        this._drawRoundedBox(
+            ctx,
+            coopX - btnW / 2,
+            modeY - btnH / 2,
+            btnW,
+            btnH,
+            28,
+            isCoop ? 'rgba(0, 255, 136, 0.26)' : 'rgba(16, 22, 42, 0.86)',
+            isCoop ? '#00ff88' : '#33486e',
+            isCoop ? 3.5 : 2,
+            isCoop ? '#00ff88' : null
+        );
+        ctx.fillStyle = isCoop ? '#00ff88' : '#88a0c0';
         ctx.font = 'bold 18px "Press Start 2P"';
-        ctx.fillText('🤝 2P KOOP (GEGEN BOTS)', coopX, modeY + 7);
+        ctx.fillText('2P KOOP STORY', coopX, modeY + 7);
 
-        // Button 2: 1 VS 1 DUELL
-        ctx.fillStyle = !isCoop ? 'rgba(255, 51, 102, 0.30)' : 'rgba(18, 24, 44, 0.85)';
-        ctx.fillRect(duelX - btnW / 2, modeY - btnH / 2, btnW, btnH);
-        ctx.strokeStyle = !isCoop ? '#ff3366' : '#334466';
-        ctx.lineWidth = !isCoop ? 4 : 2;
-        ctx.strokeRect(duelX - btnW / 2, modeY - btnH / 2, btnW, btnH);
-        ctx.fillStyle = !isCoop ? '#ff3366' : '#8899bb';
+        // Pill 2: 1 VS 1 DUELL
+        this._drawRoundedBox(
+            ctx,
+            duelX - btnW / 2,
+            modeY - btnH / 2,
+            btnW,
+            btnH,
+            28,
+            !isCoop ? 'rgba(255, 51, 102, 0.28)' : 'rgba(16, 22, 42, 0.86)',
+            !isCoop ? '#ff3366' : '#33486e',
+            !isCoop ? 3.5 : 2,
+            !isCoop ? '#ff3366' : null
+        );
+        ctx.fillStyle = !isCoop ? '#ff3366' : '#88a0c0';
         ctx.font = 'bold 18px "Press Start 2P"';
-        ctx.fillText('⚔️ 1 VS 1 DUELL (PVP)', duelX, modeY + 7);
+        ctx.fillText('1 VS 1 DUELL', duelX, modeY + 7);
 
         // Player 1 & Player 2 Fighter Cards
         this._drawFighterSlot(
             ctx,
-            cx - 420,
-            510,
+            cx - 410,
+            508,
             'SPIELER 1 (HOST)',
             net.getFighterById(net.hostCharId),
             '#00ffff',
@@ -664,86 +756,103 @@ export default class OnlineLobbyState {
 
         this._drawFighterSlot(
             ctx,
-            cx + 420,
-            510,
-            isConnected ? 'SPIELER 2 (BEREIT ✅)' : 'SPIELER 2 (WARTET...)',
+            cx + 410,
+            508,
+            isConnected ? 'SPIELER 2 (BEREIT)' : 'SPIELER 2 (WARTET)',
             net.getFighterById(net.guestCharId),
             isCoop ? '#00ff88' : '#ff3366',
             true
         );
 
-        // Center VS / TEAM Badge + Enemy Preview in Co-Op!
+        // Center VS / TEAM Badge
         if (isCoop) {
-            ctx.font = 'bold 34px "Press Start 2P"';
+            ctx.font = 'bold 32px "Press Start 2P"';
             ctx.fillStyle = '#00ff88';
-            ctx.fillText('TEAM', cx, 470);
-            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.fillText('TEAM', cx, 475);
+            ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('GEGEN', cx, 508);
+            ctx.fillText('GEGEN', cx, 510);
             ctx.fillStyle = '#ff4466';
             ctx.fillText('1. BOSS:', cx, 538);
             ctx.fillStyle = '#ffffff';
             ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 566);
         } else {
-            ctx.font = 'bold 52px "Press Start 2P"';
+            ctx.font = 'bold 50px "Press Start 2P"';
             ctx.fillStyle = '#ff3366';
             ctx.shadowColor = '#ff3366';
             ctx.shadowBlur = 16;
             ctx.fillText('VS', cx, 520);
             ctx.shadowBlur = 0;
-            ctx.font = 'bold 15px "Press Start 2P"';
+            ctx.font = 'bold 14px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('DIREKTES DUELL', cx, 560);
+            ctx.fillText('DIREKTES DUELL', cx, 558);
         }
 
         // Connection Status & Ping
-        ctx.font = 'bold 20px "Press Start 2P"';
+        ctx.font = 'bold 18px "Press Start 2P"';
         if (isConnected) {
             ctx.fillStyle = '#00ff88';
             const pingTxt = net.latencyMs ? ` (${net.latencyMs}ms)` : '';
-            ctx.fillText(`✅ BEIDE SPIELER VERBUNDEN!${pingTxt}`, cx, 735);
+            ctx.fillText(`VERBUNDEN! BEREIT ZUM KAMPF${pingTxt}`, cx, 732);
         } else if (net.status === 'error') {
             ctx.fillStyle = '#ff4466';
-            ctx.fillText(`⚠️ ${net.errorMsg}`, cx, 735);
+            ctx.fillText(net.errorMsg || 'Verbindungsfehler', cx, 732);
         } else {
             ctx.fillStyle = '#ffcc00';
             const msg = net.role === 'host'
-                ? `⏳ Spieler 2 gibt jetzt Code ${net.roomCode} ein...`
-                : `⏳ Verbinde mit Raum ${net.roomCode}...`;
-            ctx.fillText(msg, cx, 735);
+                ? `Spieler 2 gibt Code ${net.roomCode} ein...`
+                : `Verbinde mit Raum ${net.roomCode}...`;
+            ctx.fillText(msg, cx, 732);
         }
 
-        // Start Button (Host OR Connected Guest can tap!)
+        // Sleek Rounded Start Pill Button
         const canStart = isConnected;
-        ctx.fillStyle = canStart ? 'rgba(0, 255, 128, 0.25)' : 'rgba(80, 80, 100, 0.3)';
-        ctx.fillRect(cx - 460, 765, 920, 82);
-        ctx.strokeStyle = canStart ? '#00ff88' : '#666688';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(cx - 460, 765, 920, 82);
+        const startW = 680;
+        const startH = 74;
+        this._drawRoundedBox(
+            ctx,
+            cx - startW / 2,
+            808 - startH / 2,
+            startW,
+            startH,
+            37,
+            canStart ? 'rgba(0, 255, 136, 0.25)' : 'rgba(55, 65, 90, 0.35)',
+            canStart ? '#00ff88' : '#556688',
+            canStart ? 3.5 : 2,
+            canStart ? '#00ff88' : null
+        );
 
-        ctx.fillStyle = canStart ? '#00ff88' : '#8888aa';
-        ctx.font = 'bold 26px "Press Start 2P"';
-        const modeStartText = isCoop ? '🚀 KOOP-KAMPF STARTEN!' : '⚔️ 1 VS 1 DUELL STARTEN!';
+        ctx.fillStyle = canStart ? '#00ff88' : '#8899bb';
+        ctx.font = 'bold 24px "Press Start 2P"';
+        const modeStartText = isCoop ? 'KOOP STARTEN!' : 'DUELL STARTEN!';
         ctx.fillText(
             canStart ? modeStartText : 'WARTE AUF SPIELER 2...',
             cx,
-            816
+            818
         );
     }
 
     _drawFighterSlot(ctx, x, y, header, fighter, color, canChange) {
-        const boxW = 480;
-        const boxH = 360;
+        const boxW = 460;
+        const boxH = 350;
+
+        this._drawRoundedBox(
+            ctx,
+            x - boxW / 2,
+            y - boxH / 2,
+            boxW,
+            boxH,
+            22,
+            'rgba(12, 16, 36, 0.92)',
+            color,
+            3,
+            color
+        );
 
         ctx.save();
-        ctx.fillStyle = 'rgba(12, 16, 34, 0.9)';
-        ctx.fillRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x - boxW / 2, y - boxH / 2, boxW, boxH);
-
+        ctx.textAlign = 'center';
         ctx.fillStyle = color;
-        ctx.font = 'bold 18px "Press Start 2P"';
+        ctx.font = 'bold 16px "Press Start 2P"';
         ctx.fillText(header, x, y - boxH / 2 + 36);
 
         const img = this.game.assetManager.images[`${fighter.id}_front.png`]
@@ -751,20 +860,20 @@ export default class OnlineLobbyState {
         if (img && (img.naturalWidth || img.width)) {
             const iw = img.naturalWidth || img.width;
             const ih = img.naturalHeight || img.height;
-            const targetH = 210;
+            const targetH = 205;
             const scale = targetH / ih;
             const drawW = iw * scale;
-            ctx.drawImage(img, x - drawW / 2, y - 115, drawW, targetH);
+            ctx.drawImage(img, x - drawW / 2, y - 112, drawW, targetH);
         }
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px "Press Start 2P"';
+        ctx.font = 'bold 22px "Press Start 2P"';
         const label = canChange ? `◀ ${fighter.name.toUpperCase()} ▶` : fighter.name.toUpperCase();
-        ctx.fillText(label, x, y + 135);
+        ctx.fillText(label, x, y + 130);
 
         ctx.fillStyle = '#99bbdd';
-        ctx.font = '14px "Press Start 2P"';
-        ctx.fillText(fighter.nickname || '', x, y + 165);
+        ctx.font = '13px "Press Start 2P"';
+        ctx.fillText(fighter.nickname || '', x, y + 158);
         ctx.restore();
     }
 }

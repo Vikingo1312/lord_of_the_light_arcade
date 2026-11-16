@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.33';
-import Projectile from '../entities/Projectile.js?v=2.33';
-import Hitbox from '../entities/Hitbox.js?v=2.33';
-import StageObjectManager from '../entities/StageObjects.js?v=2.33';
-import AIController from '../ai/AIController.js?v=2.33';
-import CombatHUD from '../ui/CombatHUD.js?v=2.33';
+import Fighter from '../entities/Fighter.js?v=2.34';
+import Projectile from '../entities/Projectile.js?v=2.34';
+import Hitbox from '../entities/Hitbox.js?v=2.34';
+import StageObjectManager from '../entities/StageObjects.js?v=2.34';
+import AIController from '../ai/AIController.js?v=2.34';
+import CombatHUD from '../ui/CombatHUD.js?v=2.34';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.33';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.33';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.33';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.33';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.33';
+} from '../core/AssetPreloader.js?v=2.34';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.34';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.34';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.34';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.34';
 
 export default class CombatState {
     constructor(game) {
@@ -970,6 +970,11 @@ export default class CombatState {
 
         for (const proj of this.projectiles) {
             proj.update(dt);
+            if (proj.hitGround) {
+                proj.hitGround = false;
+                this.spawnSparks(proj.x, proj.y, '#00eeff', '#ffffff', 12, 'heavy');
+                this.spawnGroundDust(proj.x, this.p1.groundY, '#88eeff');
+            }
         }
         this.checkProjectileCollisions();
         this.projectiles = this.projectiles.filter(p => p.alive && p.x > -50 && p.x < this.game.width + 50);
@@ -1128,18 +1133,43 @@ export default class CombatState {
     }
 
     _separateFighters(fA, fB) {
-        if (!fA || !fB || fA.state === 'KO' || fB.state === 'KO' || !fA.isGrounded || !fB.isGrounded) return;
-        const minDistance = 92;
+        if (!fA || !fB || fA.state === 'KO' || fB.state === 'KO') return;
+        // Street Fighter Body Pushbox & Blockbox Solver:
+        // Active whenever vertical distance is within torso height (< 185px),
+        // while high jumps (>= 185px above the opponent) cleanly cross over!
+        if (Math.abs(fA.y - fB.y) >= 185) return;
+
+        // Solid Blockbox expands pushbox to 144px so no fighter can walk, dash, or kick through a blocking opponent!
+        const eitherBlocking = Boolean(
+            fA.isActivelyGuarding || fA.blockStun > 0 ||
+            fB.isActivelyGuarding || fB.blockStun > 0
+        );
+        const minDistance = eitherBlocking ? 144 : 128;
         const dx = fB.x - fA.x;
         const dist = Math.abs(dx);
+
         if (dist < minDistance) {
-            const overlap = (minDistance - dist) / 2;
-            if (dx >= 0) {
-                fA.x -= overlap;
-                fB.x += overlap;
+            const totalOverlap = minDistance - dist;
+            // Deterministic direction even if landing directly on top of each other (dist < 4)
+            const dir = dist >= 4 ? (dx >= 0 ? 1 : -1) : (fA.facing === 1 ? 1 : -1);
+            const leftWall = 158;
+            const rightWall = this.game.width - 158;
+
+            // Corner-Aware Separation: If one fighter is pinned at the stage corner,
+            // push the other fighter 100% of the overlap away from the wall so they NEVER get glued together!
+            const aPinnedLeft = (dir === 1 && fA.x <= leftWall);
+            const aPinnedRight = (dir === -1 && fA.x >= rightWall);
+            const bPinnedRight = (dir === 1 && fB.x >= rightWall);
+            const bPinnedLeft = (dir === -1 && fB.x <= leftWall);
+
+            if (aPinnedLeft || aPinnedRight) {
+                fB.x += dir * totalOverlap;
+            } else if (bPinnedRight || bPinnedLeft) {
+                fA.x -= dir * totalOverlap;
             } else {
-                fA.x += overlap;
-                fB.x -= overlap;
+                const half = totalOverlap * 0.5;
+                fA.x -= dir * half;
+                fB.x += dir * half;
             }
         }
     }
@@ -1208,6 +1238,7 @@ export default class CombatState {
             projectiles: this.projectiles.map(p => ({
                 x: Math.round(p.x),
                 y: Math.round(p.y),
+                vy: Math.round(p.vy || 0),
                 facing: p.facing,
                 owner: p.owner,
                 charId: p.charId || this.p1.data.id
@@ -1273,27 +1304,32 @@ export default class CombatState {
                 const img = this.game.assetManager.images[`${sp.charId}_Cutin`];
                 const pr = new Projectile(sp.x, sp.y, sp.facing, sp.owner, img, this.game);
                 pr.charId = sp.charId;
+                pr.vy = sp.vy || 0;
                 return pr;
             });
         }
     }
 
     /**
-     * Unified Special Attack execution for P1, Ally, and P2 (Projectiles & Dash Specials).
-     * Properly consumes 100 Special Energy and supports Combo Canceling from connected attacks!
+     * Unified Special Attack execution for P1, Ally, and P2 (Grounded & Airborne Diagonal Projectiles + Dash Specials).
+     * Properly consumes 100 Special Energy and supports Combo Canceling from connected attacks AND Jumping Air Casts!
      */
     tryExecuteSpecial(fighter, ownerKey) {
-        const canCancelAttack = fighter.state === 'ATTACK' && fighter.attackHasHit && !fighter.attackWasBlocked;
-        if (fighter.state !== 'IDLE' && fighter.state !== 'WALK' && fighter.state !== 'CROUCH' && fighter.state !== 'DASH' && !canCancelAttack) {
+        const canCancelAttack = fighter.state === 'ATTACK' && (fighter.attackHasHit || !fighter.isGrounded) && !fighter.attackWasBlocked;
+        if (fighter.state !== 'IDLE' && fighter.state !== 'WALK' && fighter.state !== 'CROUCH' && fighter.state !== 'DASH' && fighter.state !== 'JUMP' && !canCancelAttack) {
             return false;
         }
-        if (fighter.specialEnergy < 100) return false;
+        const isAirCast = !fighter.isGrounded && (fighter.groundY - fighter.y > 35);
+        const hasFullSuper = fighter.specialEnergy >= 100;
+
+        // Grounded Super requires 100 energy; Airborne Diagonal Fireball works either with 100 energy OR on 0.72s cooldown!
+        if (!hasFullSuper && (!isAirCast || fighter.specialMoveCooldown > 0)) return false;
         if (this.projectiles.some(p => p.owner === ownerKey && p.charId === fighter.data.id && p.alive)) return false;
 
         const charId = fighter.data.id;
         const isSecondVariant = Boolean(fighter.data.special);
 
-        if (fighter.data.specialType === 'SPECIAL_DASH') {
+        if (fighter.data.specialType === 'SPECIAL_DASH' && !isAirCast) {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
             if (isSecondVariant) {
                 fighter.specialEnergy = 25; // Second-variant meter refund!
@@ -1319,63 +1355,88 @@ export default class CombatState {
             return true;
         }
 
-        if (!fighter.executeProjectileCast()) return false;
-        if (isSecondVariant) {
-            fighter.specialEnergy = charId === 'SupremeKeano' ? 35 : 25; // Evolved Second-Variant Super Meter Refund!
+        if (hasFullSuper) {
+            if (!fighter.executeProjectileCast()) return false;
+            if (isSecondVariant) {
+                fighter.specialEnergy = charId === 'SupremeKeano' ? 35 : 25; // Evolved Second-Variant Super Meter Refund!
+            }
+        } else {
+            // Free Diagonal Air Fireball / Lightball while jumping!
+            fighter.specialMoveCooldown = 0.72;
+            fighter.state = 'ATTACK';
+            fighter.stateTimer = 0;
+            fighter.attackHasHit = false;
+            fighter.attackWasBlocked = false;
+            fighter.attackHitCount = 0;
+            fighter.activeHitbox = null;
+            fighter.vy = -340;
+            fighter.vx = -fighter.facing * 140;
+            fighter.currentAttack = {
+                startup: 0.05, active: 0.16, recovery: 0.18,
+                damage: 0, pushback: 0, hitstop: 0, box: null, type: 'SPECIAL'
+            };
         }
 
-        this.superFreezeTimer = 0.24;
+        this.superFreezeTimer = isAirCast ? (hasFullSuper ? 0.14 : 0.06) : 0.24;
         this.superFreezeFighter = fighter;
-        this.cameraZoom = 1.04;
+        this.cameraZoom = isAirCast && !hasFullSuper ? 1.02 : 1.04;
         this.cameraFocusX = fighter.x;
         this.cameraFocusY = fighter.y - 155;
-        this.triggerCallout(fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!', '#ffd700', ownerKey);
+        this.triggerCallout(
+            isAirCast ? `☄️ AIR ${fighter.data.specialName || 'FIREBALL'}!` : (fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!'),
+            '#ffd700',
+            ownerKey
+        );
 
         const imgKey = `${charId}_Cutin`;
         const img = this.game.assetManager.images[imgKey];
         const pwrScale = (fighter.power || 100) / 100;
 
-        // Primary Projectile
+        // Primary Projectile (Diagonal Downward when jumping in the air!)
         const proj = new Projectile(
             fighter.x + fighter.facing * 80,
-            fighter.y - 145,
+            fighter.y - (isAirCast ? 115 : 145),
             fighter.facing,
             ownerKey,
             img,
             this.game
         );
         proj.charId = charId;
-        proj.damage = Math.round(proj.damage * pwrScale);
-        if (isSecondVariant) {
+        proj.damage = Math.round((hasFullSuper ? proj.damage : 22) * pwrScale);
+        if (isAirCast) {
+            proj.speed = isSecondVariant ? 960 : 880;
+            proj.vy = isSecondVariant ? 590 : 530; // Diagonal downward 32-degree trajectory!
+        } else if (isSecondVariant) {
             proj.speed = 1040; // Faster evolved projectile velocity!
         }
         this.projectiles.push(proj);
 
         // Evolved Second-Variant Twin / Barrage Projectile Mechanics!
-        if (charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX') {
-            if (charId === 'JayX') {
+        if (hasFullSuper && (charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
+            if (charId === 'JayX' && !isAirCast) {
                 // Jay X lunges forward with a phantom slash while firing his Void Wave!
                 fighter.vx = fighter.facing * 680;
                 fighter.hitImmunity = Math.max(fighter.hitImmunity, 0.24);
             }
             const twinProj = new Projectile(
                 fighter.x + fighter.facing * 15,
-                fighter.y - (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' ? 110 : 175)),
+                fighter.y - (isAirCast ? 155 : (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' ? 110 : 175))),
                 fighter.facing,
                 ownerKey,
                 img,
                 this.game
             );
             twinProj.charId = charId;
-            twinProj.speed = 880;
+            twinProj.speed = isAirCast ? 840 : 880;
+            twinProj.vy = isAirCast ? 440 : 0;
             twinProj.damage = Math.round(24 * pwrScale);
             this.projectiles.push(twinProj);
             this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'HyperEmely' ? '#ff66cc' : '#00ffff', '#ffffff', 14, 'heavy');
         }
 
-        playCombatSound(this.game.audioManager, 'super', fighter.data.id);
+        playCombatSound(this.game.audioManager, hasFullSuper ? 'super' : 'special', fighter.data.id);
         this.triggerShake(2.5, 0.10);
-        this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 2.5, d: 0.10 } });
+        this._emitNetEvent({ combatSound: { type: hasFullSuper ? 'super' : 'special', charId: fighter.data.id }, shake: { i: 2.5, d: 0.10 } });
         return true;
     }
 

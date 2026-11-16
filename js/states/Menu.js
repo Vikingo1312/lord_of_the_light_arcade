@@ -1,12 +1,12 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.33';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.33';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.33';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.33';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.34';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.34';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.34';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.34';
 
 export default class MenuState {
     constructor(game) {
         this.game = game;
-        this.options = ['STORY MODE', 'ARCADE MODE', 'VERSUS MODE', 'ONLINE / KOOP', 'OPTIONEN & KOMBOS'];
+        this.options = ['STORY', 'ARCADE', 'VERSUS', 'ONLINE & KOOP', 'OPTIONEN'];
         this.selectedIndex = 0;
         this.inputCooldown = 0;
         this.time = 0;
@@ -177,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.33`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.34`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -1155,23 +1155,42 @@ export default class MenuState {
         ctx.fillText("LORD OF THE LIGHT I", cx, titleY + 235);
         ctx.shadowBlur = 0;
 
-        // ─── Menu Options ───
-        ctx.font = 'bold 34px "Press Start 2P"';
+        // ─── Menu Options (Sleek Rounded Arcade-Neon Pill Buttons) ───
         const menuStartY = this.game.height * 0.61;
         for (let i = 0; i < this.options.length; i++) {
             const y = menuStartY + (i * 56);
             const isLocked = (i === 1 || i === 2) && !this.storyCompleted;
             const isOnline = (i === 3);
+            const isSel = (i === this.selectedIndex);
+            const btnW = 540;
+            const btnH = 46;
+            const accent = isLocked ? '#664444' : (isOnline ? '#00ff88' : '#00ffff');
 
-            if (i === this.selectedIndex) {
-                ctx.fillStyle = isLocked ? '#663333' : (isOnline ? '#00ff88' : '#00ffff');
-                const label = isLocked ? `🔒 ${this.options[i]}` : `> ${this.options[i]} <`;
-                ctx.fillText(label, cx, y);
+            ctx.save();
+            ctx.beginPath();
+            if (typeof ctx.roundRect === 'function') {
+                ctx.roundRect(cx - btnW / 2, y - 32, btnW, btnH, 23);
             } else {
-                ctx.fillStyle = isLocked ? '#444444' : (isOnline ? '#88ffbb' : '#aaaaaa');
-                const label = isLocked ? `🔒 ${this.options[i]}` : this.options[i];
-                ctx.fillText(label, cx, y);
+                ctx.rect(cx - btnW / 2, y - 32, btnW, btnH);
             }
+            if (isSel) {
+                ctx.shadowColor = accent;
+                ctx.shadowBlur = 16;
+                ctx.fillStyle = isOnline ? 'rgba(0, 255, 136, 0.22)' : 'rgba(0, 229, 255, 0.22)';
+            } else {
+                ctx.fillStyle = 'rgba(10, 16, 36, 0.78)';
+            }
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = isSel ? accent : (isOnline ? 'rgba(0, 255, 136, 0.45)' : 'rgba(0, 210, 255, 0.32)');
+            ctx.lineWidth = isSel ? 3 : 1.8;
+            ctx.stroke();
+
+            ctx.font = 'bold 26px "Press Start 2P"';
+            ctx.fillStyle = isSel ? (isLocked ? '#995555' : (isOnline ? '#00ff88' : '#00ffff')) : (isLocked ? '#666666' : (isOnline ? '#99ffcc' : '#e6f4ff'));
+            const label = isLocked ? `GESPERRT: ${this.options[i]}` : this.options[i];
+            ctx.fillText(label, cx, y + 1);
+            ctx.restore();
         }
 
         // ─── INSERT COIN + Credits ───
@@ -1277,51 +1296,46 @@ export default class MenuState {
         ctx.fillRect(cx - 650, 38, 1300, this.game.height - 76);
         ctx.strokeRect(cx - 650, 38, 1300, this.game.height - 76);
 
+        const drawPill = (x, y, w, h, r, fill, stroke, lw = 2) => {
+            ctx.beginPath();
+            if (typeof ctx.roundRect === 'function') ctx.roundRect(x, y, w, h, r);
+            else ctx.rect(x, y, w, h);
+            ctx.fillStyle = fill;
+            ctx.fill();
+            ctx.strokeStyle = stroke;
+            ctx.lineWidth = lw;
+            ctx.stroke();
+        };
+
         // Top-left back button pill for mobile/touch
-        ctx.fillStyle = 'rgba(255, 0, 85, 0.25)';
-        ctx.strokeStyle = '#ff0055';
-        ctx.lineWidth = 2.5;
-        ctx.fillRect(cx - 625, 56, 205, 48);
-        ctx.strokeRect(cx - 625, 56, 205, 48);
+        drawPill(cx - 625, 56, 205, 48, 24, 'rgba(255, 0, 85, 0.25)', '#ff0055', 2.5);
         ctx.font = 'bold 16px "Press Start 2P"';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
-        ctx.fillText('← ZURÜCK', cx - 522, 87);
+        ctx.fillText('◀ ZURÜCK', cx - 522, 87);
 
-        // Three Top Tab Buttons: [ 🎛️ SOUND & OPTIONEN ] | [ 🥋 KOMBO-SHOW ] | [ 🏆 FREISCHALT-GUIDE ]
+        // Three Top Tab Pills: [ SOUND & MIX ] | [ KOMBOS ] | [ FREISCHALTEN ]
         const isMixer = this.optionsTab === 'mixer';
         const isCombos = this.optionsTab === 'combos';
         const isUnlocks = this.optionsTab === 'unlocks';
 
-        // Tab 1: Sound & Optionen (x: cx - 405 .. cx - 73)
-        ctx.fillStyle = isMixer ? 'rgba(0, 229, 255, 0.28)' : 'rgba(20, 26, 52, 0.85)';
-        ctx.strokeStyle = isMixer ? '#00ffff' : '#334466';
-        ctx.lineWidth = isMixer ? 3 : 2;
-        ctx.fillRect(cx - 405, 56, 332, 48);
-        ctx.strokeRect(cx - 405, 56, 332, 48);
+        // Tab 1: Sound & Mix (x: cx - 405 .. cx - 73)
+        drawPill(cx - 405, 56, 332, 48, 24, isMixer ? 'rgba(0, 229, 255, 0.28)' : 'rgba(20, 26, 52, 0.85)', isMixer ? '#00ffff' : '#334466', isMixer ? 3 : 2);
         ctx.fillStyle = isMixer ? '#00ffff' : '#8899bb';
-        ctx.font = 'bold 14px "Press Start 2P"';
-        ctx.fillText('🎛️ SOUND & OPTIONEN', cx - 239, 86);
+        ctx.font = 'bold 15px "Press Start 2P"';
+        ctx.fillText('SOUND & MIX', cx - 239, 87);
 
-        // Tab 2: Steuerung & Kombo-Show (x: cx - 63 .. cx + 275)
-        ctx.fillStyle = isCombos ? 'rgba(255, 204, 0, 0.28)' : 'rgba(20, 26, 52, 0.85)';
-        ctx.strokeStyle = isCombos ? '#ffcc00' : '#334466';
-        ctx.lineWidth = isCombos ? 3 : 2;
-        ctx.fillRect(cx - 63, 56, 338, 48);
-        ctx.strokeRect(cx - 63, 56, 338, 48);
+        // Tab 2: Kombos (x: cx - 63 .. cx + 275)
+        drawPill(cx - 63, 56, 338, 48, 24, isCombos ? 'rgba(255, 204, 0, 0.28)' : 'rgba(20, 26, 52, 0.85)', isCombos ? '#ffcc00' : '#334466', isCombos ? 3 : 2);
         ctx.fillStyle = isCombos ? '#ffcc00' : '#8899bb';
-        ctx.font = 'bold 14px "Press Start 2P"';
-        ctx.fillText('🥋 KOMBO-SHOW', cx + 106, 86);
+        ctx.font = 'bold 15px "Press Start 2P"';
+        ctx.fillText('KOMBOS & MOVES', cx + 106, 87);
 
-        // Tab 3: Freischalt-Guide mit Bildern (x: cx + 285 .. cx + 630)
-        ctx.fillStyle = isUnlocks ? 'rgba(255, 85, 221, 0.28)' : 'rgba(20, 26, 52, 0.85)';
-        ctx.strokeStyle = isUnlocks ? '#ff66dd' : '#334466';
-        ctx.lineWidth = isUnlocks ? 3 : 2;
-        ctx.fillRect(cx + 285, 56, 345, 48);
-        ctx.strokeRect(cx + 285, 56, 345, 48);
+        // Tab 3: Freischalt-Guide (x: cx + 285 .. cx + 630)
+        drawPill(cx + 285, 56, 345, 48, 24, isUnlocks ? 'rgba(255, 85, 221, 0.28)' : 'rgba(20, 26, 52, 0.85)', isUnlocks ? '#ff66dd' : '#334466', isUnlocks ? 3 : 2);
         ctx.fillStyle = isUnlocks ? '#ff88ee' : '#8899bb';
-        ctx.font = 'bold 14px "Press Start 2P"';
-        ctx.fillText('🏆 FREISCHALT-GUIDE', cx + 457, 86);
+        ctx.font = 'bold 15px "Press Start 2P"';
+        ctx.fillText('FREISCHALT-GUIDE', cx + 457, 87);
 
         if (isCombos) {
             this._drawComboShowcase(ctx, cx);
@@ -1337,21 +1351,21 @@ export default class MenuState {
 
         ctx.font = 'bold 12px "Press Start 2P"';
         ctx.fillStyle = '#ffd700';
-        ctx.fillText('AUF REGLER ZIEHEN ODER OBEN AUF [🥋 KOMBO-SHOW] / [🏆 FREISCHALT-GUIDE] TIPPEN', cx, 134);
+        ctx.fillText('REGLER ZIEHEN ODER OBEN AUF [KOMBOS & MOVES] / [FREISCHALT-GUIDE] TIPPEN', cx, 134);
 
         const rows = [
             { label: 'MASTER VOL', type: 'slider', val: s.masterVolume ?? 1.00, max: 1.5, color: '#ffffff' },
             { label: 'MUSIK (BGM)', type: 'slider', val: s.musicVolume ?? 0.22, max: 1.0, color: '#00e5ff' },
             { label: 'FX & HITS', type: 'slider', val: s.sfxVolume ?? 0.90, max: 1.5, color: '#ff3366' },
-            { label: 'KÄMPFER-STIMMEN', type: 'slider', val: s.voiceVolume ?? 1.00, max: 1.5, color: '#ffd700' },
-            { label: 'ANNOUNCER / STORY', type: 'slider', val: s.announcerVolume ?? 0.95, max: 1.5, color: '#bb66ff' },
-            { label: 'VOICE-DUCKING (EQ)', type: 'value', value: s.bgmFilterEnabled ? 'AN (AUTO-MIX)' : 'AUS' },
-            { label: 'SCHWIERIGKEIT', type: 'value', value: s.difficulty },
-            { label: 'TIMER & TEMPO', type: 'value', value: `${s.timer}s · ${Math.round((s.speed || 1) * 100)}%` },
-            { label: '🥋 STEUERUNG & LIVE KOMBO-VORSCHAU ÖFFNEN', type: 'action', color: '#ffcc00' },
-            { label: '🏆 FREISCHALT-GUIDE (MIT BILDERN) ÖFFNEN', type: 'action', color: '#ff77ee' },
-            { label: '↺ STANDARD-STUDIO-MIX LADEN', type: 'action', color: '#00ff88' },
-            { label: '✓ SPEICHERN & ZURÜCK ZUM MENÜ', type: 'action', color: '#00ffff' },
+            { label: 'STIMMEN', type: 'slider', val: s.voiceVolume ?? 1.00, max: 1.5, color: '#ffd700' },
+            { label: 'ANNOUNCER', type: 'slider', val: s.announcerVolume ?? 0.95, max: 1.5, color: '#bb66ff' },
+            { label: 'VOICE-MIX', type: 'value', value: s.bgmFilterEnabled ? 'AN (AUTO)' : 'AUS' },
+            { label: 'KI-LEVEL', type: 'value', value: s.difficulty },
+            { label: 'ZEIT & TEMPO', type: 'value', value: `${s.timer}s · ${Math.round((s.speed || 1) * 100)}%` },
+            { label: 'KOMBOS & STEUERUNG', type: 'action', color: '#ffcc00' },
+            { label: 'FREISCHALT-GUIDE (BILDER)', type: 'action', color: '#ff77ee' },
+            { label: 'STANDARD-MIX LADEN', type: 'action', color: '#00ff88' },
+            { label: 'SPEICHERN & ZURÜCK', type: 'action', color: '#00ffff' },
         ];
 
         const startY = 186;
@@ -1366,11 +1380,9 @@ export default class MenuState {
             const isSel = i === this.optionIndex;
 
             if (isSel) {
-                ctx.fillStyle = 'rgba(0, 229, 255, 0.14)';
-                ctx.fillRect(cx - 560, y - 30, 1120, 44);
-                ctx.strokeStyle = '#00ffff';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(cx - 560, y - 30, 1120, 44);
+                drawPill(cx - 560, y - 30, 1120, 44, 22, 'rgba(0, 229, 255, 0.16)', '#00ffff', 2.5);
+            } else if (r.type === 'action') {
+                drawPill(cx - 380, y - 30, 760, 44, 22, 'rgba(18, 24, 48, 0.78)', r.color, 1.5);
             }
 
             if (r.type === 'slider') {

@@ -124,15 +124,59 @@ export default class AudioManager {
             this.sfxGain.gain.value = this._getSfxVol(0.90) * 1.25;
             this.sfxGain.connect(this.masterGain);
 
+            // Bus 3 & 4 Shared Cinematic Studio Voice Processor:
+            // Warm chest resonance (175Hz +3.5dB) + Anti-Robotic Mid-Notch (2650Hz -2.6dB) + Air Presence (6.5kHz +2.2dB) + Subtle Arena Ambience + Studio Compressor
+            const voiceLowShelf = this.audioCtx.createBiquadFilter();
+            voiceLowShelf.type = 'lowshelf';
+            voiceLowShelf.frequency.value = 175;
+            voiceLowShelf.gain.value = 3.5;
+
+            const voiceDeHarsh = this.audioCtx.createBiquadFilter();
+            voiceDeHarsh.type = 'peaking';
+            voiceDeHarsh.frequency.value = 2650;
+            voiceDeHarsh.Q.value = 1.35;
+            voiceDeHarsh.gain.value = -2.6;
+
+            const voiceAir = this.audioCtx.createBiquadFilter();
+            voiceAir.type = 'highshelf';
+            voiceAir.frequency.value = 6500;
+            voiceAir.gain.value = 2.2;
+
+            const voiceComp = this.audioCtx.createDynamicsCompressor();
+            voiceComp.threshold.value = -16;
+            voiceComp.knee.value = 12;
+            voiceComp.ratio.value = 2.6;
+            voiceComp.attack.value = 0.004;
+            voiceComp.release.value = 0.14;
+
+            // Subtle 26ms Arena Room Slapback (13% wet) so voices sound live in the arena, never flat/static
+            const roomDelay = this.audioCtx.createDelay(0.1);
+            roomDelay.delayTime.value = 0.026;
+            const roomLp = this.audioCtx.createBiquadFilter();
+            roomLp.type = 'lowpass';
+            roomLp.frequency.value = 2600;
+            const roomWet = this.audioCtx.createGain();
+            roomWet.gain.value = 0.13;
+
+            voiceLowShelf.connect(voiceDeHarsh);
+            voiceDeHarsh.connect(voiceAir);
+            voiceAir.connect(voiceComp);
+            voiceComp.connect(this.masterGain);
+
+            voiceAir.connect(roomDelay);
+            roomDelay.connect(roomLp);
+            roomLp.connect(roomWet);
+            roomWet.connect(voiceComp);
+
             // Bus 3: Fighter & Story Voices
             this.voiceGain = this.audioCtx.createGain();
             this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.40;
-            this.voiceGain.connect(this.masterGain);
+            this.voiceGain.connect(voiceLowShelf);
 
             // Bus 4: Arcade Announcer
             this.announcerGain = this.audioCtx.createGain();
             this.announcerGain.gain.value = this._getAnnouncerVol(0.95) * 1.30;
-            this.announcerGain.connect(this.masterGain);
+            this.announcerGain.connect(voiceLowShelf);
         } catch (e) {
             console.warn("WebAudio API not supported:", e);
         }
@@ -150,7 +194,7 @@ export default class AudioManager {
         const events = ['touchend', 'pointerup', 'click', 'keydown', 'touchstart'];
         for (const ev of events) {
             window.addEventListener(ev, handleGesture, { capture: true, passive: true });
-        }
+        };
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden && this.audioCtx && this.audioCtx.state !== 'running') {
                 this.audioCtx.resume().catch(() => {});
@@ -240,7 +284,8 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const res = await fetch(tryPath);
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.34`;
+            const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
             return await new Promise((resolve, reject) => {

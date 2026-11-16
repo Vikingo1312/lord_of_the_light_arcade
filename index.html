@@ -236,6 +236,7 @@
 
     <!-- PeerJS for P2P WebRTC Online Co-Op & 1v1 -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 
     <script>
         (function () {
@@ -327,14 +328,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.33').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.34').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.33"></script>
+    <script type="module" src="js/main.js?v=2.34"></script>
 </body>
 
 </html>

@@ -1,37 +1,62 @@
 /**
- * NetworkManager — Peer-to-Peer Online Multiplayer (WebRTC via PeerJS + BroadcastChannel fallback)
- * Connects two iPhones / browsers anywhere using a simple 4-digit Room Code.
+ * NetworkManager — Hybrid Cloud-Relay (MQTT-over-WSS) + WebRTC (PeerJS with TURN) + BroadcastChannel
+ * Connects two iPhones, Androids, or PCs anywhere (Wi-Fi, 5G, cross-network) using a 4-digit Room Code.
  * Supports:
- *  - CO-OP STORY MODE (Host = P1 e.g. Keano, Guest = Ally e.g. JJ Dark, fighting together through Story Mode!)
+ *  - CO-OP STORY MODE (Host = P1, Guest = Ally fighting side-by-side through Story Mode!)
  *  - 1v1 DUEL MODE (Host = P1, Guest = P2 fighting head-to-head!)
  */
-import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.33';
-import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.33';
+import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.34';
+import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.34';
 
-const PEER_PREFIX = 'lotl-arcade-v2-room-';
+const PEER_PREFIX = 'lotl-arcade-v234-room-';
+const MQTT_TOPIC_PREFIX = 'lotl-arcade-v234/room/';
 
+const MQTT_BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt'
+];
+
+// STUN + Free OpenRelay TURN servers so WebRTC traverses symmetric NATs, iOS Private Relay & 5G
 const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:global.stun.twilio.com:3478' }
+    { urls: 'stun:openrelay.metered.ca:80' },
+    {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    },
+    {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    },
+    {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+    }
 ];
 
 export default class NetworkManager {
     constructor(game) {
         this.game = game;
+        this.clientId = 'c_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36);
         this.peer = null;
         this.conn = null;
-        this.bc = null; // BroadcastChannel for instant local-tab testing
+        this.bc = null;          // BroadcastChannel for same-browser multi-tab testing
+        this.mqttClients = [];   // Redundant WSS MQTT clients for 100% firewall-proof mobile/PC relay
+        this._seqOut = 0;
+        this._seenPackets = new Set();
 
         this.active = false;
-        this.role = null;       // 'host' | 'guest' | null
-        this.roomCode = '';     // 4-digit code e.g. '4821'
-        this.status = 'idle';   // 'idle' | 'waiting' | 'connecting' | 'connected' | 'error'
+        this.role = null;        // 'host' | 'guest' | null
+        this.roomCode = '';      // 4-digit code e.g. '4821'
+        this.status = 'idle';    // 'idle' | 'waiting' | 'connecting' | 'connected' | 'error'
         this.errorMsg = '';
 
         // Online Game Configuration synced in Lobby
-        this.mode = 'coop';     // 'coop' (2v1 Story Co-Op) | 'duel' (1v1 Versus)
+        this.mode = 'coop';      // 'coop' (2v1 Story Co-Op) | 'duel' (1v1 Versus)
         this.hostCharId = 'Keano';
         this.guestCharId = 'JJDark';
         this.stageId = 'Dojo';
@@ -68,8 +93,9 @@ export default class NetworkManager {
         this.pendingCombatEvents = [];
 
         this._pingTimer = 0;
+        this._handshakeTimer = 0;
+        this._inputSendAccum = 0;
         this.latencyMs = 0;
-        this._lastPingSent = 0;
     }
 
     _emptyInput() {
@@ -100,6 +126,78 @@ export default class NetworkManager {
         });
     }
 
+    /** Ensure MQTT.js browser client is available for WSS Cloud Relay */
+    async _ensureMQTT() {
+        if (typeof window !== 'undefined' && window.mqtt) return true;
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js';
+            script.onload = () => resolve(Boolean(window.mqtt));
+            script.onerror = () => {
+                const fallback = document.createElement('script');
+                fallback.src = 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
+                fallback.onload = () => resolve(Boolean(window.mqtt));
+                fallback.onerror = () => resolve(false);
+                document.head.appendChild(fallback);
+            };
+            document.head.appendChild(script);
+        });
+    }
+
+    /** Setup redundant WSS Cloud Pub/Sub Relay channels for instant cross-network connection */
+    async _setupCloudRelay(code) {
+        this._closeCloudRelay();
+        const hasMqtt = await this._ensureMQTT();
+        if (!hasMqtt || !window.mqtt || !this.active || this.roomCode !== code) return;
+
+        const topic = `${MQTT_TOPIC_PREFIX}${code}`;
+        for (const brokerUrl of MQTT_BROKERS) {
+            try {
+                const client = window.mqtt.connect(brokerUrl, {
+                    clientId: `lotl_${this.clientId}_${Math.random().toString(36).slice(2, 6)}`,
+                    clean: true,
+                    connectTimeout: 5000,
+                    reconnectPeriod: 2000
+                });
+
+                client.on('connect', () => {
+                    if (!this.active || this.roomCode !== code) {
+                        try { client.end(true); } catch (e) {}
+                        return;
+                    }
+                    client.subscribe(topic, { qos: 0 }, (err) => {
+                        if (!err) {
+                            if (this.role === 'guest') {
+                                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode });
+                            } else if (this.role === 'host') {
+                                this.syncLobby();
+                            }
+                        }
+                    });
+                });
+
+                client.on('message', (rcvTopic, payload) => {
+                    if (rcvTopic !== topic || !payload) return;
+                    try {
+                        const text = typeof payload === 'string' ? payload : new TextDecoder().decode(payload);
+                        const data = JSON.parse(text);
+                        this._handleMessage(data);
+                    } catch (e) {}
+                });
+
+                client.on('error', () => {});
+                this.mqttClients.push({ client, topic });
+            } catch (e) {}
+        }
+    }
+
+    _closeCloudRelay() {
+        for (const item of this.mqttClients) {
+            try { item.client.end(true); } catch (e) {}
+        }
+        this.mqttClients = [];
+    }
+
     /** Host creates a room with a 4-digit code */
     async hostRoom(customCode = null, initialMode = 'coop') {
         this.disconnect();
@@ -115,10 +213,12 @@ export default class NetworkManager {
         // 1. Setup BroadcastChannel for same-device / local testing
         this._setupBroadcastChannel(this.roomCode);
 
-        // 2. Setup PeerJS for internet-wide iPhone-to-iPhone connection
+        // 2. Setup WSS Cloud Relay (Works 100% across iPhones, PCs, Wi-Fi & 5G!)
+        this._setupCloudRelay(this.roomCode);
+
+        // 3. Setup PeerJS WebRTC (with TURN servers) in parallel
         const hasPeer = await this._ensurePeerJS();
-        if (!hasPeer || !window.Peer) {
-            // BroadcastChannel still works for local multi-tab testing
+        if (!hasPeer || !window.Peer || !this.active) {
             return this.roomCode;
         }
 
@@ -126,7 +226,7 @@ export default class NetworkManager {
             const peerId = `${PEER_PREFIX}${this.roomCode}`;
             this.peer = new window.Peer(peerId, {
                 config: { iceServers: ICE_SERVERS },
-                debug: 1
+                debug: 0
             });
 
             this.peer.on('open', () => {
@@ -141,17 +241,12 @@ export default class NetworkManager {
             });
 
             this.peer.on('error', (err) => {
-                console.warn('[Online Host] Peer error:', err.type || err.message);
-                if (err.type === 'unavailable-id') {
+                if (err && err.type === 'unavailable-id') {
                     // Code collision: generate a fresh 4-digit code automatically
                     this.hostRoom(String(Math.floor(1000 + Math.random() * 9000)), this.mode);
-                } else if (this.status !== 'connected') {
-                    this.errorMsg = 'Netzwerk-Hinweis: ' + (err.type || 'Verbindung wird gesucht');
                 }
             });
-        } catch (e) {
-            console.warn('[Online Host] Peer init error:', e);
-        }
+        } catch (e) {}
 
         return this.roomCode;
     }
@@ -174,20 +269,23 @@ export default class NetworkManager {
 
         // 1. Setup BroadcastChannel for instant local-tab connection
         this._setupBroadcastChannel(cleanCode);
-        this._sendBC({ type: 'HELLO_FROM_GUEST', code: cleanCode });
+        this.send({ type: 'HELLO_FROM_GUEST', code: cleanCode });
 
-        // 2. Setup PeerJS for internet iPhone-to-iPhone connection
+        // 2. Setup WSS Cloud Relay (100% reliable mobile-to-PC and mobile-to-mobile!)
+        this._setupCloudRelay(cleanCode);
+
+        // 3. Setup PeerJS WebRTC (with TURN servers) in parallel
         const hasPeer = await this._ensurePeerJS();
-        if (!hasPeer || !window.Peer) return;
+        if (!hasPeer || !window.Peer || !this.active) return;
 
         try {
             this.peer = new window.Peer({
                 config: { iceServers: ICE_SERVERS },
-                debug: 1
+                debug: 0
             });
 
             this.peer.on('open', () => {
-                if (this.status === 'connected') return; // Already connected via BC
+                if (!this.active) return;
                 const hostPeerId = `${PEER_PREFIX}${cleanCode}`;
                 const conn = this.peer.connect(hostPeerId, {
                     reliable: true,
@@ -197,23 +295,14 @@ export default class NetworkManager {
                 this._setupDataConnection(conn);
             });
 
-            this.peer.on('error', (err) => {
-                console.warn('[Online Guest] Peer error:', err.type || err.message);
-                if (this.status !== 'connected') {
-                    this.status = 'error';
-                    this.errorMsg = err.type === 'peer-unavailable'
-                        ? `Raum ${cleanCode} nicht gefunden!`
-                        : 'Verbindungsfehler – bitte Code prüfen!';
-                }
+            this.peer.on('error', () => {
+                // Keep status='connecting' because Cloud Relay (WSS) connects independently of PeerJS!
             });
-        } catch (e) {
-            console.warn('[Online Guest] Peer init error:', e);
-        }
+        } catch (e) {}
     }
 
     _setupDataConnection(conn) {
         conn.on('open', () => {
-            console.log(`[Online] Connected to peer in room ${this.roomCode}!`);
             this.status = 'connected';
             this.errorMsg = '';
             if (this.role === 'guest') {
@@ -228,7 +317,8 @@ export default class NetworkManager {
         });
 
         conn.on('close', () => {
-            if (this.status === 'connected') {
+            // Only mark disconnected if MQTT relay isn't active
+            if (this.status === 'connected' && this.mqttClients.length === 0) {
                 this.errorMsg = 'Mitspieler hat die Verbindung getrennt.';
                 this.status = 'waiting';
             }
@@ -245,27 +335,42 @@ export default class NetworkManager {
                     this._handleMessage(ev.data);
                 }
             };
-        } catch (e) { }
+        } catch (e) {}
     }
 
     _sendBC(msg) {
         if (this.bc) {
-            try { this.bc.postMessage(msg); } catch (e) { }
+            try { this.bc.postMessage(msg); } catch (e) {}
         }
     }
 
     send(msg) {
-        if (!this.active) return;
-        let sentViaPeer = false;
+        if (!this.active || !msg) return;
+        const packet = {
+            ...msg,
+            _from: this.clientId,
+            _seq: ++this._seqOut
+        };
+
+        // 1. Send via direct WebRTC DataChannel if open
         if (this.conn && this.conn.open) {
-            try {
-                this.conn.send(msg);
-                sentViaPeer = true;
-            } catch (e) { }
+            try { this.conn.send(packet); } catch (e) {}
         }
-        if (!sentViaPeer) {
-            this._sendBC(msg);
+
+        // 2. Send via WSS Cloud Relay (MQTT) so NAT/firewalls never block packets
+        if (this.mqttClients.length > 0) {
+            const serialized = JSON.stringify(packet);
+            for (const item of this.mqttClients) {
+                if (item.client && item.client.connected) {
+                    try {
+                        item.client.publish(item.topic, serialized, { qos: 0 });
+                    } catch (e) {}
+                }
+            }
         }
+
+        // 3. Send via local BroadcastChannel
+        this._sendBC(packet);
     }
 
     syncLobby() {
@@ -281,6 +386,17 @@ export default class NetworkManager {
 
     _handleMessage(msg) {
         if (!msg || typeof msg !== 'object') return;
+        if (msg._from && msg._from === this.clientId) return; // Ignore own echoed packets
+
+        if (msg._from && msg._seq) {
+            const key = `${msg._from}:${msg._seq}`;
+            if (this._seenPackets.has(key)) return;
+            this._seenPackets.add(key);
+            if (this._seenPackets.size > 600) {
+                const firstKey = this._seenPackets.values().next().value;
+                this._seenPackets.delete(firstKey);
+            }
+        }
 
         switch (msg.type) {
             case 'HELLO_FROM_GUEST':
@@ -304,6 +420,8 @@ export default class NetworkManager {
 
             case 'GUEST_SELECT':
                 if (this.role === 'host') {
+                    this.status = 'connected';
+                    this.errorMsg = '';
                     if (msg.guestCharId) this.guestCharId = msg.guestCharId;
                     if (msg.mode === 'duel' || msg.mode === 'coop') this.mode = msg.mode;
                     this.syncLobby();
@@ -345,6 +463,7 @@ export default class NetworkManager {
 
             case 'STATE_SWITCH':
                 if (this.role === 'guest' && msg.stateName) {
+                    this.status = 'connected';
                     const data = msg.stateData || {};
                     if (data.p1) preloadFighterSprites(this.game.assetManager, data.p1);
                     if (data.p2) preloadFighterSprites(this.game.assetManager, data.p2);
@@ -379,7 +498,7 @@ export default class NetworkManager {
                 if (Array.isArray(msg.fighterIds)) {
                     try {
                         localStorage.setItem('lotl_story_complete', 'true');
-                    } catch (e) { }
+                    } catch (e) {}
                     for (const fid of msg.fighterIds) {
                         unlockFighter(fid);
                     }
@@ -400,11 +519,26 @@ export default class NetworkManager {
 
     /**
      * Called every frame by Game.js:
+     * - Periodically sends Lobby Handshake so Host & Guest discover each other automatically
      * - If Guest: captures local controller input and sends to Host
      * - Periodically measures ping
      */
     update(dt) {
-        if (!this.active || this.status !== 'connected') return;
+        if (!this.active) return;
+
+        // Automatic Lobby Discovery Heartbeat (every 0.8s while waiting/connecting or in Lobby)
+        this._handshakeTimer += dt;
+        if (this._handshakeTimer >= 0.8) {
+            this._handshakeTimer = 0;
+            const inLobby = this.game.stateManager?.currentState?.constructor?.name === 'OnlineLobbyState';
+            if (this.role === 'guest' && (this.status !== 'connected' || inLobby)) {
+                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode });
+            } else if (this.role === 'host' && inLobby && this.status === 'connected') {
+                this.syncLobby();
+            }
+        }
+
+        if (this.status !== 'connected') return;
 
         this._pingTimer += dt;
         if (this._pingTimer >= 2.0) {
@@ -425,45 +559,50 @@ export default class NetworkManager {
             if (this.game.inputManager.hasQCF(1)) L.qcfRight = true;
             if (this.game.inputManager.hasQCF(-1)) L.qcfLeft = true;
 
-            this.send({
-                type: 'INPUT',
-                input: {
-                    up: p1.up,
-                    down: p1.down,
-                    left: p1.left,
-                    right: p1.right,
-                    l: p1.l,
-                    h: p1.h,
-                    s: p1.s,
-                    dash: p1.dash,
-                    lJust: L.lJust,
-                    hJust: L.hJust,
-                    sJust: L.sJust,
-                    dashLeftJust: L.dashLeftJust,
-                    dashRightJust: L.dashRightJust,
-                    dashJust: L.dashJust,
-                    skipJust: L.skipJust,
-                    qcfRight: L.qcfRight,
-                    qcfLeft: L.qcfLeft
-                }
-            });
+            const hasUrgentLatch = L.lJust || L.hJust || L.sJust || L.dashLeftJust || L.dashRightJust || L.dashJust || L.skipJust || L.qcfRight || L.qcfLeft;
+            this._inputSendAccum += dt;
+            // Send immediately on button press, or at 30Hz steady rate for smooth movement
+            if (hasUrgentLatch || this._inputSendAccum >= 0.033) {
+                this._inputSendAccum = 0;
+                this.send({
+                    type: 'INPUT',
+                    input: {
+                        up: p1.up,
+                        down: p1.down,
+                        left: p1.left,
+                        right: p1.right,
+                        l: p1.l,
+                        h: p1.h,
+                        s: p1.s,
+                        dash: p1.dash,
+                        lJust: L.lJust,
+                        hJust: L.hJust,
+                        sJust: L.sJust,
+                        dashLeftJust: L.dashLeftJust,
+                        dashRightJust: L.dashRightJust,
+                        dashJust: L.dashJust,
+                        skipJust: L.skipJust,
+                        qcfRight: L.qcfRight,
+                        qcfLeft: L.qcfLeft
+                    }
+                });
 
-            // Reset outgoing edge-latches after sending
-            L.lJust = false;
-            L.hJust = false;
-            L.sJust = false;
-            L.dashLeftJust = false;
-            L.dashRightJust = false;
-            L.dashJust = false;
-            L.skipJust = false;
-            L.qcfRight = false;
-            L.qcfLeft = false;
+                L.lJust = false;
+                L.hJust = false;
+                L.sJust = false;
+                L.dashLeftJust = false;
+                L.dashRightJust = false;
+                L.dashJust = false;
+                L.skipJust = false;
+                L.qcfRight = false;
+                L.qcfLeft = false;
+            }
         }
     }
 
     /**
-     * Called by Host in Combat.js once per frame to get Guest's input
-     * and consume edge-triggered flags cleanly.
+     * Returns a fresh copy of the remote player's input for the current Host frame,
+     * consuming one-shot "Just" latches so special/attack presses trigger cleanly once.
      */
     consumeRemoteInput() {
         const out = {
@@ -501,17 +640,20 @@ export default class NetworkManager {
         this.errorMsg = '';
         this.latestSnapshot = null;
         this.pendingCombatEvents = [];
+        this._seenPackets.clear();
+
         if (this.conn) {
-            try { this.conn.close(); } catch (e) { }
+            try { this.conn.close(); } catch (e) {}
             this.conn = null;
         }
         if (this.peer) {
-            try { this.peer.destroy(); } catch (e) { }
+            try { this.peer.destroy(); } catch (e) {}
             this.peer = null;
         }
         if (this.bc) {
-            try { this.bc.close(); } catch (e) { }
+            try { this.bc.close(); } catch (e) {}
             this.bc = null;
         }
+        this._closeCloudRelay();
     }
 }
