@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.35';
-import Projectile from '../entities/Projectile.js?v=2.35';
-import Hitbox from '../entities/Hitbox.js?v=2.35';
-import StageObjectManager from '../entities/StageObjects.js?v=2.35';
-import AIController from '../ai/AIController.js?v=2.35';
-import CombatHUD from '../ui/CombatHUD.js?v=2.35';
+import Fighter from '../entities/Fighter.js?v=2.36';
+import Projectile from '../entities/Projectile.js?v=2.36';
+import Hitbox from '../entities/Hitbox.js?v=2.36';
+import StageObjectManager from '../entities/StageObjects.js?v=2.36';
+import AIController from '../ai/AIController.js?v=2.36';
+import CombatHUD from '../ui/CombatHUD.js?v=2.36';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.35';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.35';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.35';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.35';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.35';
+} from '../core/AssetPreloader.js?v=2.36';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.36';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.36';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.36';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.36';
 
 export default class CombatState {
     constructor(game) {
@@ -1412,7 +1412,7 @@ export default class CombatState {
         this.projectiles.push(proj);
 
         // Evolved Second-Variant Twin / Barrage Projectile Mechanics!
-        if (hasFullSuper && (charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
+        if (hasFullSuper && (charId === 'Annikina' || charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
             if (charId === 'JayX' && !isAirCast) {
                 // Jay X lunges forward with a phantom slash while firing his Void Wave!
                 fighter.vx = fighter.facing * 680;
@@ -1420,7 +1420,7 @@ export default class CombatState {
             }
             const twinProj = new Projectile(
                 fighter.x + fighter.facing * 15,
-                fighter.y - (isAirCast ? 155 : (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' ? 110 : 175))),
+                fighter.y - (isAirCast ? 155 : (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' || charId === 'Annikina' ? 110 : 175))),
                 fighter.facing,
                 ownerKey,
                 img,
@@ -1428,10 +1428,10 @@ export default class CombatState {
             );
             twinProj.charId = charId;
             twinProj.speed = isAirCast ? 840 : 880;
-            twinProj.vy = isAirCast ? 440 : 0;
+            twinProj.vy = isAirCast ? 440 : (charId === 'Annikina' ? -55 : 0);
             twinProj.damage = Math.round(24 * pwrScale);
             this.projectiles.push(twinProj);
-            this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'HyperEmely' ? '#ff66cc' : '#00ffff', '#ffffff', 14, 'heavy');
+            this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'Annikina' ? '#ff6600' : (charId === 'HyperEmely' ? '#ff66cc' : '#00ffff'), '#ffffff', 14, 'heavy');
         }
 
         playCombatSound(this.game.audioManager, hasFullSuper ? 'super' : 'special', fighter.data.id);

@@ -284,4 +284,15 @@ export const STORY_DIALOGUES = {
         heroReply: 'Mais oui! Meine Diamant-Eislanze durchbricht jede Deckung!',
         winQuote: 'Magnifique! Cayle Minogue liefert eiskalt ab — niemand bricht diesen Diamanten!',
     },
+    Annikina: {
+        dimension: 'KNEIPEN-ARENA · BRATPFANNEN & STEAK-HOMERUN',
+        specialAttack: 'STEAK HOMERUN',
+        superAttack: 'BRATPFANNEN-INFERNO',
+        introQuote: 'Pass gut auf, Schatz: Ich bin die Mama von Keano und Emy! Ein Meter sechzig im Alpha-Bomber, und gleich fliegt dir mein brennendes Steak direkt aus der Bratpfanne um die Ohren!',
+        keanoReply: 'Mama?! Mit der Bratpfanne und den brennenden Steaks bist du absolut unaufhaltsam, ich schwör!',
+        jaydenReply: 'Eins-sechzig pure Kneipenterroristen-Power — zeig ihnen, was deine Bratpfanne draufhat, Annikina!',
+        jayXReply: 'Alpha-Bomber, High-Tops und brennende Steaks — dein Style ist legendär, Annikina!',
+        heroReply: 'Bei Mama wird aufgegessen — meine Gusseisen-Bratpfanne ist heiß für den nächsten Steak-Homerun!',
+        winQuote: 'Leg dich niemals mit der Mama von Keano und Emy an! Bratpfanne glänzt, High-Tops sitzen — Kneipenterroristen-Style gewinnt immer!',
+    },
 };

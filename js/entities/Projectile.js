@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.35';
+import Hitbox from './Hitbox.js?v=2.36';
 
 export default class Projectile {
     constructor(x, y, facing, owner, img, game) {
@@ -74,12 +74,13 @@ export default class Projectile {
         ctx.save();
 
         const isP1 = this.owner === 'p1';
+        const isAnnikina = this.charId === 'Annikina';
         const isEmely = this.charId === 'Emely' || this.charId === 'HyperEmely';
         const isCayle = this.charId === 'Cayle' || this.charId === 'CayleMinogue';
-        const coreColor = isEmely ? '#ff66b2' : (isCayle ? '#66f0ff' : (isP1 ? '#00eeff' : '#ff5500'));
-        const midRgba = isEmely ? '255, 110, 190' : (isCayle ? '80, 225, 255' : (isP1 ? '0, 210, 255' : '255, 110, 20'));
-        const outerRgba = isEmely ? '220, 40, 140' : (isCayle ? '20, 150, 255' : (isP1 ? '0, 110, 255' : '220, 30, 0'));
-        const hotRgba = isEmely ? '255, 225, 245' : (isCayle ? '235, 252, 255' : (isP1 ? '210, 250, 255' : '255, 240, 180'));
+        const coreColor = isAnnikina ? '#ff6600' : (isEmely ? '#ff66b2' : (isCayle ? '#66f0ff' : (isP1 ? '#00eeff' : '#ff5500')));
+        const midRgba = isAnnikina ? '255, 110, 20' : (isEmely ? '255, 110, 190' : (isCayle ? '80, 225, 255' : (isP1 ? '0, 210, 255' : '255, 110, 20')));
+        const outerRgba = isAnnikina ? '220, 40, 0' : (isEmely ? '220, 40, 140' : (isCayle ? '20, 150, 255' : (isP1 ? '0, 110, 255' : '220, 30, 0')));
+        const hotRgba = isAnnikina ? '255, 240, 180' : (isEmely ? '255, 225, 245' : (isCayle ? '235, 252, 255' : (isP1 ? '210, 250, 255' : '255, 240, 180')));
         const shimmerOn = !this.game || !this.game.settings || this.game.settings.shimmerEnabled !== false;
 
         ctx.translate(this.x, this.y);

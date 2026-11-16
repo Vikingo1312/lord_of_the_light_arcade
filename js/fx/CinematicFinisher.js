@@ -205,6 +205,14 @@ export const FINISHER_MOVES = {
         color2: '#ffffff',
         bgTint: '#020b24',
         style: 'SHADOW_CLONES'
+    },
+    Annikina: {
+        title: 'BRATPFANNEN-STEAK-INFERNO',
+        subtitle: 'KNEIPENTERRORISTEN BASEBALL-HOMERUN',
+        color1: '#ff6600',
+        color2: '#ffcc00',
+        bgTint: '#1f0800',
+        style: 'THUNDER_HAMMER'
     }
 };
 

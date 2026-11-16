@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.35';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.35';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.35';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.35';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.36';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.36';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.36';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.36';
 
 export default class MenuState {
     constructor(game) {
@@ -177,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.35`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.36`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -387,13 +387,13 @@ export default class MenuState {
 
         if (this.optionsTab === 'unlocks') {
             if (isDrag) return;
-            // Check tap on 2x5 Unlock Guide Cards
-            const startY = 212;
-            const rowStep = 116;
+            // Check tap on 2x6 Unlock Guide Cards
+            const startY = 204;
+            const rowStep = 97;
             const col0X = cx - 620;
             const col1X = cx + 10;
             const cardW = 610;
-            const cardH = 104;
+            const cardH = 90;
             for (let i = 0; i < UNLOCK_CHAIN_GUIDE.length; i++) {
                 const col = i % 2;
                 const row = Math.floor(i / 2);
@@ -1473,13 +1473,13 @@ export default class MenuState {
         ctx.fillStyle = '#ffffff';
         ctx.fillText('Spiele STORY oder ARCADE mit dem linken Kämpfer durch ➔ schaltet den rechten Spezial-Kämpfer frei!', cx, 178);
 
-        // 2. 2x5 Visual Grid of Unlock Chains with Fighter Portraits
-        const startY = 212;
-        const rowStep = 116;
+        // 2. 2x6 Visual Grid of Unlock Chains with Fighter Portraits
+        const startY = 204;
+        const rowStep = 97;
         const col0X = cx - 620;
         const col1X = cx + 10;
         const cardW = 610;
-        const cardH = 104;
+        const cardH = 90;
 
         const fighterMap = {};
         for (const f of ALL_FIGHTERS) fighterMap[f.id] = f;
@@ -1508,56 +1508,56 @@ export default class MenuState {
             // LEFT PORTRAIT (Play with this fighter)
             const playImg = this.game.assetManager.images[`${chain.playId}_front.png`];
             ctx.fillStyle = '#0a0f24';
-            ctx.fillRect(x + 10, y + 8, 72, 72);
+            ctx.fillRect(x + 10, y + 6, 64, 64);
             if (playImg) {
-                ctx.drawImage(playImg, x + 10, y + 8, 72, 72);
+                ctx.drawImage(playImg, x + 10, y + 6, 64, 64);
             }
             ctx.strokeStyle = '#00ffff';
             ctx.lineWidth = 2;
-            ctx.strokeRect(x + 10, y + 8, 72, 72);
+            ctx.strokeRect(x + 10, y + 6, 64, 64);
 
             ctx.textAlign = 'center';
             ctx.font = 'bold 9px "Press Start 2P"';
             ctx.fillStyle = '#00ffff';
-            const playShort = (playChar ? playChar.name : chain.playId).replace(/[⚡👑🔥🌸❄️]/g, '').trim();
-            ctx.fillText(playShort.substring(0, 12), x + 46, y + 95);
+            const playShort = (playChar ? playChar.name : chain.playId).replace(/[⚡👑🔥🌸❄️🍳🥩]/g, '').trim();
+            ctx.fillText(playShort.substring(0, 12), x + 42, y + 83);
 
             // CENTER ARROW (➔ ARCADE / STORY SIEG ➔)
             ctx.font = 'bold 10px "Press Start 2P"';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText('STORY', x + 132, y + 36);
-            ctx.font = 'bold 16px "Press Start 2P"';
+            ctx.fillText('STORY', x + 128, y + 32);
+            ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('➔ SIEG ➔', x + 132, y + 60);
+            ctx.fillText('➔ SIEG ➔', x + 128, y + 54);
             ctx.font = '9px "Press Start 2P"';
             ctx.fillStyle = '#88ccff';
-            ctx.fillText('ARCADE', x + 132, y + 80);
+            ctx.fillText('ARCADE', x + 128, y + 73);
 
             // RIGHT PORTRAIT (Unlocked Special Fighter)
             const unlockImg = this.game.assetManager.images[`${chain.unlockId}_front.png`];
             ctx.fillStyle = '#140a24';
-            ctx.fillRect(x + 188, y + 8, 72, 72);
+            ctx.fillRect(x + 184, y + 6, 64, 64);
             if (unlockImg) {
-                ctx.drawImage(unlockImg, x + 188, y + 8, 72, 72);
+                ctx.drawImage(unlockImg, x + 184, y + 6, 64, 64);
             }
             ctx.strokeStyle = unlocked ? '#ffd700' : '#ff3366';
             ctx.lineWidth = 2.5;
-            ctx.strokeRect(x + 188, y + 8, 72, 72);
+            ctx.strokeRect(x + 184, y + 6, 64, 64);
 
             ctx.font = 'bold 9px "Press Start 2P"';
             ctx.fillStyle = unlocked ? '#00ff88' : '#ff5577';
-            ctx.fillText(unlocked ? '✓ FREI' : '🔒 GESPERRT', x + 224, y + 95);
+            ctx.fillText(unlocked ? '✓ FREI' : '🔒 GESPERRT', x + 216, y + 83);
 
             // RIGHT INFO TEXT (Name, Outfit & Special Attack)
             ctx.textAlign = 'left';
-            ctx.font = 'bold 13px "Press Start 2P"';
+            ctx.font = 'bold 12px "Press Start 2P"';
             ctx.fillStyle = unlocked ? '#ffd700' : '#ff99cc';
             const unlockTitle = unlockChar ? unlockChar.name : chain.unlockId;
-            ctx.fillText(unlockTitle.substring(0, 22), x + 272, y + 28);
+            ctx.fillText(unlockTitle.substring(0, 22), x + 262, y + 25);
 
-            ctx.font = '10px "Press Start 2P"';
+            ctx.font = '9px "Press Start 2P"';
             ctx.fillStyle = '#00ffff';
-            ctx.fillText(`SPIELE MIT: ${playShort.toUpperCase()}`, x + 272, y + 50);
+            ctx.fillText(`SPIELE MIT: ${playShort.toUpperCase()}`, x + 262, y + 45);
 
             // Word-wrap chain.desc into 2 short lines on the card
             ctx.font = '9px "Press Start 2P"';
@@ -1565,11 +1565,11 @@ export default class MenuState {
             const descWords = (chain.desc || '').split(' ');
             let l1 = '', l2 = '';
             for (const w of descWords) {
-                if ((l1 + ' ' + w).trim().length <= 32) l1 = (l1 + ' ' + w).trim();
+                if ((l1 + ' ' + w).trim().length <= 33) l1 = (l1 + ' ' + w).trim();
                 else l2 = (l2 + ' ' + w).trim();
             }
-            ctx.fillText(l1, x + 272, y + 71);
-            if (l2) ctx.fillText(l2.substring(0, 34), x + 272, y + 88);
+            ctx.fillText(l1, x + 262, y + 64);
+            if (l2) ctx.fillText(l2.substring(0, 35), x + 262, y + 80);
         }
 
         // 3. Bottom Highlight Banner for Selected Unlock Chain (y: 794 .. 852)

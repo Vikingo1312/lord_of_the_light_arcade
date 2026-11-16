@@ -26,7 +26,7 @@ export default class BootState {
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');
 
         // Premium Intro Logo
-        this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png?v=2.35');
+        this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png?v=2.36');
 
         // Dynamically load ALL fighter portraits for the Character Select grid
         const { ALL_FIGHTERS, STAGES } = await import('../data.js');

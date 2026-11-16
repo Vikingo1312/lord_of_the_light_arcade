@@ -1,4 +1,4 @@
-import { STAGES } from '../data.js?v=2.35';
+import { STAGES } from '../data.js?v=2.36';
 
 const AUDIO_MAP = {
     'Keano': 'keano',
@@ -26,6 +26,7 @@ const AUDIO_MAP = {
     'HyperEmely': 'hyper_emely',
     'Cayle': 'cayle',
     'CayleMinogue': 'cayle_minogue',
+    'Annikina': 'annikina',
 };
 
 /**
@@ -45,7 +46,7 @@ export function preloadFighterSprites(assetManager, char) {
         '_windup_kick', '_mid_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick'
     ];
 
-    const ver = '?v=2.35';
+    const ver = '?v=2.36';
     for (const suf of [...coreSuffixes, ...extraSuffixes]) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {

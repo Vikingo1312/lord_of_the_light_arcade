@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.35';
+import Hitbox from './Hitbox.js?v=2.36';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -52,8 +52,8 @@ export default class Fighter {
         this.isBlocking = false;
         this.blockStun = 0;
 
-        // Base Hurtbox (Normalized Street Fighter torso bounds across all 25 fighters so no fighter feels sticky or mismatched)
-        this.baseHurtboxHeight = 315;
+        // Base Hurtbox (Normalized Street Fighter torso bounds, scaled by heightScale e.g. 0.89 for 1.60m Annikina)
+        this.baseHurtboxHeight = Math.round(315 * (this.data?.heightScale || 1.0));
         this.baseHurtboxWidth = 136;
         this.hurtbox = new Hitbox(-this.baseHurtboxWidth / 2, 0, this.baseHurtboxWidth, this.baseHurtboxHeight);
 
@@ -798,12 +798,13 @@ export default class Fighter {
         const isAerial = !this.isGrounded;
         // Distinct Style Frame Speed & Hitbox Reach Modifiers
         const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.80
-            : (styleId === 'LIGHT_DRAGON' ? 0.84
+            : (styleId === 'LIGHT_DRAGON' || styleId === 'KNEIPEN_TERRORIST' ? 0.84
             : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.86
             : (styleId === 'MASTER_STRIKER' ? 0.88 : 1.0)));
         const reachBonus = styleId === 'MASTER_STRIKER' ? 38
+            : (styleId === 'KNEIPEN_TERRORIST' ? 26
             : (styleId === 'VALHALLA_BERSERKER' ? 22
-            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0));
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0)));
 
         // Play authentic martial-arts swing whoosh SFX
         const isHeavySwing = (type !== 'LIGHT' && type !== 'CROUCH_LIGHT');
@@ -819,13 +820,13 @@ export default class Fighter {
                 type: 'LIGHT'
             };
         } else if (type === 'COMMAND_PUNCH') {
-            // → + L: Spinning Overhead Backfist / Phantom Blitz / Armor Hammer (breaks crouching block!)
-            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 520 : (styleId === 'VALHALLA_BERSERKER' ? 360 : 300));
+            // → + L: Spinning Overhead Backfist / Phantom Blitz / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 520 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 360 : 300));
             this.currentAttack = {
                 startup: 0.07 * spdMul, active: 0.15, recovery: 0.23 * spdMul,
-                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 32 : 27) * pwrMul), pushback: 265, hitstop: 0.11,
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 32 : 27) * pwrMul), pushback: 265, hitstop: 0.11,
                 isOverhead: true,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
                 box: new Hitbox(-16, 65, 212 + reachBonus, 165),
                 type: 'COMMAND_PUNCH'
             };
@@ -841,7 +842,7 @@ export default class Fighter {
             if (this.isGrounded) this.vx = this.facing * 330;
             this.currentAttack = {
                 startup: 0.062 * spdMul, active: 0.17, recovery: 0.28,
-                damage: Math.round((styleId === 'LIGHT_DRAGON' ? 44 : 39) * pwrMul), pushback: 420, hitstop: 0.14,
+                damage: Math.round((styleId === 'LIGHT_DRAGON' || styleId === 'KNEIPEN_TERRORIST' ? 44 : 39) * pwrMul), pushback: 420, hitstop: 0.14,
                 lift: styleId === 'LIGHT_DRAGON' ? -360 : -250,
                 box: new Hitbox(-16, 55, 226 + reachBonus, 175),
                 type: 'COMBO_FINISHER'
@@ -856,8 +857,8 @@ export default class Fighter {
                 type: 'CROUCH_LIGHT'
             };
         } else if (type === 'HEAVY') {
-            if (isAerial && (styleId === 'SHADOW_ASSASSIN' || styleId === 'CAPOEIRA_TRICKSTER')) {
-                // Signature Aerial Dive-Kick for Assassins & Capoeira Tricksters!
+            if (isAerial && (styleId === 'SHADOW_ASSASSIN' || styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'KNEIPEN_TERRORIST')) {
+                // Signature Aerial Dive-Kick!
                 this.vx = this.facing * 720;
                 this.vy = Math.max(this.vy, 780);
             } else if (this.isGrounded) {
@@ -865,24 +866,24 @@ export default class Fighter {
             }
             this.currentAttack = {
                 startup: 0.08 * spdMul, active: 0.16, recovery: 0.26,
-                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 42 : 36) * pwrMul),
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 42 : 36) * pwrMul),
                 pushback: styleId === 'VALHALLA_BERSERKER' ? 490 : 380,
                 hitstop: 0.14,
                 lift: isAerial ? -140 : -170,
                 isOverhead: isAerial,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
                 box: isAerial ? new Hitbox(-16, -35, 205 + reachBonus, 175) : new Hitbox(-16, 65, 222 + reachBonus, 165),
                 type: 'HEAVY'
             };
         } else if (type === 'AXE_KICK') {
-            // → + H: Step Axe Kick (heavy overhead chop kick!)
+            // → + H: Step Axe Kick / Bratpfannen-Schelle von oben!
             if (this.isGrounded) this.vx = this.facing * 350;
             this.currentAttack = {
                 startup: 0.085 * spdMul, active: 0.17, recovery: 0.26,
-                damage: Math.round((styleId === 'VALHALLA_BERSERKER' ? 46 : 42) * pwrMul), pushback: 390, hitstop: 0.15,
+                damage: Math.round((styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 46 : 42) * pwrMul), pushback: 390, hitstop: 0.15,
                 lift: -220,
                 isOverhead: true,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER'),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
                 box: new Hitbox(-16, 50, 224 + reachBonus, 190),
                 type: 'AXE_KICK'
             };
@@ -1218,6 +1219,11 @@ export default class Fighter {
                         if (phase < startup) suffix = '_windup_punch.png';
                         else if (phase < retractStart) suffix = '_backfist.png';
                         else suffix = '_mid_punch.png';
+                    } else if (stId === 'KNEIPEN_TERRORIST') {
+                        // Kneipenterrorist 1st Hit: Bratpfannen Forehand Smash!
+                        if (phase < startup) suffix = '_windup_punch.png';
+                        else if (phase < retractStart) suffix = '_punch.png';
+                        else suffix = '_hook_punch.png';
                     } else if (stId === 'TITAN_GRAPPLER' || stId === 'VALHALLA_BERSERKER') {
                         // Heavy Brawler / Berserker: Crushing Hook Smash!
                         if (phase < startup) suffix = '_windup_punch.png';
@@ -1237,6 +1243,12 @@ export default class Fighter {
                         else if (phase < midPoint) suffix = '_low_kick.png';
                         else if (phase < retractStart) suffix = '_axe_kick.png';
                         else suffix = '_spin_kick.png';
+                    } else if (stId === 'KNEIPEN_TERRORIST') {
+                        // Kneipenterrorist 2nd Hit: Two-Handed Bratpfannen Overhead -> Backhand Clang!
+                        if (phase < startup) suffix = '_windup_punch.png';
+                        else if (phase < midPoint) suffix = '_hook_punch.png';
+                        else if (phase < retractStart) suffix = '_backfist.png';
+                        else suffix = '_uppercut.png';
                     } else if (stId === 'SHADOW_ASSASSIN') {
                         // Assassin 2nd Hit: Rising Shadow Uppercut!
                         if (phase < startup) suffix = '_mid_punch.png';
@@ -1264,6 +1276,12 @@ export default class Fighter {
                         if (phase < startup) suffix = '_spin_kick.png';
                         else if (phase < retractStart) suffix = '_hurricane_kick.png';
                         else suffix = '_axe_kick.png';
+                    } else if (stId === 'KNEIPEN_TERRORIST') {
+                        // Kneipenterrorist 3rd Hit: Blazing Bratpfannen Uppercut -> Homerun Batter Finish!
+                        if (phase < startup) suffix = '_uppercut.png';
+                        else if (phase < startup + active * 0.50) suffix = '_dragon_uppercut.png';
+                        else if (phase < retractStart) suffix = '_special.png';
+                        else suffix = '_right.png';
                     } else if (stId === 'SHADOW_ASSASSIN') {
                         if (phase < startup) suffix = '_backfist.png';
                         else if (phase < retractStart) suffix = '_dive_kick.png';
@@ -1288,6 +1306,12 @@ export default class Fighter {
                         else if (phase < startup + active * 0.55) suffix = '_dive_kick.png';
                         else if (phase < retractStart) suffix = '_axe_kick.png';
                         else suffix = '_spin_kick.png';
+                    } else if (stId === 'KNEIPEN_TERRORIST') {
+                        // Kneipenterrorist Heavy: High-Top Sneaker Front Stomp -> Spinning Roundhouse!
+                        if (phase < startup) suffix = '_windup_kick.png';
+                        else if (phase < startup + active * 0.50) suffix = '_kick.png';
+                        else if (phase < retractStart) suffix = '_spin_kick.png';
+                        else suffix = '_axe_kick.png';
                     } else if (stId === 'SHADOW_ASSASSIN') {
                         // Shadow Assassin Heavy: Spinning Hurricane Crescent Kick!
                         if (phase < startup) suffix = '_windup_kick.png';
@@ -1396,7 +1420,8 @@ export default class Fighter {
             const refIdleImg = this._getSprite('_right.png');
             const isStanceDerived = (suffix === '_right.png' || suffix === '_idle_2.png' || suffix === '_walk.png' || suffix === '_walk_1.png' || suffix === '_walk_2.png' || suffix === '_crouch.png' || suffix === '_block.png' || suffix === '_jump.png' || suffix === '_windup_punch.png' || suffix === '_windup_kick.png');
             const refH = (isStanceDerived && refIdleImg && refIdleImg.naturalHeight) ? refIdleImg.naturalHeight : spriteImage.naturalHeight;
-            const scale = 400 / refH;
+            const targetHeight = 400 * (this.data?.heightScale || 1.0);
+            const scale = targetHeight / refH;
             const drawW = spriteImage.naturalWidth * scale;
             const drawH = spriteImage.naturalHeight * scale;
 

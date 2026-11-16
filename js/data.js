@@ -107,6 +107,23 @@ export const FIGHT_STYLES = {
         sig2Badges: ['↓+K', '➔', 'P', '➔', '↑+S'],
         sig2Dmg: '98 DMG · KONTER-LAUNCHER',
         sig2Desc: 'Tiefer Feger direkt gecancelt in einen aufsteigenden Meister-Drachenschlag!'
+    },
+    KNEIPEN_TERRORIST: {
+        id: 'KNEIPEN_TERRORIST',
+        name: 'KNEIPENTERRORISTEN',
+        badge: '🍳 BRATPFANNE & STEAK-HOMERUN',
+        color: '#ff7700',
+        passive: '1.60m Power & Gusseisen-Armor: Kompakte Hitbox + Super-Armor auf Bratpfannen-Schwinger!',
+        sig1Name: 'BRATPFANNEN-SCHELLE VON OBEN',
+        sig1Input: 'P ➔ P ➔ →+K  (Pfannen-Kombo!)',
+        sig1Badges: ['P', '➔', 'P', '➔', '→+K'],
+        sig1Dmg: '96 DMG · BRICHT JEDE DECKUNG!',
+        sig1Desc: 'Schnelle Bratpfannen-Kombination, beendet mit einem beidhändigen Gusseisen-Überkopf-Smash!',
+        sig2Name: 'BURNING STEAK BASEBALL HOMERUN',
+        sig2Input: 'P ➔ K ➔ S  (Steak-Homerun!)',
+        sig2Badges: ['P', '➔', 'K', '➔', 'S'],
+        sig2Dmg: '112 DMG · DOPPEL-STEAK-SALVE',
+        sig2Desc: 'High-Top-Sneaker-Kick direkt in den Baseball-Bratpfannen-Homerun mit brennenden T-Bone-Steaks!'
     }
 };
 
@@ -140,6 +157,7 @@ export const SPECIALS = [
     { id: 'HyperEmely', folder: '17.1.Hyper_Emely', name: '🌸 Hyper-Emy 🌸', nickname: 'Sakura Empress', country: 'Ascended', special: true, stageId: 'Japan', unlockedBy: 'Emely', hp: 365, speed: 655, power: 128, styleId: 'CAPOEIRA_TRICKSTER', specialName: 'HYPER SAKURA BEAM', superName: 'EMPRESS OF SAKURA OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'hyper_emely', cutinFile: 'proj_hyper_emely.png' },
     { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'Russia', unlockedBy: 'Cayle', hp: 355, speed: 670, power: 126, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
+    { id: 'Annikina', folder: '19.Annikina', name: '🍳 Annikina 🥩', nickname: 'Mama & Kneipenterroristin', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', heightScale: 0.89, hp: 365, speed: 675, power: 130, styleId: 'KNEIPEN_TERRORIST', specialName: 'STEAK HOMERUN', superName: 'BRATPFANNEN-INFERNO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
@@ -154,6 +172,7 @@ export const UNLOCK_CHAIN_GUIDE = [
     { playId: 'Vikingo', unlockId: 'Simba', desc: 'Story / Arcade mit Vikingo durchspielen' },
     { playId: 'Simba', unlockId: 'Emely', desc: 'Story / Arcade mit Simba durchspielen' },
     { playId: 'Emely', unlockId: 'HyperEmely', desc: 'Story / Arcade mit 🌸 Emy 🌸 durchspielen' },
+    { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Story / Arcade mit 🌸 Hyper-Emy 🌸 durchspielen' },
     { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
 ];
 
@@ -184,11 +203,13 @@ export const STAGES = {
     'Valhalla': { file: '14_Dark Vikingo_Valhalla_Boss.png', music: 'main_soundtrack.mp3', name: 'Valhalla Gates' },
     'Supreme_Keano': { file: 'stage_Supreme_Keano.png', music: 'main_soundtrack.mp3', name: 'Supreme Ascendance' },
     'Canada': { file: 'Extra_Canada.png', music: 'main_soundtrack.mp3', name: 'Canada Arena' },
+    'Annikina_Pub': { file: '19_Annikina_Arena.png', music: '19_Annikina.mp3', name: 'Kneipenterroristen Grill' },
 };
 /**
  * EXTRA STAGES — Versus Mode only (random pool)
  */
 export const EXTRA_STAGES = [
+    { file: '19_Annikina_Arena.png', name: 'Kneipenterroristen Grill' },
     { file: 'Extra_Canada.png', name: 'Canada Arena' },
     { file: 'Extra_Colosseum.png', name: 'Gladiator Colosseum' },
     { file: 'Extra_France.png', name: 'Paris Rooftops' },

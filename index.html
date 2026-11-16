@@ -14,7 +14,7 @@
                 if (isLocal || hasJanParam || isVip) {
                     localStorage.setItem('lotl_vip_jan', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
-                    var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue'];
+                    var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina'];
                     for (var i = 0; i < allSpecials.length; i++) {
                         localStorage.setItem('unlock_' + allSpecials[i], 'true');
                     }
@@ -328,14 +328,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.35').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.36').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.35"></script>
+    <script type="module" src="js/main.js?v=2.36"></script>
 </body>
 
 </html>
