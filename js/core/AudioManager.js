@@ -284,7 +284,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.34`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.35`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
