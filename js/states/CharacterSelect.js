@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.36';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.36';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.36';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.37';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.37';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.37';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -26,10 +26,25 @@ export default class CharacterSelectState {
     enter(data) {
         console.log("Entering Character Select");
         this.arcadeMode = data && data.arcadeMode !== undefined ? data.arcadeMode : false;
-        this.p1Index = 0;
+        const annikinaIdx = this.allFighters.findIndex(f => f.id === 'Annikina');
+        const isJanVip = typeof localStorage !== 'undefined' && localStorage.getItem('lotl_vip_jan') === 'true';
+        this.p1Index = (isJanVip && annikinaIdx >= 0) ? annikinaIdx : 0;
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
         this.p2Locked = false;
+
+        // Guarantee all fighter portraits are queued & loaded
+        let needsLoad = false;
+        for (const char of this.allFighters) {
+            const key = `${char.id}_front.png`;
+            if (!this.game.assetManager.images[key]) {
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.37`);
+                needsLoad = true;
+            }
+        }
+        if (needsLoad) {
+            this.game.assetManager.loadAll();
+        }
 
         // In Versus mode, P1 picks P2. So start P2's cursor at P1's position initially.
         if (!this.arcadeMode) {

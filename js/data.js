@@ -157,7 +157,7 @@ export const SPECIALS = [
     { id: 'HyperEmely', folder: '17.1.Hyper_Emely', name: '🌸 Hyper-Emy 🌸', nickname: 'Sakura Empress', country: 'Ascended', special: true, stageId: 'Japan', unlockedBy: 'Emely', hp: 365, speed: 655, power: 128, styleId: 'CAPOEIRA_TRICKSTER', specialName: 'HYPER SAKURA BEAM', superName: 'EMPRESS OF SAKURA OVERDRIVE', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'hyper_emely', cutinFile: 'proj_hyper_emely.png' },
     { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'Russia', unlockedBy: 'Cayle', hp: 355, speed: 670, power: 126, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
-    { id: 'Annikina', folder: '19.Annikina', name: '🍳 Annikina 🥩', nickname: 'Mama & Kneipenterroristin', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', heightScale: 0.89, hp: 365, speed: 675, power: 130, styleId: 'KNEIPEN_TERRORIST', specialName: 'STEAK HOMERUN', superName: 'BRATPFANNEN-INFERNO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
+    { id: 'Annikina', folder: '19.Annikina', name: '🍳 Annikina 🥩', nickname: 'Mama & Kneipenterroristin', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', unlockedByAny: ['SupremeKeano', 'HyperEmely', 'CayleMinogue', 'HyperKeano', 'Emely'], heightScale: 0.89, hp: 365, speed: 675, power: 130, styleId: 'KNEIPEN_TERRORIST', specialName: 'STEAK HOMERUN', superName: 'BRATPFANNEN-INFERNO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
@@ -172,7 +172,7 @@ export const UNLOCK_CHAIN_GUIDE = [
     { playId: 'Vikingo', unlockId: 'Simba', desc: 'Story / Arcade mit Vikingo durchspielen' },
     { playId: 'Simba', unlockId: 'Emely', desc: 'Story / Arcade mit Simba durchspielen' },
     { playId: 'Emely', unlockId: 'HyperEmely', desc: 'Story / Arcade mit 🌸 Emy 🌸 durchspielen' },
-    { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Story / Arcade mit 🌸 Hyper-Emy 🌸 durchspielen' },
+    { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Mit Kinder-Weiterentwicklungen (Hyper-Emy / Supreme Keano) siegen!' },
     { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
 ];
 
@@ -245,16 +245,25 @@ export function isFighterUnlocked(id) {
     if (ROSTER.find(f => f.id === id)) return true;
     if (syncJanBrowserUnlocks()) return true;
     // Check localStorage
-    const saved = localStorage.getItem(`unlock_${id}`);
-    return saved === 'true';
+    if (localStorage.getItem(`unlock_${id}`) === 'true') return true;
+    // Special rule for Mama Annikina: automatically unlocked once the evolved children (SupremeKeano + HyperEmely) are unlocked!
+    if (id === 'Annikina') {
+        const hasEvolvedKeano = localStorage.getItem('unlock_SupremeKeano') === 'true' || localStorage.getItem('unlock_HyperKeano') === 'true';
+        const hasEvolvedEmy = localStorage.getItem('unlock_HyperEmely') === 'true';
+        if (hasEvolvedKeano && hasEvolvedEmy) {
+            localStorage.setItem('unlock_Annikina', 'true');
+            return true;
+        }
+    }
+    return false;
 }
 export function unlockFighter(id) {
     // If they beat the game with a specific character, unlock the next in their bloodline
-    const specialToUnlock = SPECIALS.find(s => s.unlockedBy === id);
+    const specialToUnlock = SPECIALS.find(s =>
+        !isFighterUnlocked(s.id) &&
+        (s.unlockedBy === id || (Array.isArray(s.unlockedByAny) && s.unlockedByAny.includes(id)))
+    );
     if (!specialToUnlock) return null; // No unlock for this fighter
-    if (!isFighterUnlocked(specialToUnlock.id)) {
-        localStorage.setItem(`unlock_${specialToUnlock.id}`, 'true');
-        return specialToUnlock; // Return who was just unlocked
-    }
-    return null; // Already unlocked
+    localStorage.setItem(`unlock_${specialToUnlock.id}`, 'true');
+    return specialToUnlock; // Return who was just unlocked
 }

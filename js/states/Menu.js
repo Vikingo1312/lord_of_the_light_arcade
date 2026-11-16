@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.36';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.36';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.36';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.36';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.37';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.37';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.37';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.37';
 
 export default class MenuState {
     constructor(game) {
@@ -177,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/${f.prefix}_front.png?v=2.36`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.37`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -217,7 +217,21 @@ export default class MenuState {
         const style = getFighterStyle(fighter);
         let sig1Frames, sig2Frames;
 
-        if (style.id === 'TITAN_GRAPPLER') {
+        if (style.id === 'KNEIPEN_TERRORIST') {
+            sig1Frames = [
+                { suffix: '_windup_punch.png', dur: 0.16, x: 18, y: 0 },
+                { suffix: '_punch.png', dur: 0.22, x: 44, y: 0, slash: 'gold', hit: 'PFANNEN-HIT!' },
+                { suffix: '_hook_punch.png', dur: 0.24, x: 74, y: -12, slash: 'fire', hit: 'ÜBERKOPF-SMASH!' },
+                { suffix: '_axe_kick.png', dur: 0.30, x: 102, y: -22, slash: 'super', hit: 'DECKUNG GEBROCHEN!' },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+            sig2Frames = [
+                { suffix: '_punch.png', dur: 0.18, x: 32, y: 0, slash: 'gold', hit: 'BRATPFANNE!' },
+                { suffix: '_kick.png', dur: 0.22, x: 64, y: 0, slash: 'fire', hit: 'SNEAKER STOMP!' },
+                { suffix: '_special.png', dur: 0.45, x: 96, y: -12, slash: 'super', hit: 'STEAK HOMERUN!!', proj: true },
+                { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
+            ];
+        } else if (style.id === 'TITAN_GRAPPLER') {
             sig1Frames = [
                 { suffix: '_punch.png', dur: 0.22, x: 35, y: 0, slash: 'cyan', hit: 'JAB GRIP!' },
                 { suffix: '_backfist.png', dur: 0.22, x: 68, y: 0, slash: 'gold', hit: 'LOCK ON!' },
@@ -679,12 +693,19 @@ export default class MenuState {
             if (this.credits <= 0) return;
 
             if (this.selectedIndex === 0) {
-                // STORY MODE
+                // STORY MODE — if story completed or special fighters unlocked, let player pick their fighter (e.g. Annikina!) for the Story run
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
                 this.isTransitioning = true;
-                this.startStoryMode();
+                if (this.storyCompleted || isFighterUnlocked('Annikina')) {
+                    this.game.audioManager.stopBGM();
+                    setTimeout(() => {
+                        this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: true });
+                    }, 400);
+                } else {
+                    this.startStoryMode();
+                }
             } else if (this.selectedIndex === 1) {
                 // ARCADE MODE — locked until story complete
                 if (!this.storyCompleted) return;
