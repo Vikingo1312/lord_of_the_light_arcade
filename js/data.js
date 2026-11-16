@@ -224,8 +224,7 @@ export function syncJanBrowserUnlocks() {
     const host = window.location.hostname || '';
     const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
     const hasJanParam = window.location.search.includes('jan=1') || window.location.hash.includes('jan');
-    const hasJanExistingSave = localStorage.getItem('unlock_Vikingo') === 'true' || localStorage.getItem('unlock_Simba') === 'true';
-    if (isJanLocal || hasJanParam || hasJanExistingSave || localStorage.getItem('lotl_vip_jan') === 'true') {
+    if (isJanLocal || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');

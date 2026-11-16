@@ -10,7 +10,7 @@
                 var host = window.location.hostname || '';
                 var isLocal = (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.endsWith('.local'));
                 var hasJanParam = window.location.search.indexOf('jan=1') !== -1 || window.location.hash.indexOf('jan') !== -1;
-                var isVip = localStorage.getItem('lotl_vip_jan') === 'true' || localStorage.getItem('unlock_Vikingo') === 'true' || localStorage.getItem('unlock_Simba') === 'true';
+                var isVip = localStorage.getItem('lotl_vip_jan') === 'true';
                 if (isLocal || hasJanParam || isVip) {
                     localStorage.setItem('lotl_vip_jan', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
