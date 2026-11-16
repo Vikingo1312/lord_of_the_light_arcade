@@ -4,9 +4,9 @@
  *  1) CO-OP STORY MODE (Keano & JJ Dark fight side-by-side through the Story & unlock secret fighters!)
  *  2) 1v1 DUEL MODE (Keano vs JJ Dark head-to-head!)
  */
-import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js';
-import { STORY_PROLOGUE } from '../story_data.js';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js';
+import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.33';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.33';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.33';
 
 export default class OnlineLobbyState {
     constructor(game) {

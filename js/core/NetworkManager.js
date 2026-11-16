@@ -5,8 +5,8 @@
  *  - CO-OP STORY MODE (Host = P1 e.g. Keano, Guest = Ally e.g. JJ Dark, fighting together through Story Mode!)
  *  - 1v1 DUEL MODE (Host = P1, Guest = P2 fighting head-to-head!)
  */
-import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js';
-import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js';
+import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.33';
+import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.33';
 
 const PEER_PREFIX = 'lotl-arcade-v2-room-';
 
