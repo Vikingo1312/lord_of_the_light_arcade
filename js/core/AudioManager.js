@@ -264,7 +264,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.40`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.41`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
@@ -568,10 +568,17 @@ export default class AudioManager {
 
         if (type === 'hit') {
             if (this._fighterVoicePlaying || this._announcerPlaying) return;
-            if (now - this._lastHitVoiceTime < 850) return;
+            if (now - this._lastHitVoiceTime < 950) return;
             this._lastHitVoiceTime = now;
         } else {
-            if (this._fighterVoicePlaying && prio < this._fighterVoicePriority) return;
+            // Never interrupt an active full sentence (select, taunt, special, super, intro, ko, win) with same or lower priority!
+            if (this._fighterVoicePlaying && prio <= this._fighterVoicePriority) {
+                return;
+            }
+            // If Announcer is currently roaring ("ROUND 1!", "FIGHT!", "K.O.!"), wait for Announcer to finish before speaking win/intro!
+            if (this._announcerPlaying && (type === 'taunt' || type === 'special')) {
+                return;
+            }
         }
 
         this.stopFighterVoice();
@@ -665,7 +672,7 @@ export default class AudioManager {
         }
         this._initWebAudio();
 
-        // Only silence low-priority hit grunts (never cut off intro/win speeches!)
+        // Only silence low-priority hit grunts (never cut off select/intro/ko/win speeches!)
         if (this._fighterVoicePriority <= 1) {
             this.stopFighterVoice();
         }

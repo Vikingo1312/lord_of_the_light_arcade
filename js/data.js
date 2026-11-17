@@ -111,19 +111,19 @@ export const FIGHT_STYLES = {
     KNEIPEN_TERRORIST: {
         id: 'KNEIPEN_TERRORIST',
         name: 'KNEIPENTERRORISTEN',
-        badge: '🍳 BRATPFANNE & STEAK-HOMERUN',
+        badge: '🔥 KNEIPEN-BRAWLER',
         color: '#ff7700',
-        passive: '1.60m Power & Gusseisen-Armor: Kompakte Hitbox + Super-Armor auf Bratpfannen-Schwinger!',
-        sig1Name: 'BRATPFANNEN-SCHELLE VON OBEN',
-        sig1Input: 'P ➔ P ➔ →+K  (Pfannen-Kombo!)',
+        passive: 'Gusseisen-Armor: Super-Armor & +26px Reichweite auf schwere Schwinger!',
+        sig1Name: 'IRON FLAME OVERHEAD CRUSH',
+        sig1Input: 'P ➔ P ➔ →+K',
         sig1Badges: ['P', '➔', 'P', '➔', '→+K'],
         sig1Dmg: '96 DMG · BRICHT JEDE DECKUNG!',
-        sig1Desc: 'Schnelle Bratpfannen-Kombination, beendet mit einem beidhändigen Gusseisen-Überkopf-Smash!',
-        sig2Name: 'BURNING STEAK BASEBALL HOMERUN',
-        sig2Input: 'P ➔ K ➔ S  (Steak-Homerun!)',
+        sig1Desc: 'Schnelle Kombination, beendet mit einem beidhändigen Überkopf-Smash!',
+        sig2Name: 'HELLFIRE METEOR BARRAGE',
+        sig2Input: 'P ➔ K ➔ S',
         sig2Badges: ['P', '➔', 'K', '➔', 'S'],
-        sig2Dmg: '112 DMG · DOPPEL-STEAK-SALVE',
-        sig2Desc: 'High-Top-Sneaker-Kick direkt in den Baseball-Bratpfannen-Homerun mit brennenden T-Bone-Steaks!'
+        sig2Dmg: '112 DMG · DOPPEL-FEUER-SALVE',
+        sig2Desc: 'High-Top-Kick direkt gecancelt in die brennende Doppel-Salve!'
     }
 };
 

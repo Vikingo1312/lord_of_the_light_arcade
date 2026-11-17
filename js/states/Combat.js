@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.40';
-import Projectile from '../entities/Projectile.js?v=2.40';
-import Hitbox from '../entities/Hitbox.js?v=2.40';
-import StageObjectManager from '../entities/StageObjects.js?v=2.40';
-import AIController from '../ai/AIController.js?v=2.40';
-import CombatHUD from '../ui/CombatHUD.js?v=2.40';
+import Fighter from '../entities/Fighter.js?v=2.41';
+import Projectile from '../entities/Projectile.js?v=2.41';
+import Hitbox from '../entities/Hitbox.js?v=2.41';
+import StageObjectManager from '../entities/StageObjects.js?v=2.41';
+import AIController from '../ai/AIController.js?v=2.41';
+import CombatHUD from '../ui/CombatHUD.js?v=2.41';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.40';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.40';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.40';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.40';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.40';
+} from '../core/AssetPreloader.js?v=2.41';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.41';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.41';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.41';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.41';
 
 export default class CombatState {
     constructor(game) {
@@ -738,7 +738,12 @@ export default class CombatState {
                 this.shakeIntensity = 0;
             }
 
-            if (this.koFreezeTimer >= 3.5 || (this.koFreezeTimer >= 0.85 && p1.skipJust)) {
+            const koSpeechStillPlaying = Boolean(
+                (this.game.audioManager.isFighterVoicePlaying?.() || this.game.audioManager.isAnnouncerPlaying?.()) &&
+                this.koFreezeTimer < 6.2
+            );
+
+            if ((!koSpeechStillPlaying && this.koFreezeTimer >= 3.2) || (this.koFreezeTimer >= 0.85 && p1.skipJust)) {
                 this.matchPhase = 'POST_MATCH';
                 this.inputCooldown = 15;
                 this.shakeTimer = 0;
@@ -750,7 +755,11 @@ export default class CombatState {
                 if (this.winner === 'p1' && this.ally && this.ally.state !== 'KO') {
                     this.ally.state = 'WIN';
                 }
-                playFighterSound(this.game.audioManager, winnerFighter.data.id, 'win');
+                setTimeout(() => {
+                    if (this.matchPhase === 'POST_MATCH') {
+                        playFighterSound(this.game.audioManager, winnerFighter.data.id, 'win');
+                    }
+                }, 220);
             }
             if (isOnlineHost) this._broadcastHostSnapshot();
             return;
@@ -1956,6 +1965,9 @@ export default class CombatState {
             ctx.fillRect(0, 0, this.game.width, this.game.height);
         }
 
+        // 1a. Dynamic Street Fighter Animated Stage Atmosphere (Grill Embers, Cherry Blossoms, Frost, Neon Sparks)
+        this._drawStageAtmosphere(ctx);
+
         // 1b. Street Fighter Alpha K.O. Sunburst Background Flash (during first 1.25s of KO_FREEZE)
         if (this.matchPhase === 'KO_FREEZE' && this.koFreezeTimer < 1.25) {
             ctx.save();
@@ -2129,5 +2141,69 @@ export default class CombatState {
         if (this.paused) {
             CombatHUD.drawPause(ctx, this);
         }
+    }
+
+    _drawStageAtmosphere(ctx) {
+        const w = this.game.width;
+        const h = this.game.height;
+        const t = (performance.now() * 0.001);
+        const st = this.stageId || 'Japan';
+
+        ctx.save();
+        // 1. Subtle dynamic arena spotlight pulse on combos / heavy action
+        if ((this.p1ComboCount >= 2 && this.p1ComboTimer > 0) || (this.p2ComboCount >= 2 && this.p2ComboTimer > 0) || this.shakeTimer > 0) {
+            ctx.globalCompositeOperation = 'screen';
+            ctx.fillStyle = st === 'Annikina_Pub' || st === 'Valhalla' || st === 'Spain'
+                ? 'rgba(255, 110, 20, 0.08)'
+                : (st === 'Russia' ? 'rgba(0, 200, 255, 0.08)' : 'rgba(255, 220, 90, 0.07)');
+            ctx.fillRect(0, 0, w, h);
+        }
+
+        // 2. Stage-specific animated floating elements (zero GC allocations)
+        ctx.globalCompositeOperation = 'screen';
+        const isFireStage = (st === 'Annikina_Pub' || st === 'Valhalla' || st === 'Spain' || st === 'Mexico' || st === 'India');
+        const isSnowStage = (st === 'Russia' || st === 'Canada');
+        const isBlossomStage = (st === 'Japan' || st === 'China');
+
+        const count = 24;
+        for (let i = 0; i < count; i++) {
+            const seed = i * 137.5;
+            if (isFireStage) {
+                // Rising grill/forge embers
+                const px = ((seed * 19 + Math.sin(t * 1.8 + i) * 45) % w + w) % w;
+                const py = h - (((t * (55 + (i % 5) * 14) + seed * 11) % (h * 0.85)));
+                const alpha = Math.max(0.1, Math.min(0.75, (py / h) * 0.75));
+                const r = 2 + (i % 3) * 1.4;
+                ctx.fillStyle = (i % 2 === 0) ? `rgba(255, 140, 20, ${alpha})` : `rgba(255, 220, 80, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(px, py, r, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (isSnowStage) {
+                // Whipping Siberian frost crystals
+                const px = ((seed * 23 - t * (140 + (i % 4) * 28)) % w + w) % w;
+                const py = ((t * (75 + (i % 5) * 15) + seed * 17) % h);
+                ctx.fillStyle = 'rgba(210, 245, 255, 0.55)';
+                ctx.beginPath();
+                ctx.arc(px, py, 2 + (i % 3), 0, Math.PI * 2);
+                ctx.fill();
+            } else if (isBlossomStage) {
+                // Drifting sakura / temple petals
+                const px = ((seed * 17 + t * 42 + Math.sin(t * 1.5 + i) * 35) % w + w) % w;
+                const py = ((t * (38 + (i % 4) * 10) + seed * 13) % h);
+                ctx.fillStyle = (i % 2 === 0) ? 'rgba(255, 160, 210, 0.55)' : 'rgba(255, 220, 240, 0.48)';
+                ctx.beginPath();
+                ctx.ellipse(px, py, 4.5, 2.4, t + i, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Neon / Cosmic arena light motes
+                const px = ((seed * 29 + Math.sin(t * 1.2 + i) * 50) % w + w) % w;
+                const py = h - (((t * (34 + (i % 4) * 9) + seed * 19) % (h * 0.85)));
+                ctx.fillStyle = (i % 2 === 0) ? 'rgba(0, 229, 255, 0.42)' : 'rgba(255, 215, 0, 0.38)';
+                ctx.beginPath();
+                ctx.arc(px, py, 2.2 + (i % 2), 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
     }
 }
