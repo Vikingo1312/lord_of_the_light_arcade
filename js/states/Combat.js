@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.48';
-import Projectile from '../entities/Projectile.js?v=2.48';
-import Hitbox from '../entities/Hitbox.js?v=2.48';
-import StageObjectManager from '../entities/StageObjects.js?v=2.48';
-import AIController from '../ai/AIController.js?v=2.48';
-import CombatHUD from '../ui/CombatHUD.js?v=2.48';
+import Fighter from '../entities/Fighter.js?v=2.49';
+import Projectile from '../entities/Projectile.js?v=2.49';
+import Hitbox from '../entities/Hitbox.js?v=2.49';
+import StageObjectManager from '../entities/StageObjects.js?v=2.49';
+import AIController from '../ai/AIController.js?v=2.49';
+import CombatHUD from '../ui/CombatHUD.js?v=2.49';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.48';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.48';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.48';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.48';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.48';
+} from '../core/AssetPreloader.js?v=2.49';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.49';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.49';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.49';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.49';
 
 export default class CombatState {
     constructor(game) {
@@ -894,7 +894,7 @@ export default class CombatState {
             const holdingBack = Boolean(p1[backDir] || (!anyLiveDir && im.wasDirRecent(backDir, 150)));
             const holdingUp = Boolean(p1.up || (!anyLiveDir && im.wasDirRecent('up', 150)));
             const holdingDown = Boolean(p1.down || (!anyLiveDir && im.wasDirRecent('down', 150)));
-            const canGroundedOrEarlyJump = this.p1.isGrounded || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.28);
+            const canGroundedOrEarlyJump = this.p1.isGrounded || this.p1.state === 'DASH' || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.28);
 
             if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= 190 && this.p1.isGrounded && this.p2.isGrounded) {
                 // ← + P (Back + Punch at close range), D + P, or P + K: Unblockable Street Fighter Throw!
