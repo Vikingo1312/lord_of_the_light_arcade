@@ -5,8 +5,8 @@
  *  - CO-OP STORY MODE (Host = P1, Guest = Ally fighting side-by-side through Story Mode!)
  *  - 1v1 DUEL MODE (Host = P1, Guest = P2 fighting head-to-head!)
  */
-import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.39';
-import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.39';
+import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.40';
+import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.40';
 
 const PEER_PREFIX = 'lotl-arcade-v234-room-';
 const MQTT_TOPIC_PREFIX = 'lotl-arcade-v234/room/';
