@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.46';
-import Projectile from '../entities/Projectile.js?v=2.46';
-import Hitbox from '../entities/Hitbox.js?v=2.46';
-import StageObjectManager from '../entities/StageObjects.js?v=2.46';
-import AIController from '../ai/AIController.js?v=2.46';
-import CombatHUD from '../ui/CombatHUD.js?v=2.46';
+import Fighter from '../entities/Fighter.js?v=2.47';
+import Projectile from '../entities/Projectile.js?v=2.47';
+import Hitbox from '../entities/Hitbox.js?v=2.47';
+import StageObjectManager from '../entities/StageObjects.js?v=2.47';
+import AIController from '../ai/AIController.js?v=2.47';
+import CombatHUD from '../ui/CombatHUD.js?v=2.47';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.46';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.46';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.46';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.46';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.46';
+} from '../core/AssetPreloader.js?v=2.47';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.47';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.47';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.47';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.47';
 
 export default class CombatState {
     constructor(game) {
@@ -887,15 +887,20 @@ export default class CombatState {
             const hasQCF = im.hasQCF(this.p1.facing);
             const hasBF = im.hasBackForward(this.p1.facing);
             const hasDU = im.hasDownUp();
-            const holdingFwd = (this.p1.facing === 1 && p1.right) || (this.p1.facing === -1 && p1.left);
-            const holdingBack = (this.p1.facing === 1 && p1.left) || (this.p1.facing === -1 && p1.right);
-            const canGroundedOrEarlyJump = this.p1.isGrounded || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.24);
+            const fwdDir = this.p1.facing === 1 ? 'right' : 'left';
+            const backDir = this.p1.facing === 1 ? 'left' : 'right';
+            const holdingFwd = Boolean(p1[fwdDir] || im.wasDirRecent(fwdDir, 180));
+            const holdingBack = Boolean(p1[backDir] || im.wasDirRecent(backDir, 180));
+            const holdingUp = Boolean(p1.up || im.wasDirRecent('up', 180));
+            const holdingDown = Boolean(p1.down || im.wasDirRecent('down', 180));
+            const canGroundedOrEarlyJump = this.p1.isGrounded || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.28);
 
             if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= 190 && this.p1.isGrounded && this.p2.isGrounded) {
                 // ← + P (Back + Punch at close range), D + P, or P + K: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
+                im.clearMotionHistory();
             } else if ((p1.specialRushJust || (p1.sJust && holdingBack) || (p1.hJust && hasQCF)) && this.p1.specialMoveCooldown <= 0) {
                 // ← + S (Back + Special), P+S / K+S, or ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
                 p1InputCopy.commandMove = 'DRAGON_RUSH_COMBO';
@@ -910,14 +915,14 @@ export default class CombatState {
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.lJust && (hasDP || hasDU || (p1.up && canGroundedOrEarlyJump))) || (p1.hJust && hasDU) || (p1.sJust && p1.up && !holdingFwd && canGroundedOrEarlyJump)) && this.p1.specialMoveCooldown <= 0) {
+            } else if (((p1.lJust && (hasDP || hasDU || (holdingUp && canGroundedOrEarlyJump))) || (p1.hJust && hasDU) || (p1.sJust && holdingUp && !holdingFwd && canGroundedOrEarlyJump)) && this.p1.specialMoveCooldown <= 0) {
                 // ↑ + P, ↑ + S, → ↓ ↘ + P, or ↓ ↑ + P/K: Rising Shoryuken Dragon Uppercut / Flash Kick!
                 p1InputCopy.commandMove = (p1.hJust && hasDU) ? 'FLYING_TORPEDO' : 'DRAGON_UPPERCUT';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.hJust && (hasQCB || (holdingBack && canGroundedOrEarlyJump))) || (p1.sJust && p1.down && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
+            } else if (((p1.hJust && (hasQCB || (holdingBack && canGroundedOrEarlyJump))) || (p1.sJust && holdingDown && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
                 // ← + K, ↓ + S, or ↓ ↙ ← + K: Airborne Tatsumaki Hurricane Kick (3-hit cyclone)!
                 p1InputCopy.commandMove = 'HURRICANE_KICK';
                 p1InputCopy.hJust = false;
@@ -936,6 +941,26 @@ export default class CombatState {
                     im.clearMotionHistory();
                     playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
                 }
+            } else if (p1.hJust && holdingFwd && this.p1.isGrounded) {
+                // → + K: Overhead Axe Kick (breaks crouching guard!)
+                p1InputCopy.commandMove = 'AXE_KICK';
+                p1InputCopy.hJust = false;
+                im.clearMotionHistory();
+            } else if (p1.lJust && holdingFwd && this.p1.isGrounded && this.p1.comboChainStep === 0) {
+                // → + P: Spinning Overhead Backfist / Command Punch!
+                p1InputCopy.commandMove = 'COMMAND_PUNCH';
+                p1InputCopy.lJust = false;
+                im.clearMotionHistory();
+            } else if (p1.hJust && holdingDown && !holdingFwd && this.p1.isGrounded) {
+                // ↓ + K: Low Sweep (breaks standing guard & knocks down!)
+                p1InputCopy.commandMove = 'SWEEP';
+                p1InputCopy.hJust = false;
+                im.clearMotionHistory();
+            } else if (p1.lJust && holdingDown && !holdingFwd && this.p1.isGrounded) {
+                // ↓ + P: Fast Low Crouch Jab!
+                p1InputCopy.commandMove = 'CROUCH_LIGHT';
+                p1InputCopy.lJust = false;
+                im.clearMotionHistory();
             }
         }
 

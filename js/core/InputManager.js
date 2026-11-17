@@ -257,6 +257,21 @@ export default class InputManager {
         return false;
     }
 
+    /**
+     * Returns true if the given direction ('up' | 'down' | 'left' | 'right') is currently held
+     * OR was held within the last windowMs (default 180ms), so quick stick flicks + button taps never miss!
+     */
+    wasDirRecent(dirName, windowMs = 180) {
+        if (this.p1 && this.p1[dirName]) return true;
+        const now = performance.now();
+        for (let i = this.inputHistory.length - 1; i >= 0; i--) {
+            const h = this.inputHistory[i];
+            if (now - h.t > windowMs) break;
+            if (h[dirName]) return true;
+        }
+        return false;
+    }
+
     /** Clear the motion input history after a special move is executed */
     clearMotionHistory() {
         this.inputHistory = [];
