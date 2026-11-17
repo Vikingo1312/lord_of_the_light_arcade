@@ -61,7 +61,7 @@ export default class TouchPad {
         this.stickCenter = { x: 255, y: h - 295 };
         this.stickPos = { ...this.stickCenter };
 
-        // 5 Arcade Action buttons — bottom-right ergonomic diamond + dedicated BLOCK shield button!
+        // 4 Arcade Action buttons — bottom-right ergonomic diamond/arc layout (zero extra buttons blocking the screen!)
         const rx = w - 255;
         const ry = h - 295;
         const spacing = 118;
@@ -70,7 +70,6 @@ export default class TouchPad {
             { id: 'h', x: rx, y: ry - spacing + 10, label: 'K', sub: 'KICK', color: '#ff4444' },
             { id: 's', x: rx + spacing, y: ry + 10, label: 'S', sub: 'SPEC', color: '#ffcc00' },
             { id: 'dash', x: rx, y: ry + spacing - 5, label: 'D', sub: 'DASH', color: '#bb66ff' },
-            { id: 'guard', x: rx - spacing * 1.85, y: ry - spacing * 0.72, label: 'B', sub: 'BLOCK', color: '#00ff88' },
         ];
     }
 

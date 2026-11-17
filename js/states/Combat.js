@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.44';
-import Projectile from '../entities/Projectile.js?v=2.44';
-import Hitbox from '../entities/Hitbox.js?v=2.44';
-import StageObjectManager from '../entities/StageObjects.js?v=2.44';
-import AIController from '../ai/AIController.js?v=2.44';
-import CombatHUD from '../ui/CombatHUD.js?v=2.44';
+import Fighter from '../entities/Fighter.js?v=2.45';
+import Projectile from '../entities/Projectile.js?v=2.45';
+import Hitbox from '../entities/Hitbox.js?v=2.45';
+import StageObjectManager from '../entities/StageObjects.js?v=2.45';
+import AIController from '../ai/AIController.js?v=2.45';
+import CombatHUD from '../ui/CombatHUD.js?v=2.45';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.44';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.44';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.44';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.44';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.44';
+} from '../core/AssetPreloader.js?v=2.45';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.45';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.45';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.45';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.45';
 
 export default class CombatState {
     constructor(game) {
@@ -89,18 +89,22 @@ export default class CombatState {
         // Fair Difficulty & Arena-Progression Scaling for CPU (Single-Player Story / Arcade / Versus / Survival)
         if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
             const diff = (this.game.settings && this.game.settings.difficulty) || 'NORMAL';
-            const stageNum = Math.max(1, Math.min(14, this.arcadeIndex || (p2Data.rosterIndex ?? 4)));
+            const stageNum = Math.max(1, Math.min(14, this.arcadeIndex || (p2Data.rosterIndex ?? 1)));
             const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
+            // CPU starts with 0 Super Energy in Arenas 1-9 so it never blasts the player with an instant Super at round start!
+            if (stageNum <= 9 || diff === 'EASY') {
+                this.p2.specialEnergy = 0;
+            }
             if (diff === 'EASY') {
-                const hpMul = 0.78 + stageRatio * 0.10;
+                const hpMul = 0.55 + stageRatio * 0.15;
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.66 + stageRatio * 0.12));
+                this.p2.power = Math.round((p2Data.power || 100) * (0.45 + stageRatio * 0.15));
             } else if (diff === 'NORMAL') {
-                const hpMul = 0.84 + stageRatio * 0.16;
+                const hpMul = 0.62 + stageRatio * 0.36; // 62% HP in Level 1 -> 98% HP in Level 14
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.74 + stageRatio * 0.24));
+                this.p2.power = Math.round((p2Data.power || 100) * (0.54 + stageRatio * 0.40)); // 54% Power in Level 1 -> 94% in Level 14
             }
         }
 

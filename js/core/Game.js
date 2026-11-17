@@ -1,9 +1,9 @@
-import StateManager from './StateManager.js?v=2.44';
-import InputManager from './InputManager.js?v=2.44';
-import AssetManager from './AssetManager.js?v=2.44';
-import AudioManager from './AudioManager.js?v=2.44';
-import TouchPad from './TouchPad.js?v=2.44';
-import NetworkManager from './NetworkManager.js?v=2.44';
+import StateManager from './StateManager.js?v=2.45';
+import InputManager from './InputManager.js?v=2.45';
+import AssetManager from './AssetManager.js?v=2.45';
+import AudioManager from './AudioManager.js?v=2.45';
+import TouchPad from './TouchPad.js?v=2.45';
+import NetworkManager from './NetworkManager.js?v=2.45';
 
 export default class Game {
     constructor(canvas) {
