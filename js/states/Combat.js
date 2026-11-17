@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.49';
-import Projectile from '../entities/Projectile.js?v=2.49';
-import Hitbox from '../entities/Hitbox.js?v=2.49';
-import StageObjectManager from '../entities/StageObjects.js?v=2.49';
-import AIController from '../ai/AIController.js?v=2.49';
-import CombatHUD from '../ui/CombatHUD.js?v=2.49';
+import Fighter from '../entities/Fighter.js?v=2.50';
+import Projectile from '../entities/Projectile.js?v=2.50';
+import Hitbox from '../entities/Hitbox.js?v=2.50';
+import StageObjectManager from '../entities/StageObjects.js?v=2.50';
+import AIController from '../ai/AIController.js?v=2.50';
+import CombatHUD from '../ui/CombatHUD.js?v=2.50';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.49';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.49';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.49';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.49';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.49';
+} from '../core/AssetPreloader.js?v=2.50';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.50';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.50';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.50';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.50';
 
 export default class CombatState {
     constructor(game) {
@@ -86,25 +86,34 @@ export default class CombatState {
             this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
         }
 
-        // Fair Difficulty & Arena-Progression Scaling for CPU (Single-Player Story / Arcade / Versus / Survival)
+        // Balanced Street Fighter Difficulty & Arena-Progression Scaling for CPU
         if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
             const diff = (this.game.settings && this.game.settings.difficulty) || 'NORMAL';
-            const stageNum = Math.max(1, Math.min(14, this.arcadeIndex || (p2Data.rosterIndex ?? 1)));
+            const isLadderMode = Boolean(this.storyMode || this.arcadeMode || this.survivalMode);
+            const stageNum = isLadderMode
+                ? Math.max(1, Math.min(14, this.arcadeIndex || 1))
+                : Math.max(5, Math.min(11, (p2Data.rosterIndex ?? 6) + 1));
             const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
-            // CPU starts with 0 Super Energy in Arenas 1-9 so it never blasts the player with an instant Super at round start!
-            if (stageNum <= 9 || diff === 'EASY') {
-                this.p2.specialEnergy = 0;
-            }
+
             if (diff === 'EASY') {
-                const hpMul = 0.55 + stageRatio * 0.15;
+                this.p2.specialEnergy = stageNum >= 4 ? 50 : 20;
+                const hpMul = 0.78 + stageRatio * 0.14; // 78% -> 92% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.45 + stageRatio * 0.15));
+                this.p2.power = Math.round((p2Data.power || 100) * (0.72 + stageRatio * 0.16)); // 72% -> 88% Power
             } else if (diff === 'NORMAL') {
-                const hpMul = 0.62 + stageRatio * 0.36; // 62% HP in Level 1 -> 98% HP in Level 14
+                this.p2.specialEnergy = isLadderMode ? (stageNum <= 2 ? 35 : (stageNum <= 6 ? 60 : 85)) : 75;
+                const hpMul = isLadderMode ? (0.86 + stageRatio * 0.22) : 1.0; // 86% HP in Arena 1 -> 108% in Arena 14 (100% in Versus)
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.54 + stageRatio * 0.40)); // 54% Power in Level 1 -> 94% in Level 14
+                const pwrScale = isLadderMode ? (0.80 + stageRatio * 0.24) : 0.96; // 80% Power in Arena 1 -> 104% in Arena 14
+                this.p2.power = Math.round((p2Data.power || 100) * pwrScale);
+            } else if (diff === 'HARD') {
+                this.p2.specialEnergy = 100;
+                const hpMul = 1.00 + stageRatio * 0.18;
+                this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
+                this.p2.hp = this.p2.maxHP;
+                this.p2.power = Math.round((p2Data.power || 100) * (0.96 + stageRatio * 0.16));
             }
         }
 
@@ -896,7 +905,8 @@ export default class CombatState {
             const holdingDown = Boolean(p1.down || (!anyLiveDir && im.wasDirRecent('down', 150)));
             const canGroundedOrEarlyJump = this.p1.isGrounded || this.p1.state === 'DASH' || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.28);
 
-            if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= 190 && this.p1.isGrounded && this.p2.isGrounded) {
+            const p1GrabRange = (this.p1.data && this.p1.data.styleId === 'TITAN_GRAPPLER') ? 215 : 190;
+            if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= p1GrabRange && this.p1.isGrounded && this.p2.isGrounded) {
                 // ← + P (Back + Punch at close range), D + P, or P + K: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
                 p1InputCopy.lJust = false;

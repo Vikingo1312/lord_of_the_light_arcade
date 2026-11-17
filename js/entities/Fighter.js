@@ -1,9 +1,11 @@
-import Hitbox from './Hitbox.js?v=2.49';
+import Hitbox from './Hitbox.js?v=2.50';
+import { getFighterStyle } from '../data.js?v=2.50';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
         this.game = game;
         this.data = data; // Keep name, HP, etc.
+        this.styleInfo = getFighterStyle(this.data);
 
         // Physics Transform
         this.x = x;       // Center X
@@ -14,15 +16,20 @@ export default class Fighter {
         this.facing = facing; // 1 = Right, -1 = Left
 
         // Stats (Balanced Street Fighter II / Mortal Kombat durability: +45% HP so matches reward tactics over button-mashing)
+        const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
+        const styleSpeedBonus = styleId === 'SHADOW_ASSASSIN' ? 1.12
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 1.08
+            : (styleId === 'MASTER_STRIKER' ? 1.05
+            : (styleId === 'TITAN_GRAPPLER' ? 0.90 : 1.0)));
         this.baseMaxHP = Math.round((this.data.hp || 400) * 1.45);
         this.hp = this.baseMaxHP;
         this.maxHP = this.baseMaxHP;
-        this.speed = this.data.speed || 500; // Movement speed
+        this.speed = Math.round((this.data.speed || 500) * styleSpeedBonus); // Style-tuned movement speed
         this.power = this.data.power || 100; // Attack power multiplier (100 = 1.0x)
-        this.jumpImpulse = -1680; // High Street Fighter jump to cleanly clear fireballs & Super Projectiles
+        this.jumpImpulse = styleId === 'TITAN_GRAPPLER' ? -1560 : (styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'SHADOW_ASSASSIN' ? -1720 : -1680);
 
         // Deterministic Physics Constants
-        this.gravity = 3350;  // Crisp Street Fighter jump arc
+        this.gravity = styleId === 'TITAN_GRAPPLER' ? 3550 : 3350;  // Crisp Street Fighter jump arc
 
         // Special Energy Meter
         this.specialEnergy = 100; // Starts with 1 free shot
@@ -64,7 +71,7 @@ export default class Fighter {
         this.ghosts = [];
         this._ghostSpawnAccum = 0;
 
-        // Continuous animation clock, combo chain & 130ms Street Fighter input buffer
+        // Continuous animation clock, combo chain & 180ms Street Fighter input buffer
         this.animTime = 0;
         this.jumpTime = 0;
         this.landingTimer = 0;
@@ -744,20 +751,30 @@ export default class Fighter {
         const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
         this.state = 'DASH';
         this.stateTimer = 0;
-        this.dashCooldown = styleId === 'SHADOW_ASSASSIN' ? 0.26 : 0.35;
+        this.dashCooldown = styleId === 'SHADOW_ASSASSIN' ? 0.24 : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.28 : 0.35);
         this._ghostSpawnAccum = 0.035; // Spawn first ghost immediately
         const isForward = (dir === this.facing);
         if (isForward) {
-            const boost = styleId === 'SHADOW_ASSASSIN' ? 1620 : (styleId === 'CAPOEIRA_TRICKSTER' ? 1480 : 1350);
+            const boost = styleId === 'SHADOW_ASSASSIN' ? 1680
+                : (styleId === 'CAPOEIRA_TRICKSTER' ? 1520
+                : (styleId === 'MASTER_STRIKER' ? 1440
+                : (styleId === 'TITAN_GRAPPLER' ? 1220 : 1350)));
             this.vx = dir * boost;
             if (styleId === 'SHADOW_ASSASSIN') {
                 // Brief phantom shadow phase-invulnerability on forward dash!
-                this.hitImmunity = Math.max(this.hitImmunity, 0.18);
+                this.hitImmunity = Math.max(this.hitImmunity, 0.20);
+            } else if (styleId === 'CAPOEIRA_TRICKSTER') {
+                // Acrobatic Capoeira low hop-dash!
+                this.vy = -210;
+                this.isGrounded = false;
+            } else if (styleId === 'TITAN_GRAPPLER' || styleId === 'VALHALLA_BERSERKER') {
+                // Armored shoulder bull-charge!
+                this.hitImmunity = Math.max(this.hitImmunity, 0.14);
             }
         } else {
             // Evasive back-hop with brief invulnerability
-            this.vx = dir * (styleId === 'SHADOW_ASSASSIN' ? 1200 : 1050);
-            this.vy = -340;
+            this.vx = dir * (styleId === 'SHADOW_ASSASSIN' ? 1240 : (styleId === 'CAPOEIRA_TRICKSTER' ? 1160 : 1050));
+            this.vy = styleId === 'CAPOEIRA_TRICKSTER' ? -410 : -340;
             this.isGrounded = false;
             this.hitImmunity = Math.max(this.hitImmunity, 0.16);
         }
@@ -904,11 +921,13 @@ export default class Fighter {
                 type: 'LIGHT'
             };
         } else if (type === 'COMMAND_PUNCH') {
-            // → + L: Spinning Overhead Backfist / Phantom Blitz / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
-            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 520 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 360 : 300));
+            // → + L: Spinning Overhead Backfist / Phantom Blitz / Master Double-Strike / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
+            const isMasterDouble = (styleId === 'MASTER_STRIKER');
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 540 : (isMasterDouble ? 420 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 360 : 300)));
             this.currentAttack = {
-                startup: 0.07 * spdMul, active: 0.15, recovery: 0.23 * spdMul,
-                damage: Math.round((styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 32 : 27) * pwrMul), pushback: 265, hitstop: 0.11,
+                startup: 0.068 * spdMul, active: isMasterDouble ? 0.21 : 0.15, recovery: 0.22 * spdMul,
+                damage: Math.round((isMasterDouble ? 16 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 32 : 27)) * pwrMul), pushback: 265, hitstop: isMasterDouble ? 0.08 : 0.11,
+                maxHits: isMasterDouble ? 2 : 1,
                 isOverhead: true,
                 hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
                 box: new Hitbox(-16, 65, 212 + reachBonus, 165),
@@ -941,18 +960,25 @@ export default class Fighter {
                 type: 'CROUCH_LIGHT'
             };
         } else if (type === 'HEAVY') {
+            const isCapoeiraDoubleHop = (!isAerial && styleId === 'CAPOEIRA_TRICKSTER');
             if (isAerial && (styleId === 'SHADOW_ASSASSIN' || styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'KNEIPEN_TERRORIST')) {
                 // Signature Aerial Dive-Kick!
                 this.vx = this.facing * 720;
                 this.vy = Math.max(this.vy, 780);
+            } else if (isCapoeiraDoubleHop) {
+                // Capoeira Trickster: Acrobatic airborne 2-hit Meia-Lua Double Spin-Kick!
+                this.isGrounded = false;
+                this.vy = -310;
+                this.vx = this.facing * 390;
             } else if (this.isGrounded) {
                 this.vx = this.facing * 275;
             }
             this.currentAttack = {
-                startup: 0.08 * spdMul, active: 0.16, recovery: 0.26,
-                damage: Math.round((styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 42 : 36) * pwrMul),
+                startup: 0.08 * spdMul, active: isCapoeiraDoubleHop ? 0.22 : 0.16, recovery: 0.26,
+                damage: Math.round((isCapoeiraDoubleHop ? 21 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 42 : 36)) * pwrMul),
                 pushback: styleId === 'VALHALLA_BERSERKER' ? 490 : 380,
-                hitstop: 0.14,
+                hitstop: isCapoeiraDoubleHop ? 0.09 : 0.14,
+                maxHits: isCapoeiraDoubleHop ? 2 : 1,
                 lift: isAerial ? -140 : -170,
                 isOverhead: isAerial,
                 hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
@@ -1288,16 +1314,27 @@ export default class Fighter {
             else if (this.state === 'WIN') suffix = '_win.png';
             spriteImage = this._getSprite(suffix);
         } else {
-            // ─── UNIFIED 24-SPRITE STREET FIGHTER ANIMATION STATE MACHINE (ALL CHARACTERS) ───
-            const walkCycleIdx = Math.floor(this.animTime * 7.5) % 4;
+            // ─── UNIFIED 24-SPRITE STREET FIGHTER ANIMATION STATE MACHINE (WITH DISTINCT FIGHTING STYLE STANCES & WALK CADENCES) ───
+            const drawStyleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
+            const walkFreq = drawStyleId === 'SHADOW_ASSASSIN' ? 10.5
+                : (drawStyleId === 'MASTER_STRIKER' ? 9.2
+                : (drawStyleId === 'CAPOEIRA_TRICKSTER' ? 8.8
+                : (drawStyleId === 'LIGHT_DRAGON' ? 8.2
+                : (drawStyleId === 'TITAN_GRAPPLER' ? 5.6 : 7.2))));
+            const walkCycleIdx = Math.floor(this.animTime * walkFreq) % 4;
 
             if ((this.isActivelyGuarding || this.blockStun > 0) && this.state !== 'KO' && this.state !== 'HIT' && this.state !== 'DIZZY') {
                 suffix = (this.state === 'CROUCH') ? '_crouch.png' : '_block.png';
             } else if (this.state === 'DIZZY') {
                 suffix = '_hit.png';
             } else if (this.state === 'IDLE') {
-                // Keep IDLE on _right.png with smooth continuous sine breathing (100% zero frame-pop jitter!)
-                suffix = '_right.png';
+                if (drawStyleId === 'CAPOEIRA_TRICKSTER') {
+                    // Capoeira Ginga rhythmic footwork dance in IDLE!
+                    const gingaStep = Math.floor(this.animTime * 3.6) % 4;
+                    suffix = (gingaStep === 1) ? '_walk_1.png' : ((gingaStep === 3) ? '_walk_2.png' : '_right.png');
+                } else {
+                    suffix = '_right.png';
+                }
             } else if (this.state === 'WALK') {
                 // 4-step alternating leg stride cycle locked to reference foot/torso baseline
                 if (walkCycleIdx === 0) suffix = '_walk_1.png';
@@ -1308,9 +1345,14 @@ export default class Fighter {
                 suffix = '_crouch.png';
             } else if (this.state === 'DASH') {
                 const isForwardDash = (this.vx * this.facing >= 0);
-                suffix = isForwardDash ? '_hook_punch.png' : '_jump.png';
+                if (isForwardDash) {
+                    suffix = drawStyleId === 'SHADOW_ASSASSIN' ? '_backfist.png'
+                        : (drawStyleId === 'CAPOEIRA_TRICKSTER' ? '_spin_kick.png' : '_hook_punch.png');
+                } else {
+                    suffix = '_jump.png';
+                }
             } else if (this.state === 'JUMP') {
-                // Straight jump uses _jump.png; diagonal forward/backward jump performs a 360° Salto!
+                // Straight jump uses _jump.png; diagonal forward/backward jump uses _jump.png
                 if (Math.abs(this.vx) >= 25) {
                     suffix = '_jump.png';
                 } else if (Math.abs(this.vy) < 520) {
@@ -1628,7 +1670,7 @@ export default class Fighter {
 
                     ctx.globalAlpha = g.age * (g.isDashGhost ? 0.50 : 0.68);
                     ctx.globalCompositeOperation = 'screen';
-                    ctx.shadowColor = '#00e5ff';
+                    ctx.shadowColor = (this.styleInfo && this.styleInfo.color) || '#00e5ff';
                     ctx.shadowBlur = 18;
                     ctx.drawImage(spriteImage, -drawW / 2, -drawH, drawW, drawH);
                     ctx.restore();
@@ -1636,19 +1678,59 @@ export default class Fighter {
                 ctx.restore();
             }
 
-            // ─── SMOOTH BREATHING & 3-PHASE STREET FIGHTER SUB-FRAMING (PLUS DHALSIM LIMB STRETCH!) ───
+            // ─── DISTINCT FIGHTING STYLE STANCE MOVEMENTS, FOOTWORK & DHALSIM LIMB STRETCH ───
             let poseScaleX = 1.0;
             let poseScaleY = 1.0;
+            let stanceOffsetX = 0;
+            let stanceOffsetY = 0;
+            let stanceLeanRad = 0;
             const sigArch = this._getSignatureArchetype();
             if (this.landingTimer > 0 && this.state === 'IDLE') {
                 const landAmt = this.landingTimer / 0.14;
                 poseScaleX = 1.0 + landAmt * 0.04;
                 poseScaleY = 1.0 - landAmt * 0.05;
             } else if (this.state === 'IDLE') {
-                // Silky continuous breathing anchored at feet (0,0) — zero jitter!
-                const breath = Math.sin(this.animTime * 2.8);
-                poseScaleX = 1.0 - breath * 0.004;
-                poseScaleY = 1.0 + breath * 0.008;
+                if (drawStyleId === 'CAPOEIRA_TRICKSTER') {
+                    // Brazilian Capoeira Ginga: rhythmic side-to-side sway and knee bounce!
+                    stanceOffsetX = Math.sin(this.animTime * 4.2) * 8;
+                    stanceOffsetY = -Math.abs(Math.cos(this.animTime * 4.2)) * 5;
+                    stanceLeanRad = Math.sin(this.animTime * 4.2) * 0.032;
+                } else if (drawStyleId === 'LIGHT_DRAGON') {
+                    // Boxer / Karate Shoto bounce on the balls of the feet!
+                    stanceOffsetY = -Math.abs(Math.sin(this.animTime * 5.2)) * 5.5;
+                    stanceOffsetX = Math.cos(this.animTime * 2.6) * 3;
+                } else if (drawStyleId === 'SHADOW_ASSASSIN') {
+                    // Shinobi Predator forward-leaning poise!
+                    const breath = Math.sin(this.animTime * 3.2);
+                    poseScaleY = 0.985 + breath * 0.008;
+                    stanceLeanRad = 0.042;
+                } else if (drawStyleId === 'TITAN_GRAPPLER') {
+                    // Heavyweight Juggernaut deep chest breathing!
+                    const breath = Math.sin(this.animTime * 2.2);
+                    poseScaleX = 1.0 + breath * 0.014;
+                    poseScaleY = 1.0 + breath * 0.012;
+                } else if (drawStyleId === 'VALHALLA_BERSERKER') {
+                    // Valhalla Berserker aggressive war-ready breathing!
+                    const breath = Math.sin(this.animTime * 3.8);
+                    poseScaleX = 1.0 + breath * 0.010;
+                    poseScaleY = 1.0 + breath * 0.010;
+                    stanceLeanRad = 0.024;
+                } else if (drawStyleId === 'KNEIPEN_TERRORIST') {
+                    // Street-Brawler swagger sway!
+                    stanceOffsetX = Math.sin(this.animTime * 3.6) * 5;
+                    stanceOffsetY = -Math.abs(Math.sin(this.animTime * 3.6)) * 3.5;
+                } else {
+                    // Master Striker calm precision breathing!
+                    const breath = Math.sin(this.animTime * 2.8);
+                    poseScaleX = 1.0 - breath * 0.004;
+                    poseScaleY = 1.0 + breath * 0.008;
+                }
+            } else if (this.state === 'WALK') {
+                if (drawStyleId === 'SHADOW_ASSASSIN') {
+                    stanceLeanRad = 0.065; // Ninja sprint lean!
+                } else if (drawStyleId === 'TITAN_GRAPPLER') {
+                    stanceOffsetY = -Math.abs(Math.sin(this.animTime * walkFreq * Math.PI)) * 6; // Heavy stomp!
+                }
             } else if (this.state === 'ATTACK' && this.currentAttack) {
                 const p = this.stateTimer;
                 const st = this.currentAttack.startup || 0.05;
@@ -1667,9 +1749,10 @@ export default class Fighter {
                 }
             }
 
-            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP + AERIAL SALTO-KICK + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
+            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP (ONLY FOR ACROBATIC STYLES!) + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
             let isRolling = false;
             let currentRotation = 0;
+            const isAcrobaticStyle = (drawStyleId === 'LIGHT_DRAGON' || drawStyleId === 'CAPOEIRA_TRICKSTER' || drawStyleId === 'SHADOW_ASSASSIN' || drawStyleId === 'MASTER_STRIKER');
             if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
                 isRolling = true;
                 const spinSpeed = 25.0;
@@ -1682,8 +1765,8 @@ export default class Fighter {
                 // Guile Somersault Flash Kick: high backflip somersault!
                 isRolling = true;
                 currentRotation = -this.stateTimer * 18.0 * this.facing;
-            } else if (!this.isGrounded && Math.abs(this.vx) >= 25 && (this.state === 'JUMP' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
-                // Forward jump = front salto (+1), Backward jump = back salto (-1)
+            } else if (isAcrobaticStyle && !this.isGrounded && Math.abs(this.vx) >= 25 && (this.state === 'JUMP' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
+                // Acrobatic styles perform a 360° Salto on diagonal jumps; Heavyweights/Berserkers jump upright with power!
                 isRolling = true;
                 const saltoDir = (this.vx * this.facing >= 0) ? 1 : -1;
                 const saltoSpeed = (this.state === 'ATTACK') ? 14.5 : 10.8;
@@ -1691,6 +1774,12 @@ export default class Fighter {
             }
 
             ctx.save();
+            if (stanceOffsetX !== 0 || stanceOffsetY !== 0) {
+                ctx.translate(stanceOffsetX, stanceOffsetY);
+            }
+            if (stanceLeanRad !== 0) {
+                ctx.rotate(stanceLeanRad);
+            }
             if (isRolling) {
                 ctx.translate(0, -drawH * 0.52);
                 ctx.rotate(currentRotation);
