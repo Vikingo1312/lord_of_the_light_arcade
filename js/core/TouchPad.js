@@ -29,11 +29,11 @@ export default class TouchPad {
         this.anyTapLatched = false;
 
         // Double-tap dash timestamps on mobile stick
-        this._lastLeftTap = 0;
-        this._lastRightTap = 0;
-        this._lastLPress = 0;
-        this._lastHPress = 0;
-        this._lastSPress = 0;
+        this._lastLeftTap = -99999;
+        this._lastRightTap = -99999;
+        this._lastLPress = -99999;
+        this._lastHPress = -99999;
+        this._lastSPress = -99999;
 
         // Layout — raised well above iOS Safari toolbar / iPhone Home Bar
         this.stickCenter = { x: 250, y: 785 };
@@ -230,7 +230,7 @@ export default class TouchPad {
         if (leftJust && p1Facing === -1) {
             if (now - this._lastLeftTap < 260) {
                 p1.dashLeftJust = true;
-                this._lastLeftTap = 0;
+                this._lastLeftTap = -99999;
             } else {
                 this._lastLeftTap = now;
             }
@@ -238,7 +238,7 @@ export default class TouchPad {
         if (rightJust && p1Facing === 1) {
             if (now - this._lastRightTap < 260) {
                 p1.dashRightJust = true;
-                this._lastRightTap = 0;
+                this._lastRightTap = -99999;
             } else {
                 this._lastRightTap = now;
             }
@@ -262,11 +262,13 @@ export default class TouchPad {
         if (latchS && !this.prevButtons.s) { p1.sJust = true; this._lastSPress = now; }
         if (latchDash && !this.prevButtons.dash) p1.dashJust = true;
 
-        if ((p1.lJust && p1.h) || (p1.hJust && p1.l) || ((p1.lJust || p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 95)) {
+        const lRec = (now - this._lastLPress) <= 80;
+        const hRec = (now - this._lastHPress) <= 80;
+        const sRec = (now - this._lastSPress) <= 80;
+        if ((p1.lJust || p1.hJust) && lRec && hRec) {
             p1.throwJust = true;
         }
-        if ((p1.lJust && p1.s) || (p1.sJust && p1.l) || (p1.hJust && p1.s) || (p1.sJust && p1.h) ||
-            ((p1.lJust || p1.hJust || p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 95 || Math.abs(this._lastHPress - this._lastSPress) <= 95))) {
+        if ((p1.lJust || p1.hJust || p1.sJust) && sRec && (lRec || hRec)) {
             p1.specialRushJust = true;
         }
 

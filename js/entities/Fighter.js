@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.45';
+import Hitbox from './Hitbox.js?v=2.46';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -403,9 +403,9 @@ export default class Fighter {
                         break;
                     }
                 }
-                // Allow aerial attacks & airborne Hurricane Kick!
-                if (bufferedCmd === 'HURRICANE_KICK') {
-                    if (this.executeAttack('HURRICANE_KICK')) consumeBuffer();
+                // Allow aerial attacks & airborne/early-jump special moves (Hurricane Kick, Dragon Uppercut, Torpedo, Dragon Rush)!
+                if (bufferedCmd && bufferedCmd !== 'THROW') {
+                    if (this.executeAttack(bufferedCmd)) consumeBuffer();
                 } else if (hasL) {
                     consumeBuffer();
                     this.executeAttack('LIGHT');

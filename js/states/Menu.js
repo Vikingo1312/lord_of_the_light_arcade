@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.45';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.45';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.45';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.45';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.46';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.46';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.46';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.46';
 
 export default class MenuState {
     constructor(game) {
@@ -34,10 +34,10 @@ export default class MenuState {
 
         this.universalCombos = [
             {
-                name: '4. TORPEDO FLIGHT (→+L / ←→+J)',
-                input: '[→+L / ←→+J] TORPEDO FLIGHT',
+                name: '4. TORPEDO FLIGHT (→ + S)',
+                input: '→ + S (L)  oder  ← → + P (J)',
                 badges: ['→', '+', 'S'],
-                dmg: '3x 16 DMG · FULL-SCREEN SIGNATURE FLIGHT',
+                dmg: '3x 16 DMG · FULL-SCREEN SIGNATURE MOVE',
                 desc: 'Katapultiert deinen Kämpfer horizontal über den ganzen Bildschirm (Torpedo / Psycho Crusher / Bird Kick / Lariat / Cannonball)!',
                 frames: [
                     { suffix: '_windup_punch.png', dur: 0.12, x: 10, y: -15 },
@@ -48,9 +48,9 @@ export default class MenuState {
                 ]
             },
             {
-                name: '5. FULLSCREEN RUSH COMBO (J+L)',
-                input: '[J+L / ↓↘→+K] FULLSCREEN RUSH COMBO',
-                badges: ['P', '+', 'S'],
+                name: '5. FULLSCREEN 4-HIT RUSH (← + S)',
+                input: '← + S (L)  oder  P + S (J + L)',
+                badges: ['←', '+', 'S'],
                 dmg: '4x 14 DMG · 4-HIT RUSH + LAUNCHER',
                 desc: 'Stürmt über die gesamte Stage mit einer automatischen 4-Pose Street-Fighter-Kombo bis zum Shoryuken-Finisher!',
                 frames: [
@@ -62,20 +62,19 @@ export default class MenuState {
                 ]
             },
             {
-                name: '6. 3ER LIGHT-KOMBO & TARGET-CANCEL',
-                input: 'P ➔ P ➔ P  oder  P ➔ K ➔ S (J ➔ K ➔ L)',
-                badges: ['P', '➔', 'K', '➔', 'S'],
-                dmg: '100+ DMG · SCHNELLER LAUNCHER',
-                desc: 'Schneller Jab (P), gefolgt vom Cross-Kick (K) und nahtlos gecancelt in deine Super-Art (S)!',
+                name: '6. UNBLOCKBARER WURF / THROW (← + P)',
+                input: '← + P (J) im Nahkampf  oder  P + K',
+                badges: ['←', '+', 'P'],
+                dmg: '45 DMG · BRICHT JEDE DECKUNG!',
+                desc: 'Packt den Gegner im Nahkampf und schleudert ihn quer durch die Arena — kann nicht geblockt werden!',
                 frames: [
-                    { suffix: '_punch.png', dur: 0.20, x: 24, y: 0, slash: 'cyan', hit: 'HIT 1!' },
-                    { suffix: '_kick.png', dur: 0.22, x: 52, y: 0, slash: 'gold', hit: 'HIT 2!' },
-                    { suffix: '_special.png', dur: 0.45, x: 78, y: -12, slash: 'super', hit: 'SUPER ARTS!!', proj: true },
-                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                    { suffix: '_windup_punch.png', dur: 0.14, x: 18, y: 0 },
+                    { suffix: '_hook_punch.png', dur: 0.26, x: 58, y: 0, slash: 'gold', hit: 'THROW SLAM!' },
+                    { suffix: '_right.png', dur: 0.40, x: 0, y: 0 }
                 ]
             },
             {
-                name: '7. OVERHEAD BACKFIST & AXE KICK',
+                name: '7. OVERHEAD BACKFIST & AXE KICK (→ + P / K)',
                 input: '→ + P (J)  oder  → + K (Vorwärts + Kick)',
                 badges: ['→', '+', 'K'],
                 dmg: '42 DMG · BRICHT DUCK-BLOCK!',
@@ -88,10 +87,10 @@ export default class MenuState {
                 ]
             },
             {
-                name: '8. LOW SWEEP (FUSSFEGER)',
+                name: '8. LOW SWEEP FUSSFEGER (↓ + K)',
                 input: '↓ + K  (Unten + Kick)',
                 badges: ['↓', '+', 'K'],
-                dmg: '32 DMG · TRIFFT STEHENDE GEGNER',
+                dmg: '32 DMG · BRICHT STEH-BLOCK!',
                 desc: 'Tiefer Fußfeger am Boden — wirft stehend blockende Gegner sofort um!',
                 frames: [
                     { suffix: '_crouch.png', dur: 0.16, x: 0, y: 0 },
@@ -101,9 +100,9 @@ export default class MenuState {
                 ]
             },
             {
-                name: '9. DRAGON UPPERCUT (↑+L / ↓↑+J)',
-                input: '↑ + S (L)  oder  → ↓ ↘ + P (J)',
-                badges: ['↑', '+', 'S'],
+                name: '9. DRAGON UPPERCUT (↑ + P / ↑ + S)',
+                input: '↑ + P (J)  oder  ↑ + S (L)',
+                badges: ['↑', '+', 'P'],
                 dmg: '46 DMG · UNVERWUNDBAR GEGEN SPRÜNGE',
                 desc: 'Aufsteigender Drachen-Uppercut in die Luft! Perfekt als Konter gegen springende Gegner.',
                 frames: [
@@ -115,9 +114,9 @@ export default class MenuState {
                 ]
             },
             {
-                name: '10. HURRICANE KICK (↓+L / ↓↙←+K)',
-                input: '↓ + S (L)  oder  ↓ ↙ ← + K',
-                badges: ['↓', '+', 'S'],
+                name: '10. HURRICANE KICK (← + K / ↓ + S)',
+                input: '← + K  oder  ↓ + S (L)',
+                badges: ['←', '+', 'K'],
                 dmg: '3x 18 DMG · 3-TREFFER WIRBELKICK',
                 desc: 'Fliegender Wirbelsturm-Kick quer über die Stage mit bis zu 3 Treffern hintereinander!',
                 frames: [
@@ -178,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.45`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.46`);
                 }
             }
             this.game.assetManager.loadAll();

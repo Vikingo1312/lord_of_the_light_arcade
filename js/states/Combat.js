@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.45';
-import Projectile from '../entities/Projectile.js?v=2.45';
-import Hitbox from '../entities/Hitbox.js?v=2.45';
-import StageObjectManager from '../entities/StageObjects.js?v=2.45';
-import AIController from '../ai/AIController.js?v=2.45';
-import CombatHUD from '../ui/CombatHUD.js?v=2.45';
+import Fighter from '../entities/Fighter.js?v=2.46';
+import Projectile from '../entities/Projectile.js?v=2.46';
+import Hitbox from '../entities/Hitbox.js?v=2.46';
+import StageObjectManager from '../entities/StageObjects.js?v=2.46';
+import AIController from '../ai/AIController.js?v=2.46';
+import CombatHUD from '../ui/CombatHUD.js?v=2.46';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.45';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.45';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.45';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.45';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.45';
+} from '../core/AssetPreloader.js?v=2.46';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.46';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.46';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.46';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.46';
 
 export default class CombatState {
     constructor(game) {
@@ -889,34 +889,35 @@ export default class CombatState {
             const hasDU = im.hasDownUp();
             const holdingFwd = (this.p1.facing === 1 && p1.right) || (this.p1.facing === -1 && p1.left);
             const holdingBack = (this.p1.facing === 1 && p1.left) || (this.p1.facing === -1 && p1.right);
+            const canGroundedOrEarlyJump = this.p1.isGrounded || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.24);
 
-            if (p1.throwJust && p1Dist <= 185 && this.p1.isGrounded && this.p2.isGrounded) {
-                // P + K simultaneously at close range: Unblockable Street Fighter Throw!
+            if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= 190 && this.p1.isGrounded && this.p2.isGrounded) {
+                // ← + P (Back + Punch at close range), D + P, or P + K: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
             } else if ((p1.specialRushJust || (p1.sJust && holdingBack) || (p1.hJust && hasQCF)) && this.p1.specialMoveCooldown <= 0) {
-                // P+S / K+S simultaneously OR ← + S (Back + Special) OR ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
+                // ← + S (Back + Special), P+S / K+S, or ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
                 p1InputCopy.commandMove = 'DRAGON_RUSH_COMBO';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
             } else if (((p1.sJust && holdingFwd) || ((p1.lJust || p1.hJust) && hasBF)) && this.p1.specialMoveCooldown <= 0) {
-                // → + S (Forward + Special, works even if stick is slightly diagonal!) OR ← → + P/K: Character-Specific Signature Flight!
+                // → + S (Forward + Special) or ← → + P/K: Character-Specific Signature Flight!
                 p1InputCopy.commandMove = 'FLYING_TORPEDO';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.lJust && (hasDP || hasDU || (p1.up && this.p1.isGrounded))) || (p1.hJust && hasDU) || (p1.sJust && p1.up && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
+            } else if (((p1.lJust && (hasDP || hasDU || (p1.up && canGroundedOrEarlyJump))) || (p1.hJust && hasDU) || (p1.sJust && p1.up && !holdingFwd && canGroundedOrEarlyJump)) && this.p1.specialMoveCooldown <= 0) {
                 // ↑ + P, ↑ + S, → ↓ ↘ + P, or ↓ ↑ + P/K: Rising Shoryuken Dragon Uppercut / Flash Kick!
                 p1InputCopy.commandMove = (p1.hJust && hasDU) ? 'FLYING_TORPEDO' : 'DRAGON_UPPERCUT';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.hJust && (hasQCB || (holdingBack && this.p1.isGrounded))) || (p1.sJust && p1.down && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
+            } else if (((p1.hJust && (hasQCB || (holdingBack && canGroundedOrEarlyJump))) || (p1.sJust && p1.down && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
                 // ← + K, ↓ + S, or ↓ ↙ ← + K: Airborne Tatsumaki Hurricane Kick (3-hit cyclone)!
                 p1InputCopy.commandMove = 'HURRICANE_KICK';
                 p1InputCopy.hJust = false;

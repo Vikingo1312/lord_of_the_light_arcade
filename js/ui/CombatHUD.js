@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.45';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.45';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.45';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.45';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.46';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.46';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.46';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.46';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -447,7 +447,7 @@ export default class CombatHUD {
             ctx.textAlign = 'center';
             ctx.font = 'bold 10px "Press Start 2P"';
             ctx.fillStyle = '#bfefff';
-            ctx.fillText('MOVES: [→+L / ←→+J] TORPEDO FLIGHT  [J+L / ↓↘→+K] FULLSCREEN RUSH COMBO  [↑+L] DRAGON UPPERCUT  [↓+L] HURRICANE KICK  [J+K] THROW', cx, game.height - 15);
+            ctx.fillText('MOVES: [→+S] TORPEDO  [←+S] 4-HIT RUSH  [↑+P] UPPERCUT  [←+K] HURRICANE  [←+P] WURF  [→+K] AXE KICK  [↓+K] SWEEP', cx, game.height - 15);
             ctx.restore();
         }
     }

@@ -16,11 +16,11 @@ export default class InputManager {
         this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, guard: false, menu: false };
 
         // Double-tap dash & simultaneous throw/rush timestamps (ms)
-        this._lastLeftTap = 0;
-        this._lastRightTap = 0;
-        this._lastLPress = 0;
-        this._lastHPress = 0;
-        this._lastSPress = 0;
+        this._lastLeftTap = -99999;
+        this._lastRightTap = -99999;
+        this._lastLPress = -99999;
+        this._lastHPress = -99999;
+        this._lastSPress = -99999;
 
         // Motion input history (stores last 32 directional states with timestamps)
         this.inputHistory = [];
@@ -102,14 +102,16 @@ export default class InputManager {
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
-        // Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (within 105ms window for controllers & keyboards)
+        // Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (strictly requires BOTH buttons pressed within 80ms of now!)
         const now = performance.now();
         if (this.p1.lJust) this._lastLPress = now;
         if (this.p1.hJust) this._lastHPress = now;
         if (this.p1.sJust) this._lastSPress = now;
-        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 105;
-        this.p1.specialRushJust = (this.p1.lJust && this.p1.s) || (this.p1.sJust && this.p1.l) || (this.p1.hJust && this.p1.s) || (this.p1.sJust && this.p1.h)
-            || ((this.p1.lJust || this.p1.hJust || this.p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 105 || Math.abs(this._lastHPress - this._lastSPress) <= 105));
+        const lRecent = (now - this._lastLPress) <= 80;
+        const hRecent = (now - this._lastHPress) <= 80;
+        const sRecent = (now - this._lastSPress) <= 80;
+        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && lRecent && hRecent;
+        this.p1.specialRushJust = (this.p1.lJust || this.p1.hJust || this.p1.sJust) && sRecent && (lRecent || hRecent);
 
         this.p1.dashLeftJust = false;
         this.p1.dashRightJust = false;
