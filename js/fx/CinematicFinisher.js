@@ -207,8 +207,8 @@ export const FINISHER_MOVES = {
         style: 'SHADOW_CLONES'
     },
     Annikina: {
-        title: 'BRATPFANNEN-STEAK-INFERNO',
-        subtitle: 'KNEIPENTERRORISTEN BASEBALL-HOMERUN',
+        title: 'IRON FLAME RECKONING',
+        subtitle: 'FEUERSTURM DER BLUTLINIE',
         color1: '#ff6600',
         color2: '#ffcc00',
         bgTint: '#1f0800',

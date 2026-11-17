@@ -124,53 +124,33 @@ export default class AudioManager {
             this.sfxGain.gain.value = this._getSfxVol(0.90) * 1.25;
             this.sfxGain.connect(this.masterGain);
 
-            // Bus 3 & 4 Shared Cinematic Studio Voice Processor:
-            // Warm chest resonance (175Hz +3.5dB) + Anti-Robotic Mid-Notch (2650Hz -2.6dB) + Air Presence (6.5kHz +2.2dB) + Subtle Arena Ambience + Studio Compressor
+            // Bus 3 & 4 Clean Natural Studio Voice Chain (NO short delay comb-filtering!):
+            // Natural warmth (150Hz +2.0dB) + Clear Presence (3.8kHz +1.8dB) + Gentle Studio Limiter
             const voiceLowShelf = this.audioCtx.createBiquadFilter();
             voiceLowShelf.type = 'lowshelf';
-            voiceLowShelf.frequency.value = 175;
-            voiceLowShelf.gain.value = 3.5;
+            voiceLowShelf.frequency.value = 150;
+            voiceLowShelf.gain.value = 2.0;
 
-            const voiceDeHarsh = this.audioCtx.createBiquadFilter();
-            voiceDeHarsh.type = 'peaking';
-            voiceDeHarsh.frequency.value = 2650;
-            voiceDeHarsh.Q.value = 1.35;
-            voiceDeHarsh.gain.value = -2.6;
-
-            const voiceAir = this.audioCtx.createBiquadFilter();
-            voiceAir.type = 'highshelf';
-            voiceAir.frequency.value = 6500;
-            voiceAir.gain.value = 2.2;
+            const voicePresence = this.audioCtx.createBiquadFilter();
+            voicePresence.type = 'peaking';
+            voicePresence.frequency.value = 3800;
+            voicePresence.Q.value = 1.0;
+            voicePresence.gain.value = 1.8;
 
             const voiceComp = this.audioCtx.createDynamicsCompressor();
-            voiceComp.threshold.value = -16;
-            voiceComp.knee.value = 12;
-            voiceComp.ratio.value = 2.6;
-            voiceComp.attack.value = 0.004;
-            voiceComp.release.value = 0.14;
+            voiceComp.threshold.value = -14;
+            voiceComp.knee.value = 10;
+            voiceComp.ratio.value = 2.2;
+            voiceComp.attack.value = 0.005;
+            voiceComp.release.value = 0.12;
 
-            // Subtle 26ms Arena Room Slapback (13% wet) so voices sound live in the arena, never flat/static
-            const roomDelay = this.audioCtx.createDelay(0.1);
-            roomDelay.delayTime.value = 0.026;
-            const roomLp = this.audioCtx.createBiquadFilter();
-            roomLp.type = 'lowpass';
-            roomLp.frequency.value = 2600;
-            const roomWet = this.audioCtx.createGain();
-            roomWet.gain.value = 0.13;
-
-            voiceLowShelf.connect(voiceDeHarsh);
-            voiceDeHarsh.connect(voiceAir);
-            voiceAir.connect(voiceComp);
+            voiceLowShelf.connect(voicePresence);
+            voicePresence.connect(voiceComp);
             voiceComp.connect(this.masterGain);
-
-            voiceAir.connect(roomDelay);
-            roomDelay.connect(roomLp);
-            roomLp.connect(roomWet);
-            roomWet.connect(voiceComp);
 
             // Bus 3: Fighter & Story Voices
             this.voiceGain = this.audioCtx.createGain();
-            this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.40;
+            this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.45;
             this.voiceGain.connect(voiceLowShelf);
 
             // Bus 4: Arcade Announcer
@@ -284,7 +264,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.37`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.38`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
@@ -640,6 +620,9 @@ export default class AudioManager {
             const clipGain = this.audioCtx.createGain();
             clipGain.gain.value = type === 'hit' ? 0.68 : 1.0;
             src.buffer = buffer;
+            // Snappy Street Fighter delivery (fixes slow reading pace across all fighter voices)
+            const rate = (type === 'special' || type === 'super' || type === 'hit' || type === 'taunt') ? 1.10 : 1.06;
+            src.playbackRate.value = rate;
             src.connect(clipGain);
             clipGain.connect(this.voiceGain);
             src.onended = finish;
@@ -647,7 +630,7 @@ export default class AudioManager {
 
             try {
                 src.start(0);
-                this._fighterVoiceTimeout = setTimeout(finish, Math.ceil(buffer.duration * 1000) + 400);
+                this._fighterVoiceTimeout = setTimeout(finish, Math.ceil((buffer.duration / rate) * 1000) + 350);
             } catch (e) {
                 finish();
             }

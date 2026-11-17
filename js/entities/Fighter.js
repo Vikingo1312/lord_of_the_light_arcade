@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.37';
+import Hitbox from './Hitbox.js?v=2.38';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -993,14 +993,18 @@ export default class Fighter {
             if (this.hp > armorDmg + 1) {
                 this.hp -= armorDmg;
                 this.hitStop = 0.05;
-                this.pendingStyleCallout = '⚡ VALHALLA SUPER ARMOR!';
+                this.pendingStyleCallout = (this.data && this.data.styleId === 'KNEIPEN_TERRORIST') ? '🔥 IRON FLAME ARMOR!' : '⚡ VALHALLA SUPER ARMOR!';
                 return 'HIT';
             }
         }
 
-        // ─── BLOCK CHECK (SF2 rules: Throws are unblockable; Overhead attacks break Crouching block!) ───
+        // ─── BLOCK CHECK (SF2 rules: Throws are unblockable; Overhead breaks Crouching block; Low Sweep breaks Standing block!) ───
         const overheadBroken = Boolean(attackDef.isOverhead && this.state === 'CROUCH');
-        const canBlockThis = this.isBlocking && !attackDef.unblockable && !overheadBroken && this.state !== 'DIZZY';
+        const lowBroken = Boolean(attackDef.isLow && this.state !== 'CROUCH');
+        const canBlockThis = this.isBlocking && !attackDef.unblockable && !overheadBroken && !lowBroken && this.state !== 'DIZZY';
+        if (this.isBlocking && (overheadBroken || lowBroken)) {
+            this.pendingStyleCallout = overheadBroken ? '⚡ OVERHEAD BREAK!' : '⚡ LOW GUARD BREAK!';
+        }
 
         if (canBlockThis) {
             this.consecutiveHitsTaken = 0;
@@ -1416,10 +1420,10 @@ export default class Fighter {
                 return;
             }
 
-            // Lock scale to reference _right.png height for all stance/walk/crouch/block frames to eliminate scale jitter!
+            // Lock scale to reference _right.png height (640px) across all frames so overhead weapons or wide swings NEVER shrink the fighter's body!
             const refIdleImg = this._getSprite('_right.png');
-            const isStanceDerived = (suffix === '_right.png' || suffix === '_idle_2.png' || suffix === '_walk.png' || suffix === '_walk_1.png' || suffix === '_walk_2.png' || suffix === '_crouch.png' || suffix === '_block.png' || suffix === '_jump.png' || suffix === '_windup_punch.png' || suffix === '_windup_kick.png');
-            const refH = (isStanceDerived && refIdleImg && refIdleImg.naturalHeight) ? refIdleImg.naturalHeight : spriteImage.naturalHeight;
+            const isLegacy1024 = spriteImage.naturalHeight >= 960;
+            const refH = (!isLegacy1024 && refIdleImg && refIdleImg.naturalHeight) ? refIdleImg.naturalHeight : spriteImage.naturalHeight;
             const targetHeight = 400 * (this.data?.heightScale || 1.0);
             const scale = targetHeight / refH;
             const drawW = spriteImage.naturalWidth * scale;

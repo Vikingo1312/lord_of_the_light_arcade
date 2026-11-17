@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.37';
-import Projectile from '../entities/Projectile.js?v=2.37';
-import Hitbox from '../entities/Hitbox.js?v=2.37';
-import StageObjectManager from '../entities/StageObjects.js?v=2.37';
-import AIController from '../ai/AIController.js?v=2.37';
-import CombatHUD from '../ui/CombatHUD.js?v=2.37';
+import Fighter from '../entities/Fighter.js?v=2.38';
+import Projectile from '../entities/Projectile.js?v=2.38';
+import Hitbox from '../entities/Hitbox.js?v=2.38';
+import StageObjectManager from '../entities/StageObjects.js?v=2.38';
+import AIController from '../ai/AIController.js?v=2.38';
+import CombatHUD from '../ui/CombatHUD.js?v=2.38';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.37';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.37';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.37';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.37';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.37';
+} from '../core/AssetPreloader.js?v=2.38';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.38';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.38';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.38';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.38';
 
 export default class CombatState {
     constructor(game) {
@@ -1633,6 +1633,27 @@ export default class CombatState {
     }
 
     checkProjectileCollisions() {
+        // 1. Street Fighter Projectile-vs-Projectile Mid-Air Clash!
+        for (let i = 0; i < this.projectiles.length; i++) {
+            const pA = this.projectiles[i];
+            if (!pA || !pA.alive) continue;
+            for (let j = i + 1; j < this.projectiles.length; j++) {
+                const pB = this.projectiles[j];
+                if (!pB || !pB.alive || pA.owner === pB.owner) continue;
+                if (Math.abs(pA.x - pB.x) < 110 && Math.abs(pA.y - pB.y) < 95) {
+                    pA.alive = false;
+                    pB.alive = false;
+                    const midX = (pA.x + pB.x) * 0.5;
+                    const midY = (pA.y + pB.y) * 0.5;
+                    this.spawnSparks(midX, midY, '#ffd700', '#00ffff', 18, 'heavy');
+                    this.triggerCallout('⚡ PROJECTILE CLASH!', '#ffd700', 'p1');
+                    this.triggerShake(3.5, 0.14);
+                    this.game.audioManager?.playHitImpactSound?.(true, true);
+                    break;
+                }
+            }
+        }
+
         for (const proj of this.projectiles) {
             if (!proj.alive) continue;
             if (proj.owner === 'p2' && (this.p2.state === 'KO' || this.p2.hp <= 0)) {
