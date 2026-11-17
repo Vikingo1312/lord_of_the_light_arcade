@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.41';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.41';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.41';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.41';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.42';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.42';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.42';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -386,18 +386,18 @@ export default class CombatHUD {
         if (combat.matchPhase === 'FIGHTING') {
             // Subtle Arcade Command Move Legend at bottom of screen
             ctx.save();
-            ctx.globalAlpha = 0.78;
-            ctx.fillStyle = 'rgba(6, 10, 24, 0.72)';
-            const barW = 1120;
-            const barH = 28;
+            ctx.globalAlpha = 0.82;
+            ctx.fillStyle = 'rgba(6, 10, 24, 0.78)';
+            const barW = 1240;
+            const barH = 30;
             ctx.fillRect(cx - barW / 2, game.height - barH - 6, barW, barH);
-            ctx.strokeStyle = 'rgba(0, 229, 255, 0.35)';
-            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(0, 229, 255, 0.42)';
+            ctx.lineWidth = 1.2;
             ctx.strokeRect(cx - barW / 2, game.height - barH - 6, barW, barH);
             ctx.textAlign = 'center';
-            ctx.font = 'bold 11px "Press Start 2P"';
+            ctx.font = 'bold 10px "Press Start 2P"';
             ctx.fillStyle = '#bfefff';
-            ctx.fillText('MOVES: [→+J] BACKFIST  [→+K] AXE KICK  [↓↑+J / ↑+L] DRAGON UPPERCUT  [↓←+K / ↓+L] HURRICANE KICK  [J+K] THROW', cx, game.height - 15);
+            ctx.fillText('MOVES: [→+L / ←→+J] TORPEDO FLIGHT  [J+L / ↓↘→+K] FULLSCREEN RUSH COMBO  [↑+L] DRAGON UPPERCUT  [↓+L] HURRICANE KICK  [J+K] THROW', cx, game.height - 15);
             ctx.restore();
         }
     }

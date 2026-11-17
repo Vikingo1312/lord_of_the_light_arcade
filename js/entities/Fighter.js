@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.41';
+import Hitbox from './Hitbox.js?v=2.42';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -546,6 +546,12 @@ export default class Fighter {
                                 consumeBuffer();
                                 break;
                             }
+                        } else if (holdingFwd) {
+                            this.specialMoveCooldown = 0;
+                            if (this.executeAttack('FLYING_TORPEDO')) {
+                                consumeBuffer();
+                                break;
+                            }
                         }
                         if (this.executeAttack('SPECIAL')) {
                             consumeBuffer();
@@ -563,6 +569,56 @@ export default class Fighter {
                         this.ghosts.push({ x: this.x, y: this.y, age: 0.6, facing: this.facing, timer: this.stateTimer });
                     } else {
                         this.vx *= 0.9; // Brake hard on recovery
+                    }
+                } else if (this.currentAttack.type === 'FLYING_TORPEDO') {
+                    // Character-Specific Horizontal Full-Screen Signature Flight (Dhalsim Drill / Blanka Ball / Chun-Li Bird Kick / Bison Psycho Crusher / Guile Flash Kick / Zangief Lariat / Honda Torpedo)
+                    const sigArch = this._getSignatureArchetype();
+                    if (this.stateTimer <= this.currentAttack.startup + this.currentAttack.active) {
+                        if (sigArch === 'BLANKA_CANNONBALL' && this.attackHasHit) {
+                            // Blanka Rolling Cannonball bounces off the opponent on final hit!
+                            if (!this._cannonballBounced) {
+                                this._cannonballBounced = true;
+                                this.vx = -this.facing * 360;
+                                this.vy = -520;
+                                this.isGrounded = false;
+                            }
+                        } else if (sigArch === 'GUILE_FLASH_KICK') {
+                            // Guile Somersault Flash Kick rises in a sweeping backflip arc!
+                            this.vx = this.facing * 980;
+                            if (this.stateTimer < this.currentAttack.startup + this.currentAttack.active * 0.45) {
+                                this.vy = -540;
+                            }
+                        } else {
+                            this.vx = this.facing * (sigArch === 'ZANGIEF_LARIAT' ? 1180 : 1420);
+                            this.vy = 0;
+                        }
+                        this._ghostSpawnAccum += dt;
+                        if (this._ghostSpawnAccum >= 0.032) {
+                            this._ghostSpawnAccum = 0;
+                            this.ghosts.push({ x: this.x, y: this.y, age: 0.46, facing: this.facing, timer: 0, isDashGhost: true });
+                        }
+                    } else {
+                        this.vx *= 0.86;
+                    }
+                } else if (this.currentAttack.type === 'DRAGON_RUSH_COMBO') {
+                    // Full-Screen 4-Hit Rush Combo -> Finisher Shoryuken / Archetype Finisher on final 25% of active frames!
+                    const activeEnd = this.currentAttack.startup + this.currentAttack.active;
+                    const launchThreshold = this.currentAttack.startup + this.currentAttack.active * 0.75;
+                    if (this.stateTimer <= launchThreshold) {
+                        this.vx = this.facing * 980;
+                    } else if (this.stateTimer <= activeEnd) {
+                        if (this.isGrounded) {
+                            this.isGrounded = false;
+                            this.vy = -680;
+                        }
+                        this.vx = this.facing * 460;
+                    } else {
+                        this.vx *= 0.88;
+                    }
+                    this._ghostSpawnAccum += dt;
+                    if (this._ghostSpawnAccum >= 0.035) {
+                        this._ghostSpawnAccum = 0;
+                        this.ghosts.push({ x: this.x, y: this.y, age: 0.42, facing: this.facing, timer: 0, isDashGhost: true });
                     }
                 } else if (this.currentAttack.type === 'HURRICANE_KICK') {
                     if (this.stateTimer <= this.currentAttack.startup + this.currentAttack.active) {
@@ -743,6 +799,29 @@ export default class Fighter {
         }
     }
 
+    /**
+     * Maps each of the 25+ fighters to one of 8 iconic Street Fighter Signature Archetypes:
+     * 1. DHALSIM_DRILL (Raheel, Marley, Gargamel, GargamelHoodie)
+     * 2. BLANKA_CANNONBALL (Pablo, Simba, Paco)
+     * 3. CHUNLI_BIRD_KICK (Emely, HyperEmely, Cayle, CayleMinogue)
+     * 4. BISON_PSYCHO_CRUSHER (JJDark, JayX, Hattori)
+     * 5. GUILE_FLASH_KICK (Lee, Juan, Tzubaza)
+     * 6. ZANGIEF_LARIAT (Vikingo, VikingoRaw, Annikina)
+     * 7. HONDA_SUMO_TORPEDO (Kowalski, Putin, AlCapone)
+     * 8. RYU_DRAGON_RUSH (Keano, HyperKeano, SupremeKeano)
+     */
+    _getSignatureArchetype() {
+        const id = (this.data && this.data.id) || 'Keano';
+        if (id === 'Raheel' || id === 'Marley' || id === 'Gargamel' || id === 'GargamelHoodie') return 'DHALSIM_DRILL';
+        if (id === 'Pablo' || id === 'Simba' || id === 'Paco') return 'BLANKA_CANNONBALL';
+        if (id === 'Emely' || id === 'HyperEmely' || id === 'Cayle' || id === 'CayleMinogue') return 'CHUNLI_BIRD_KICK';
+        if (id === 'JJDark' || id === 'JayX' || id === 'Hattori') return 'BISON_PSYCHO_CRUSHER';
+        if (id === 'Lee' || id === 'Juan' || id === 'Tzubaza') return 'GUILE_FLASH_KICK';
+        if (id === 'Vikingo' || id === 'VikingoRaw' || id === 'DarkVikingo' || id === 'Annikina') return 'ZANGIEF_LARIAT';
+        if (id === 'Kowalski' || id === 'Putin' || id === 'AlCapone') return 'HONDA_SUMO_TORPEDO';
+        return 'RYU_DRAGON_RUSH';
+    }
+
     executeProjectileCast() {
         if (this.specialEnergy < 100) return false;
         this.specialEnergy = 0;
@@ -771,11 +850,11 @@ export default class Fighter {
     }
 
     executeAttack(type) {
-        // Energy-gated super/projectile specials require 100 energy; physical specials (DRAGON_UPPERCUT, HURRICANE_KICK) require specialMoveCooldown <= 0
+        // Energy-gated super/projectile specials require 100 energy; physical specials (DRAGON_UPPERCUT, HURRICANE_KICK, FLYING_TORPEDO, DRAGON_RUSH_COMBO) require specialMoveCooldown <= 0
         if (type === 'SPECIAL' || type === 'SPECIAL_DASH') {
             if (this.specialEnergy < 100) return false;
             this.specialEnergy = 0;
-        } else if (type === 'DRAGON_UPPERCUT' || type === 'HURRICANE_KICK') {
+        } else if (type === 'DRAGON_UPPERCUT' || type === 'HURRICANE_KICK' || type === 'FLYING_TORPEDO' || type === 'DRAGON_RUSH_COMBO') {
             if (this.specialMoveCooldown > 0) return false;
             this.specialMoveCooldown = 0.68;
         }
@@ -786,8 +865,11 @@ export default class Fighter {
         this.attackWasBlocked = false;
         this.attackHitCount = 0;
         this.multiHitCooldown = 0;
+        this._cannonballBounced = false;
 
         const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
+        const sigArch = this._getSignatureArchetype();
+        const charId = (this.data && this.data.id) || 'Keano';
         const isSecondVariant = Boolean(this.data && this.data.special);
 
         // Valhalla Berserker Rage Passive (+22% damage below 45% HP) & Second Variant Power Boost (+8%)
@@ -796,15 +878,16 @@ export default class Fighter {
         const pwrMul = (this.power / 100) * berserkerRage * variantMul;
 
         const isAerial = !this.isGrounded;
-        // Distinct Style Frame Speed & Hitbox Reach Modifiers
+        // Distinct Style Frame Speed & Hitbox Reach Modifiers (+75px Dhalsim Stretch-Limb reach for Raheel, Marley, Gargamel!)
         const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.80
             : (styleId === 'LIGHT_DRAGON' || styleId === 'KNEIPEN_TERRORIST' ? 0.84
             : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.86
             : (styleId === 'MASTER_STRIKER' ? 0.88 : 1.0)));
-        const reachBonus = styleId === 'MASTER_STRIKER' ? 38
+        const dhalsimStretchBonus = sigArch === 'DHALSIM_DRILL' ? 75 : 0;
+        const reachBonus = (styleId === 'MASTER_STRIKER' ? 38
             : (styleId === 'KNEIPEN_TERRORIST' ? 26
             : (styleId === 'VALHALLA_BERSERKER' ? 22
-            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0)));
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0)))) + dhalsimStretchBonus;
 
         // Play authentic martial-arts swing whoosh SFX
         const isHeavySwing = (type !== 'LIGHT' && type !== 'CROUCH_LIGHT');
@@ -929,6 +1012,74 @@ export default class Fighter {
                 box: new Hitbox(-35, 50, 240 + reachBonus, 155),
                 type: 'HURRICANE_KICK'
             };
+        } else if (type === 'FLYING_TORPEDO') {
+            // ← → + P or → + S: Character-Specific Full-Screen Signature Flight (8 Street Fighter Archetypes!)
+            this.isGrounded = false;
+            this.y -= 35;
+            this.vy = sigArch === 'GUILE_FLASH_KICK' ? -580 : 0;
+            this.vx = this.facing * 1420;
+            this.hitImmunity = Math.max(this.hitImmunity, sigArch === 'BISON_PSYCHO_CRUSHER' || sigArch === 'ZANGIEF_LARIAT' ? 0.36 : 0.24);
+
+            if (sigArch === 'DHALSIM_DRILL') {
+                this.pendingStyleCallout = (charId === 'Gargamel' || charId === 'GargamelHoodie') ? '🧪 ALCHEMY SCREW DRILL!' : '🌀 YOGA CORKSCREW DRILL!';
+            } else if (sigArch === 'BLANKA_CANNONBALL') {
+                this.pendingStyleCallout = '⚡ ROLLING CANNONBALL!';
+            } else if (sigArch === 'CHUNLI_BIRD_KICK') {
+                this.pendingStyleCallout = (charId === 'Cayle' || charId === 'CayleMinogue') ? '❄️ FROST HELICOPTER KICK!' : '🌸 SPINNING BIRD KICK!';
+            } else if (sigArch === 'BISON_PSYCHO_CRUSHER') {
+                this.pendingStyleCallout = '🟣 PSYCHO SHADOW CRUSHER!';
+            } else if (sigArch === 'GUILE_FLASH_KICK') {
+                this.pendingStyleCallout = '🌙 SOMERSAULT FLASH KICK!';
+            } else if (sigArch === 'ZANGIEF_LARIAT') {
+                this.pendingStyleCallout = charId === 'Annikina' ? '🌪️ IRON FLAME LARIAT!' : '⚡ MJÖLNIR TORNADO LARIAT!';
+            } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
+                this.pendingStyleCallout = '🚀 TITAN TORPEDO HEADBUTT!';
+            } else {
+                this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
+            }
+
+            const isFourHitBird = (sigArch === 'CHUNLI_BIRD_KICK');
+            this.currentAttack = {
+                startup: 0.05, active: 0.42, recovery: 0.22,
+                damage: Math.round((isFourHitBird ? 14 : 16) * pwrMul), pushback: 420, hitstop: 0.09,
+                lift: sigArch === 'GUILE_FLASH_KICK' ? -560 : -260,
+                maxHits: isFourHitBird ? 4 : 3,
+                hasSuperArmor: (sigArch === 'ZANGIEF_LARIAT' || sigArch === 'HONDA_SUMO_TORPEDO'),
+                isSpecialMove: true,
+                box: new Hitbox(-28, 35, 240 + reachBonus, 185),
+                type: 'FLYING_TORPEDO'
+            };
+        } else if (type === 'DRAGON_RUSH_COMBO') {
+            // ↓ ↘ → + K or J+L / K+L: Full-Screen 4-Hit Street Fighter Signature Combo Rush!
+            this.vx = this.facing * 1180;
+            this.hitImmunity = Math.max(this.hitImmunity, 0.22);
+            if (sigArch === 'DHALSIM_DRILL') {
+                this.pendingStyleCallout = (charId === 'Gargamel' || charId === 'GargamelHoodie') ? '🧪 ALCHEMY SCREW DRILL!' : '🌀 YOGA CORKSCREW DRILL!';
+            } else if (sigArch === 'BLANKA_CANNONBALL') {
+                this.pendingStyleCallout = '⚡ ELECTRIC THUNDER RUSH!';
+            } else if (sigArch === 'CHUNLI_BIRD_KICK') {
+                this.pendingStyleCallout = (charId === 'Cayle' || charId === 'CayleMinogue') ? '❄️ FROST LIGHTNING LEGS!' : '🌸 LIGHTNING LEGS RUSH!';
+            } else if (sigArch === 'BISON_PSYCHO_CRUSHER') {
+                this.pendingStyleCallout = '🟣 PSYCHO SHADOW CRUSHER!';
+            } else if (sigArch === 'GUILE_FLASH_KICK') {
+                this.pendingStyleCallout = '🌙 SOMERSAULT FLASH KICK!';
+            } else if (sigArch === 'ZANGIEF_LARIAT') {
+                this.pendingStyleCallout = charId === 'Annikina' ? '🌪️ IRON FLAME LARIAT!' : '⚡ MJÖLNIR TORNADO LARIAT!';
+            } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
+                this.pendingStyleCallout = '🚀 HUNDRED HAND TORPEDO!';
+            } else {
+                this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
+            }
+            this.currentAttack = {
+                startup: 0.04, active: 0.48, recovery: 0.24,
+                damage: Math.round(14 * pwrMul), pushback: 380, hitstop: 0.08,
+                lift: -440,
+                maxHits: 4,
+                hasSuperArmor: (sigArch === 'ZANGIEF_LARIAT'),
+                isSpecialMove: true,
+                box: new Hitbox(-20, 35, 235 + reachBonus, 210),
+                type: 'DRAGON_RUSH_COMBO'
+            };
         } else if (type === 'THROW') {
             // L + H at close range: Unblockable Martial Arts Grapple Slam!
             const isGrappler = (styleId === 'TITAN_GRAPPLER');
@@ -983,7 +1134,7 @@ export default class Fighter {
         const gutsMul = (this.hp / this.maxHP < 0.25) ? 0.82 : 1.0;
         const proration = Math.max(0.48, 1.0 - (this.consecutiveHitsTaken || 0) * 0.15);
         const scaledDamage = Math.max(1, Math.round(attackDef.damage * gutsMul * proration));
-        const isSpecialOrProj = Boolean(attackDef.isSpecialMove || attackDef.type === 'SPECIAL' || attackDef.type === 'SPECIAL_DASH' || attackDef.type === 'PROJECTILE' || attackDef.type === 'DRAGON_UPPERCUT' || attackDef.type === 'HURRICANE_KICK' || attackDef.type === 'COMBO_FINISHER');
+        const isSpecialOrProj = Boolean(attackDef.isSpecialMove || attackDef.type === 'SPECIAL' || attackDef.type === 'SPECIAL_DASH' || attackDef.type === 'PROJECTILE' || attackDef.type === 'DRAGON_UPPERCUT' || attackDef.type === 'HURRICANE_KICK' || attackDef.type === 'FLYING_TORPEDO' || attackDef.type === 'DRAGON_RUSH_COMBO' || attackDef.type === 'COMBO_FINISHER');
         const isHeavyOrCommand = Boolean(isSpecialOrProj || (attackDef.damage || 0) >= 24 || attackDef.type === 'AXE_KICK' || attackDef.type === 'COMMAND_PUNCH');
 
         // ─── VALHALLA BERSERKER SUPER-ARMOR CHECK ───
@@ -1061,7 +1212,7 @@ export default class Fighter {
                 this.consecutiveHitsTaken = 0;
             } else {
                 this.vx = attackerFacing * attackDef.pushback;
-                if (attackDef.lift && (this.isGrounded || attackDef.type === 'DRAGON_UPPERCUT' || attackDef.type === 'HURRICANE_KICK')) {
+                if (attackDef.lift && (this.isGrounded || attackDef.type === 'DRAGON_UPPERCUT' || attackDef.type === 'HURRICANE_KICK' || attackDef.type === 'FLYING_TORPEDO' || attackDef.type === 'DRAGON_RUSH_COMBO')) {
                     this.vy = attackDef.lift;
                     this.isGrounded = false;
                 }
@@ -1181,6 +1332,33 @@ export default class Fighter {
                     else if (phase < startup + active * 0.42) suffix = '_uppercut.png';
                     else if (phase < retractStart) suffix = '_dragon_uppercut.png';
                     else suffix = '_jump.png';
+                } else if (atkType === 'FLYING_TORPEDO') {
+                    // Character-Specific Street Fighter Signature Flight Pose!
+                    const sigArch = this._getSignatureArchetype();
+                    if (sigArch === 'CHUNLI_BIRD_KICK') {
+                        suffix = (Math.floor(phase * 22) % 2 === 0) ? '_spin_kick.png' : '_hurricane_kick.png';
+                    } else if (sigArch === 'ZANGIEF_LARIAT') {
+                        suffix = (Math.floor(phase * 20) % 2 === 0) ? '_hook_punch.png' : '_backfist.png';
+                    } else if (sigArch === 'GUILE_FLASH_KICK') {
+                        suffix = (phase < startup + active * 0.5) ? '_axe_kick.png' : '_spin_kick.png';
+                    } else if (sigArch === 'BLANKA_CANNONBALL') {
+                        suffix = '_jump.png';
+                    } else if (phase < startup + active * 0.55) {
+                        suffix = '_dive_kick.png';
+                    } else if (phase < retractStart) {
+                        suffix = '_special.png';
+                    } else {
+                        suffix = '_jump.png';
+                    }
+                } else if (atkType === 'DRAGON_RUSH_COMBO') {
+                    // Full-screen 4-pose Street Fighter Rush: _hurricane_kick -> _punch -> _hook_punch -> _dragon_uppercut!
+                    const activeProgress = Math.max(0, Math.min(0.999, (phase - startup) / Math.max(0.01, active)));
+                    const rushStep = Math.floor(activeProgress * 4);
+                    if (phase < startup) suffix = '_windup_kick.png';
+                    else if (rushStep === 0) suffix = '_hurricane_kick.png';
+                    else if (rushStep === 1) suffix = '_punch.png';
+                    else if (rushStep === 2) suffix = '_hook_punch.png';
+                    else suffix = '_dragon_uppercut.png';
                 } else if (atkType === 'HURRICANE_KICK') {
                     // Spinning Tatsumaki Cyclone Kick: alternates _hurricane_kick, _spin_kick, and _dive_kick rapidly!
                     const spinStep = Math.floor(phase * 18) % 3;
@@ -1205,7 +1383,7 @@ export default class Fighter {
                     if (phase < startup) suffix = '_windup_punch.png';
                     else if (phase < startup + active * 0.60) suffix = '_backfist.png';
                     else suffix = '_hook_punch.png';
-                } else if (!this.isGrounded && atkType !== 'SPECIAL' && atkType !== 'SPECIAL_DASH') {
+                } else if (!this.isGrounded && atkType !== 'SPECIAL' && atkType !== 'SPECIAL_DASH' && atkType !== 'FLYING_TORPEDO' && atkType !== 'DRAGON_RUSH_COMBO') {
                     // Aerial Salto-Kick / Hurricane Flip Kick!
                     if (phase < startup) suffix = '_jump.png';
                     else if (phase < startup + active * 0.55) suffix = '_spin_kick.png';
@@ -1457,9 +1635,10 @@ export default class Fighter {
                 ctx.restore();
             }
 
-            // ─── SMOOTH BREATHING & 3-PHASE STREET FIGHTER SUB-FRAMING ───
+            // ─── SMOOTH BREATHING & 3-PHASE STREET FIGHTER SUB-FRAMING (PLUS DHALSIM LIMB STRETCH!) ───
             let poseScaleX = 1.0;
             let poseScaleY = 1.0;
+            const sigArch = this._getSignatureArchetype();
             if (this.landingTimer > 0 && this.state === 'IDLE') {
                 const landAmt = this.landingTimer / 0.14;
                 poseScaleX = 1.0 + landAmt * 0.04;
@@ -1473,7 +1652,12 @@ export default class Fighter {
                 const p = this.stateTimer;
                 const st = this.currentAttack.startup || 0.05;
                 const act = this.currentAttack.active || 0.15;
-                if (p < st) {
+                const atkT = this.currentAttack.type;
+                if (sigArch === 'DHALSIM_DRILL' && (atkT === 'HEAVY' || atkT === 'COMMAND_PUNCH' || atkT === 'AXE_KICK' || atkT === 'COMBO_FINISHER') && p >= st && p <= st + act) {
+                    // Dhalsim Yoga Stretch-Limb extension on heavy/command pokes!
+                    poseScaleX = 1.28;
+                    poseScaleY = 0.94;
+                } else if (p < st) {
                     poseScaleX = 0.98;
                     poseScaleY = 0.99;
                 } else if (p < st + act * 0.65) {
@@ -1482,14 +1666,22 @@ export default class Fighter {
                 }
             }
 
-            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP + AERIAL SALTO-KICK + SPECIAL DASH ───
+            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP + AERIAL SALTO-KICK + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
             let isRolling = false;
             let currentRotation = 0;
             if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
                 isRolling = true;
                 const spinSpeed = 25.0;
                 currentRotation = this.stateTimer * spinSpeed * this.facing;
-            } else if (!this.isGrounded && Math.abs(this.vx) >= 25 && (this.state === 'JUMP' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK'))) {
+            } else if (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'FLYING_TORPEDO' || this.currentAttack.type === 'DRAGON_RUSH_COMBO') && sigArch === 'BLANKA_CANNONBALL') {
+                // Blanka Rolling Cannonball: fast 360°-spinning cannonball across the stage!
+                isRolling = true;
+                currentRotation = this.stateTimer * 32.0 * this.facing;
+            } else if (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'FLYING_TORPEDO' || this.currentAttack.type === 'DRAGON_RUSH_COMBO') && sigArch === 'GUILE_FLASH_KICK') {
+                // Guile Somersault Flash Kick: high backflip somersault!
+                isRolling = true;
+                currentRotation = -this.stateTimer * 18.0 * this.facing;
+            } else if (!this.isGrounded && Math.abs(this.vx) >= 25 && (this.state === 'JUMP' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
                 // Forward jump = front salto (+1), Backward jump = back salto (-1)
                 isRolling = true;
                 const saltoDir = (this.vx * this.facing >= 0) ? 1 : -1;
@@ -1502,6 +1694,32 @@ export default class Fighter {
                 ctx.translate(0, -drawH * 0.52);
                 ctx.rotate(currentRotation);
                 ctx.translate(0, drawH * 0.52);
+            } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'FLYING_TORPEDO') {
+                if (sigArch === 'CHUNLI_BIRD_KICK') {
+                    // Chun-Li Upside-Down Spinning Bird Kick helicopter spin!
+                    const spinFlip = Math.cos(this.stateTimer * 36) >= 0 ? 1 : -1;
+                    ctx.translate(0, -drawH * 0.52);
+                    ctx.scale(spinFlip, -1);
+                    ctx.translate(0, drawH * 0.52);
+                } else if (sigArch === 'ZANGIEF_LARIAT') {
+                    // Zangief / Thor 360° Double Lariat cyclone spin!
+                    const spinFlip = Math.cos(this.stateTimer * 38) >= 0 ? 1 : -1;
+                    ctx.scale(spinFlip, 1);
+                } else if (sigArch === 'BISON_PSYCHO_CRUSHER') {
+                    // M. Bison Psycho Crusher horizontal corkscrew tilt!
+                    ctx.translate(0, -drawH * 0.52);
+                    ctx.rotate(this.facing * 1.35);
+                    ctx.translate(0, drawH * 0.52);
+                } else if (sigArch === 'HONDA_SUMO_TORPEDO' || sigArch === 'DHALSIM_DRILL') {
+                    // E. Honda Sumo Headbutt / Dhalsim Yoga Drill horizontal torpedo flight!
+                    ctx.translate(0, -drawH * 0.52);
+                    ctx.rotate(this.facing * 1.25);
+                    ctx.translate(0, drawH * 0.52);
+                } else {
+                    ctx.translate(0, -drawH * 0.52);
+                    ctx.rotate(this.facing * 0.22);
+                    ctx.translate(0, drawH * 0.52);
+                }
             } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'HURRICANE_KICK') {
                 // Horizontal cyclone spin wobble for Tatsumaki Hurricane Kick!
                 const spinFlip = Math.cos(this.stateTimer * 32) >= 0 ? 1 : -1;
@@ -1630,6 +1848,8 @@ export default class Fighter {
 
         const type = atk.type;
         const styleColor = (this.styleInfo && this.styleInfo.color) || '#00e5ff';
+        const sigArch = this._getSignatureArchetype();
+        const charId = (this.data && this.data.id) || 'Keano';
         if (type === 'LIGHT' || type === 'CROUCH_LIGHT') {
             const cy = type === 'CROUCH_LIGHT' ? -drawH * 0.22 : (this.y < this.groundY ? -drawH * 0.45 : -drawH * 0.64);
             const cx = drawW * 0.34 + progress * 28;
@@ -1700,6 +1920,150 @@ export default class Fighter {
             ctx.lineWidth = 10 * (1 - progress * 0.25);
             ctx.beginPath();
             ctx.ellipse(cx + 6, cy, 85, 155, -0.18, -1.35, 0.65);
+            ctx.stroke();
+        } else if (type === 'FLYING_TORPEDO') {
+            // 8 Distinct Street Fighter Signature VFX for FLYING_TORPEDO!
+            const cy = -drawH * 0.54;
+            if (sigArch === 'DHALSIM_DRILL') {
+                // Dhalsim Yoga Corkscrew Drill: 4 rapid spinning corkscrew rings narrowing toward the drill tip!
+                for (let r = 0; r < 4; r++) {
+                    const rx = -drawW * 0.25 + r * (drawW * 0.22);
+                    const radY = 78 - r * 14;
+                    const rot = this.stateTimer * 34 + r * 1.4;
+                    ctx.strokeStyle = r % 2 === 0 ? '#00ff88' : '#ffd700';
+                    ctx.shadowColor = '#00ff88';
+                    ctx.shadowBlur = 20;
+                    ctx.lineWidth = 8 - r;
+                    ctx.beginPath();
+                    ctx.ellipse(rx, cy, 24, radY, 0, rot, rot + Math.PI * 1.45);
+                    ctx.stroke();
+                }
+            } else if (sigArch === 'BLANKA_CANNONBALL') {
+                // Blanka Rolling Cannonball: crackling electric/solar sphere & lightning arcs!
+                ctx.strokeStyle = '#ffee00';
+                ctx.shadowColor = '#00ff88';
+                ctx.shadowBlur = 28;
+                ctx.lineWidth = 9;
+                ctx.beginPath();
+                ctx.arc(0, cy, 96, 0, Math.PI * 2);
+                ctx.stroke();
+                for (let b = 0; b < 6; b++) {
+                    const a = this.stateTimer * 25 + (b * Math.PI) / 3;
+                    ctx.strokeStyle = b % 2 === 0 ? '#00ffff' : '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(a) * 55, cy + Math.sin(a) * 55);
+                    ctx.lineTo(Math.cos(a + 0.25) * 122, cy + Math.sin(a + 0.25) * 122);
+                    ctx.stroke();
+                }
+            } else if (sigArch === 'CHUNLI_BIRD_KICK') {
+                // Chun-Li Upside-Down Spinning Bird Kick: wide pink/ice helicopter rotor blades!
+                const isFrost = (charId === 'Cayle' || charId === 'CayleMinogue');
+                for (let ring = 0; ring < 2; ring++) {
+                    const rot = this.stateTimer * 30 + ring * Math.PI;
+                    ctx.strokeStyle = ring === 0 ? (isFrost ? '#00ffff' : '#ff66cc') : '#ffffff';
+                    ctx.shadowColor = isFrost ? '#00ccff' : '#ff33aa';
+                    ctx.shadowBlur = 26;
+                    ctx.lineWidth = ring === 0 ? 15 : 7;
+                    ctx.beginPath();
+                    ctx.ellipse(0, cy - 18, 175, 28, 0, rot, rot + Math.PI * 1.4);
+                    ctx.stroke();
+                }
+            } else if (sigArch === 'BISON_PSYCHO_CRUSHER') {
+                // M. Bison Psycho Crusher: rotating purple/crimson flame screw vortex enveloping the whole body!
+                const noseX = drawW * 0.56;
+                const grad = ctx.createLinearGradient(-drawW * 0.6, cy, noseX, cy);
+                grad.addColorStop(0, 'rgba(180, 0, 255, 0)');
+                grad.addColorStop(0.5, '#cc00ff');
+                grad.addColorStop(1, '#00ffff');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(noseX + 30, cy);
+                ctx.lineTo(-drawW * 0.58, cy - 105);
+                ctx.lineTo(-drawW * 0.35, cy);
+                ctx.lineTo(-drawW * 0.58, cy + 105);
+                ctx.closePath();
+                ctx.fill();
+                for (let s = 0; s < 3; s++) {
+                    const sx = -drawW * 0.2 + s * (drawW * 0.26);
+                    const rot = this.stateTimer * 36 + s * 2.0;
+                    ctx.strokeStyle = s % 2 === 0 ? '#ff00aa' : '#ffffff';
+                    ctx.shadowColor = '#cc00ff';
+                    ctx.shadowBlur = 24;
+                    ctx.lineWidth = 8;
+                    ctx.beginPath();
+                    ctx.ellipse(sx, cy, 32, 88 - s * 14, 0, rot, rot + Math.PI * 1.35);
+                    ctx.stroke();
+                }
+            } else if (sigArch === 'GUILE_FLASH_KICK') {
+                // Guile Somersault Flash Kick: giant 180px golden/crimson crescent sonic boom blade wave!
+                ctx.strokeStyle = '#ffd700';
+                ctx.shadowColor = '#ff5500';
+                ctx.shadowBlur = 32;
+                ctx.lineWidth = 24 * (1 - progress * 0.25);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(drawW * 0.20, cy, 180, -Math.PI * 0.68, Math.PI * 0.38);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 9;
+                ctx.beginPath();
+                ctx.arc(drawW * 0.24, cy, 168, -Math.PI * 0.62, Math.PI * 0.32);
+                ctx.stroke();
+            } else if (sigArch === 'ZANGIEF_LARIAT') {
+                // Zangief / Thor Spinning Double Lariat: roaring tornado of Bifröst lightning (Vikingo) or cast-iron fire rings (Annikina)!
+                const isAnni = (charId === 'Annikina');
+                for (let ring = 0; ring < 3; ring++) {
+                    const ry = -drawH * (0.28 + ring * 0.22);
+                    const rot = this.stateTimer * 32 + ring * 2.1;
+                    ctx.strokeStyle = isAnni ? (ring % 2 === 0 ? '#ff5500' : '#ffd700') : (ring % 2 === 0 ? '#00e5ff' : '#ffd700');
+                    ctx.shadowColor = isAnni ? '#ff2200' : '#00ffff';
+                    ctx.shadowBlur = 26;
+                    ctx.lineWidth = 14 - ring * 2;
+                    ctx.beginPath();
+                    ctx.ellipse(0, ry, 155 + ring * 12, 34, 0, rot, rot + Math.PI * 1.45);
+                    ctx.stroke();
+                }
+            } else {
+                // E. Honda Sumo Torpedo / Solar Dragon Torpedo shockwave nose-cone!
+                const noseX = drawW * 0.52;
+                const grad = ctx.createLinearGradient(-drawW * 0.55, cy, noseX, cy);
+                grad.addColorStop(0, 'rgba(0, 229, 255, 0)');
+                grad.addColorStop(0.55, styleColor);
+                grad.addColorStop(1, '#ffffff');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.moveTo(noseX + 26, cy);
+                ctx.lineTo(-drawW * 0.52, cy - 95);
+                ctx.lineTo(-drawW * 0.32, cy);
+                ctx.lineTo(-drawW * 0.52, cy + 95);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.strokeStyle = '#ffd700';
+                ctx.shadowColor = styleColor;
+                ctx.shadowBlur = 26;
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.ellipse(drawW * 0.22, cy, 38, 86, 0, -Math.PI * 0.65, Math.PI * 0.65);
+                ctx.stroke();
+            }
+        } else if (type === 'DRAGON_RUSH_COMBO') {
+            // Blazing 4-hit Full-Screen Rush Combo aura + rising dragon uppercut / flash kick finisher pillar!
+            const cy = -drawH * 0.54;
+            const cx = drawW * 0.28;
+            ctx.strokeStyle = progress > 0.72 ? '#ff3300' : styleColor;
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 26;
+            ctx.lineWidth = 18;
+            ctx.beginPath();
+            if (progress > 0.72) {
+                ctx.ellipse(cx, -drawH * 0.62, 96, 170, -0.18, -1.45, 0.75);
+            } else {
+                const rot = this.stateTimer * 28;
+                ctx.ellipse(cx, cy, 138, 64, 0, rot, rot + Math.PI * 1.35);
+            }
             ctx.stroke();
         } else if (type === 'HURRICANE_KICK') {
             // Dual horizontal cyclone vortex rings around spinning legs!

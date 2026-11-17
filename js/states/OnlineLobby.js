@@ -4,9 +4,9 @@
  *  1) 1 VS 1 DUELL (Head-to-head PvP!)
  *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.41';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.41';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.41';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.42';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.42';
 
 export default class OnlineLobbyState {
     constructor(game) {
@@ -19,8 +19,9 @@ export default class OnlineLobbyState {
         this.enteredCode = '';
         this.numpadIndex = 0; // For controller navigation on numpad
 
-        // Available fighters for Online Mode (Main Roster + unlocked Specials)
+        // Available fighters for Online Mode (Main Roster + unlocked Specials on THIS device)
         this.selectableFighters = [];
+        this.stageKeys = Object.keys(STAGES);
         this._onCanvasTap = null;
         this._onKeyDown = null;
     }
@@ -28,12 +29,11 @@ export default class OnlineLobbyState {
     _refreshSelectableFighters() {
         const unlockedSpecials = SPECIALS.filter(s => isFighterUnlocked(s.id));
         this.selectableFighters = [...ROSTER, ...unlockedSpecials];
-        for (const f of this.selectableFighters) {
-            if (f.id === 'Keano' || f.id === 'JJDark') {
-                const key = `${f.id}_front.png`;
-                if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png`);
-                }
+        // Preload _front.png portraits for ALL fighters in ALL_FIGHTERS so even if the remote player picks a secret fighter not unlocked locally, their portrait renders!
+        for (const f of ALL_FIGHTERS) {
+            const key = `${f.id}_front.png`;
+            if (!this.game.assetManager.images[key]) {
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.42`);
             }
         }
         this.game.assetManager.loadAll();
@@ -170,16 +170,25 @@ export default class OnlineLobbyState {
                 return;
             }
 
-            // P1 character cycle (left card x ~ cx - 410, y ~ 330..700)
-            if (Math.abs(tx - (cx - 410)) < 250 && ty > 330 && ty < 700) {
+            // Center Arena Selector Pill (y ~ 668, x ~ cx - 280 .. cx + 280)
+            if (Math.abs(ty - 668) < 34 && Math.abs(tx - cx) < 290) {
+                this._cycleStage(tx < cx ? -1 : 1);
+                return;
+            }
+
+            // P1 character cycle (left card x ~ cx - 410, y ~ 320..650)
+            if (Math.abs(tx - (cx - 410)) < 250 && ty > 320 && ty < 650) {
                 if (net.role === 'host') {
                     this._cycleChar('host', tx < (cx - 410) ? -1 : 1);
+                } else if (net.role === 'guest') {
+                    // If Guest accidentally taps Left card, still cycle Guest's own fighter!
+                    this._cycleChar('guest', tx < (cx - 410) ? -1 : 1);
                 }
                 return;
             }
 
-            // P2 character cycle (right card x ~ cx + 410, y ~ 330..700)
-            if (Math.abs(tx - (cx + 410)) < 250 && ty > 330 && ty < 700) {
+            // P2 character cycle (right card x ~ cx + 410, y ~ 320..650)
+            if (Math.abs(tx - (cx + 410)) < 250 && ty > 320 && ty < 650) {
                 this._cycleChar('guest', tx < (cx + 410) ? -1 : 1);
                 return;
             }
@@ -212,6 +221,7 @@ export default class OnlineLobbyState {
     }
 
     async _startHosting(initialMode = 'coop') {
+        this._refreshSelectableFighters();
         this.step = 'room';
         this.selectedIndex = 0;
         this.inputCooldown = 20;
@@ -220,6 +230,7 @@ export default class OnlineLobbyState {
 
     async _submitJoinCode() {
         if (this.enteredCode.length !== 4) return;
+        this._refreshSelectableFighters();
         const code = this.enteredCode;
         this.step = 'room';
         this.inputCooldown = 20;
@@ -248,11 +259,30 @@ export default class OnlineLobbyState {
         this._setMode(net.mode === 'coop' ? 'duel' : 'coop');
     }
 
+    _cycleStage(dir) {
+        const net = this.game.networkManager;
+        const keys = this.stageKeys && this.stageKeys.length ? this.stageKeys : Object.keys(STAGES);
+        let idx = keys.indexOf(net.stageId || 'Dojo');
+        if (idx < 0) idx = 0;
+        idx = (idx + dir + keys.length) % keys.length;
+        const nextStage = keys[idx];
+        net.stageId = nextStage;
+        preloadStageAssets(this.game.assetManager, nextStage);
+        this.game.assetManager.loadAll();
+
+        if (net.role === 'host') {
+            net.syncLobby();
+        } else if (net.role === 'guest') {
+            net.send({ type: 'GUEST_SELECT', stageId: nextStage });
+        }
+    }
+
     _startOnlineMatch() {
         this._launchOnlineMatch(false);
     }
 
     _cycleChar(which, dir) {
+        this._refreshSelectableFighters();
         const net = this.game.networkManager;
         const list = this.selectableFighters;
         if (!list.length) return;
@@ -265,7 +295,7 @@ export default class OnlineLobbyState {
 
         const key = `${nextChar.id}_front.png`;
         if (!this.game.assetManager.images[key]) {
-            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png`);
+            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.42`);
             this.game.assetManager.loadAll();
         }
 
@@ -277,6 +307,7 @@ export default class OnlineLobbyState {
                 net.guestCharId = nextChar.id;
                 net.syncLobby();
             } else if (net.role === 'guest') {
+                net._guestHasPickedChar = true;
                 net.guestCharId = nextChar.id;
                 net.send({ type: 'GUEST_SELECT', guestCharId: nextChar.id });
             }
@@ -345,7 +376,7 @@ export default class OnlineLobbyState {
         const net = this.game.networkManager;
         const p1Char = net.getFighterById(p1Id || 'Keano');
         const p2Char = net.getFighterById(p2Id || 'JJDark');
-        const stageId = p2Char.stageId || 'Dojo';
+        const stageId = net.stageId || p2Char.stageId || 'Dojo';
 
         preloadFighterSprites(this.game.assetManager, p1Char);
         preloadFighterSprites(this.game.assetManager, p2Char);
@@ -747,8 +778,8 @@ export default class OnlineLobbyState {
         this._drawFighterSlot(
             ctx,
             cx - 410,
-            508,
-            'SPIELER 1 (HOST)',
+            492,
+            net.role === 'host' ? 'DU: SPIELER 1 (HOST)' : 'SPIELER 1 (HOST)',
             net.getFighterById(net.hostCharId),
             '#00ffff',
             net.role === 'host'
@@ -757,8 +788,10 @@ export default class OnlineLobbyState {
         this._drawFighterSlot(
             ctx,
             cx + 410,
-            508,
-            isConnected ? 'SPIELER 2 (BEREIT)' : 'SPIELER 2 (WARTET)',
+            492,
+            net.role === 'guest'
+                ? 'DU: SPIELER 2 (GAST)'
+                : (isConnected ? 'SPIELER 2 (BEREIT)' : 'SPIELER 2 (WARTET)'),
             net.getFighterById(net.guestCharId),
             isCoop ? '#00ff88' : '#ff3366',
             true
@@ -768,41 +801,61 @@ export default class OnlineLobbyState {
         if (isCoop) {
             ctx.font = 'bold 32px "Press Start 2P"';
             ctx.fillStyle = '#00ff88';
-            ctx.fillText('TEAM', cx, 475);
+            ctx.fillText('TEAM', cx, 465);
             ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('GEGEN', cx, 510);
+            ctx.fillText('GEGEN', cx, 500);
             ctx.fillStyle = '#ff4466';
-            ctx.fillText('1. BOSS:', cx, 538);
+            ctx.fillText('1. BOSS:', cx, 528);
             ctx.fillStyle = '#ffffff';
-            ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 566);
+            ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 556);
         } else {
             ctx.font = 'bold 50px "Press Start 2P"';
             ctx.fillStyle = '#ff3366';
             ctx.shadowColor = '#ff3366';
             ctx.shadowBlur = 16;
-            ctx.fillText('VS', cx, 520);
+            ctx.fillText('VS', cx, 510);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 14px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('DIREKTES DUELL', cx, 558);
+            ctx.fillText('DIREKTES DUELL', cx, 548);
         }
+
+        // Interactive Center Arena Selector Pill (y = 668)
+        const curStageKey = net.stageId || 'Dojo';
+        const stageName = (STAGES[curStageKey] && STAGES[curStageKey].name) ? STAGES[curStageKey].name.toUpperCase() : curStageKey.toUpperCase();
+        this._drawRoundedBox(
+            ctx,
+            cx - 275,
+            668 - 25,
+            550,
+            50,
+            25,
+            'rgba(0, 229, 255, 0.16)',
+            '#00e5ff',
+            2.5,
+            'rgba(0, 229, 255, 0.35)'
+        );
+        ctx.font = 'bold 15px "Press Start 2P"';
+        ctx.fillStyle = '#ffd700';
+        ctx.textAlign = 'center';
+        ctx.fillText(`🏟️ ARENA: ◀ ${stageName} ▶`, cx, 675);
 
         // Connection Status & Ping
         ctx.font = 'bold 18px "Press Start 2P"';
         if (isConnected) {
             ctx.fillStyle = '#00ff88';
             const pingTxt = net.latencyMs ? ` (${net.latencyMs}ms)` : '';
-            ctx.fillText(`VERBUNDEN! BEREIT ZUM KAMPF${pingTxt}`, cx, 732);
+            ctx.fillText(`VERBUNDEN! BEREIT ZUM KAMPF${pingTxt}`, cx, 738);
         } else if (net.status === 'error') {
             ctx.fillStyle = '#ff4466';
-            ctx.fillText(net.errorMsg || 'Verbindungsfehler', cx, 732);
+            ctx.fillText(net.errorMsg || 'Verbindungsfehler', cx, 738);
         } else {
             ctx.fillStyle = '#ffcc00';
             const msg = net.role === 'host'
                 ? `Spieler 2 gibt Code ${net.roomCode} ein...`
                 : `Verbinde mit Raum ${net.roomCode}...`;
-            ctx.fillText(msg, cx, 732);
+            ctx.fillText(msg, cx, 738);
         }
 
         // Sleek Rounded Start Pill Button
@@ -853,27 +906,43 @@ export default class OnlineLobbyState {
         ctx.textAlign = 'center';
         ctx.fillStyle = color;
         ctx.font = 'bold 16px "Press Start 2P"';
-        ctx.fillText(header, x, y - boxH / 2 + 36);
+        ctx.fillText(header, x, y - boxH / 2 + 34);
 
         const img = this.game.assetManager.images[`${fighter.id}_front.png`]
             || this.game.assetManager.images[`${fighter.id}_right.png`];
         if (img && (img.naturalWidth || img.width)) {
             const iw = img.naturalWidth || img.width;
             const ih = img.naturalHeight || img.height;
-            const targetH = 205;
+            const targetH = 192;
             const scale = targetH / ih;
             const drawW = iw * scale;
-            ctx.drawImage(img, x - drawW / 2, y - 112, drawW, targetH);
+            ctx.drawImage(img, x - drawW / 2, y - 114, drawW, targetH);
+        }
+
+        if (canChange) {
+            // Prominent neon ◀ and ▶ touch buttons on left and right sides of the card!
+            this._drawRoundedBox(ctx, x - boxW / 2 + 14, y - 34, 54, 54, 14, 'rgba(0, 229, 255, 0.25)', color, 2.5, color);
+            this._drawRoundedBox(ctx, x + boxW / 2 - 68, y - 34, 54, 54, 14, 'rgba(0, 229, 255, 0.25)', color, 2.5, color);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 24px "Press Start 2P"';
+            ctx.fillText('◀', x - boxW / 2 + 41, y + 3);
+            ctx.fillText('▶', x + boxW / 2 - 41, y + 3);
         }
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 22px "Press Start 2P"';
+        ctx.font = 'bold 21px "Press Start 2P"';
         const label = canChange ? `◀ ${fighter.name.toUpperCase()} ▶` : fighter.name.toUpperCase();
-        ctx.fillText(label, x, y + 130);
+        ctx.fillText(label, x, y + 114);
 
         ctx.fillStyle = '#99bbdd';
-        ctx.font = '13px "Press Start 2P"';
-        ctx.fillText(fighter.nickname || '', x, y + 158);
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText(fighter.nickname || '', x, y + 138);
+
+        if (canChange) {
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 10px "Press Start 2P"';
+            ctx.fillText(`TIPPE ◀ / ▶ ZUM KÄMPFER WÄHLEN (${this.selectableFighters.length} FREI)`, x, y + 163);
+        }
         ctx.restore();
     }
 }

@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.41';
-import Projectile from '../entities/Projectile.js?v=2.41';
-import Hitbox from '../entities/Hitbox.js?v=2.41';
-import StageObjectManager from '../entities/StageObjects.js?v=2.41';
-import AIController from '../ai/AIController.js?v=2.41';
-import CombatHUD from '../ui/CombatHUD.js?v=2.41';
+import Fighter from '../entities/Fighter.js?v=2.42';
+import Projectile from '../entities/Projectile.js?v=2.42';
+import Hitbox from '../entities/Hitbox.js?v=2.42';
+import StageObjectManager from '../entities/StageObjects.js?v=2.42';
+import AIController from '../ai/AIController.js?v=2.42';
+import CombatHUD from '../ui/CombatHUD.js?v=2.42';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.41';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.41';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.41';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.41';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.41';
+} from '../core/AssetPreloader.js?v=2.42';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.42';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.42';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.42';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
 
 export default class CombatState {
     constructor(game) {
@@ -53,6 +53,8 @@ export default class CombatState {
 
         // Arcade & Online / Co-Op Mode tracking
         this.arcadeMode = Boolean(data && data.arcadeMode);
+        this.storyMode = Boolean(data && data.storyMode);
+        this.arcadeLadder = (data && Array.isArray(data.arcadeLadder)) ? data.arcadeLadder : null;
         this.coopMode = Boolean(data && data.coopMode);
         this.onlineMode = (data && data.onlineMode) || null;
         this.arcadeIndex = (data && data.arcadeIndex !== undefined) ? data.arcadeIndex : 1;
@@ -127,7 +129,9 @@ export default class CombatState {
         this.cameraFocusX = this.game.width / 2;
         this.cameraFocusY = this.game.height * 0.65;
         this.firstAttackAwarded = false;
-        this.callout = null;
+        this.callout = (this.arcadeMode && p2Data.special)
+            ? { text: '⚠️ SECRET CHALLENGER!', color: '#ff3366', side: 'p2', timer: 3.2, maxTimer: 3.2 }
+            : null;
 
         // Combo Counter tracking
         this.p1ComboCount = 0;
@@ -827,16 +831,34 @@ export default class CombatState {
             const hasDP = im.hasDP(this.p1.facing);
             const hasQCB = im.hasQCB(this.p1.facing);
             const hasQCF = im.hasQCF(this.p1.facing);
+            const hasBF = im.hasBackForward(this.p1.facing);
+            const hasDU = im.hasDownUp();
+            const holdingFwd = (this.p1.facing === 1 && p1.right) || (this.p1.facing === -1 && p1.left);
 
             if (p1.throwJust && p1Dist <= 165 && this.p1.isGrounded && this.p2.isGrounded) {
                 // L + H simultaneously at close range: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
-            } else if (((p1.lJust && hasDP) || (p1.sJust && p1.up)) && this.p1.specialMoveCooldown <= 0) {
-                // → ↓ ↘ + L or ↓ ↑ + L or ↑ + S: Rising Shoryuken Dragon Uppercut!
-                p1InputCopy.commandMove = 'DRAGON_UPPERCUT';
+            } else if ((p1.specialRushJust || (p1.hJust && hasQCF)) && this.p1.specialMoveCooldown <= 0) {
+                // J+L / K+L simultaneously OR ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
+                p1InputCopy.commandMove = 'DRAGON_RUSH_COMBO';
                 p1InputCopy.lJust = false;
+                p1InputCopy.hJust = false;
+                im.clearMotionHistory();
+                playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+            } else if (((p1.sJust && holdingFwd && !p1.up && !p1.down) || ((p1.lJust || p1.hJust) && hasBF)) && this.p1.specialMoveCooldown <= 0) {
+                // → + L (Forward + Special) OR ← → + J/K: Character-Specific Full-Screen Signature Flight (Torpedo / Drill / Bird Kick / Psycho Crusher / Lariat / Cannonball)!
+                p1InputCopy.commandMove = 'FLYING_TORPEDO';
+                p1InputCopy.lJust = false;
+                p1InputCopy.hJust = false;
+                im.clearMotionHistory();
+                playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+            } else if (((p1.lJust && (hasDP || hasDU)) || (p1.hJust && hasDU) || (p1.sJust && p1.up)) && this.p1.specialMoveCooldown <= 0) {
+                // → ↓ ↘ + L or ↓ ↑ + L/K or ↑ + S: Rising Shoryuken Dragon Uppercut / Flash Kick!
+                p1InputCopy.commandMove = (p1.hJust && hasDU) ? 'FLYING_TORPEDO' : 'DRAGON_UPPERCUT';
+                p1InputCopy.lJust = false;
+                p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
             } else if (((p1.hJust && hasQCB) || (p1.sJust && p1.down)) && this.p1.specialMoveCooldown <= 0) {
@@ -845,14 +867,14 @@ export default class CombatState {
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (p1.sJust || ((p1.lJust || p1.hJust) && hasQCF)) {
+            } else if (p1.sJust || (p1.lJust && hasQCF)) {
                 if (this.tryExecuteSpecial(this.p1, 'p1')) {
                     im.clearMotionHistory();
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
                 } else if (hasQCF && this.p1.specialMoveCooldown <= 0) {
-                    // Only explicit QCF motion (not raw neutral button mashing!) triggers physical special when Super Energy < 100
-                    p1InputCopy.commandMove = p1.lJust ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
+                    // Explicit QCF motion triggers physical special when Super Energy < 100
+                    p1InputCopy.commandMove = 'DRAGON_UPPERCUT';
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
                     im.clearMotionHistory();
@@ -891,14 +913,25 @@ export default class CombatState {
             }
         } else {
             p2Input = AIController.computeInput(this, dt);
-            if ((p2Input.commandMove === 'DRAGON_UPPERCUT' || p2Input.commandMove === 'HURRICANE_KICK') && this.p2.specialMoveCooldown <= 0) {
+            const dist = Math.abs(this.p1.x - this.p2.x);
+            const stageTier = this.arcadeMode ? (this.arcadeIndex || 1) : 5;
+            if ((p2Input.commandMove === 'DRAGON_UPPERCUT' || p2Input.commandMove === 'HURRICANE_KICK' || p2Input.commandMove === 'FLYING_TORPEDO' || p2Input.commandMove === 'DRAGON_RUSH_COMBO') && this.p2.specialMoveCooldown <= 0) {
+                playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
+            } else if (dist >= 240 && stageTier >= 2 && this.p2.specialMoveCooldown <= 0 && this.p2.isGrounded && (this.p2.state === 'IDLE' || this.p2.state === 'WALK') && Math.random() < 0.012) {
+                // AI occasionally unleashes its Full-Screen Street Fighter Signature Torpedo or Rush Combo at long range!
+                p2Input.commandMove = Math.random() < 0.55 ? 'FLYING_TORPEDO' : 'DRAGON_RUSH_COMBO';
+                p2Input.sJust = false;
                 playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
             } else if (p2Input.sJust) {
-                const dist = Math.abs(this.p1.x - this.p2.x);
                 const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && this.p2.specialMoveCooldown <= 0 && Math.random() < 0.55;
+                const useLongRangeTorpedo = dist > 230 && this.p2.specialEnergy < 100 && this.p2.specialMoveCooldown <= 0 && Math.random() < 0.65;
                 if (useMeleeSpecial) {
                     p2Input.sJust = false;
                     p2Input.commandMove = (!this.p1.isGrounded || Math.random() < 0.5) ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
+                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
+                } else if (useLongRangeTorpedo) {
+                    p2Input.sJust = false;
+                    p2Input.commandMove = Math.random() < 0.55 ? 'FLYING_TORPEDO' : 'DRAGON_RUSH_COMBO';
                     playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
                 } else {
                     p2Input.sJust = false;
@@ -1569,7 +1602,7 @@ export default class CombatState {
                 this.triggerCallout('FIRST ATTACK!', '#00ffcc', attackerKey);
             } else if (atkType === 'THROW') {
                 this.triggerCallout('THROW SLAM!', '#00ffcc', attackerKey);
-            } else if (atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'COMBO_FINISHER') {
+            } else if (atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'FLYING_TORPEDO' || atkType === 'DRAGON_RUSH_COMBO' || atkType === 'COMBO_FINISHER') {
                 this.triggerCallout(attacker.data.specialName || 'SPECIAL STRIKE!', '#00e5ff', attackerKey);
                 if (attacker.attackHitCount === 1) {
                     playCombatSound(this.game.audioManager, 'special', attacker.data.id);
@@ -1598,7 +1631,7 @@ export default class CombatState {
                 this.p2ComboTimer = 1.45;
             }
 
-            const isSpecialHit = Boolean(attacker.currentAttack.isSpecialMove || atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'SPECIAL' || atkType === 'SPECIAL_DASH' || atkType === 'COMBO_FINISHER');
+            const isSpecialHit = Boolean(attacker.currentAttack.isSpecialMove || atkType === 'DRAGON_UPPERCUT' || atkType === 'HURRICANE_KICK' || atkType === 'FLYING_TORPEDO' || atkType === 'DRAGON_RUSH_COMBO' || atkType === 'SPECIAL' || atkType === 'SPECIAL_DASH' || atkType === 'COMBO_FINISHER');
             const isHeavyHit = (attacker.currentAttack.damage >= 26) || wasDefenderAttacking || isSpecialHit || atkType === 'AXE_KICK' || atkType === 'COMMAND_PUNCH';
             const sparkKind = isHeavyHit ? 'heavy' : 'hit';
             this.spawnSparks(impactX, impactY, '#ffaa00', '#ff3300', isHeavyHit ? 14 : 10, sparkKind);
@@ -1679,6 +1712,16 @@ export default class CombatState {
 
                 const hurtR = defender.hurtbox.getWorldRect(defender.x, defender.y, defender.facing);
                 if (Hitbox.checkCollision(pRect, hurtR)) {
+                    // Zangief Double Lariat / Bison Psycho Crusher deflects & destroys incoming projectiles during FLYING_TORPEDO!
+                    const defArch = defender._getSignatureArchetype?.();
+                    if (defender.state === 'ATTACK' && defender.currentAttack && defender.currentAttack.type === 'FLYING_TORPEDO' && (defArch === 'ZANGIEF_LARIAT' || defArch === 'BISON_PSYCHO_CRUSHER')) {
+                        proj.alive = false;
+                        const defenderSide = proj.owner === 'p1' ? 'p2' : 'p1';
+                        this.spawnSparks(proj.x, proj.y, '#ffd700', '#00ffff', 16, 'heavy');
+                        this.triggerCallout('🌪️ LARIAT DEFLECT!', '#ffd700', defenderSide);
+                        this.game.audioManager?.playHitImpactSound?.(true, true);
+                        break;
+                    }
                     const result = defender.takeDamage(proj.getAttackDef(), proj.facing);
                     if (!result || result === 'IMMUNE') continue;
 
@@ -1812,9 +1855,10 @@ export default class CombatState {
         const nextIdx = this.arcadeIndex + 1;
         const net = this.game.networkManager;
         const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
+        const totalStages = this.arcadeLadder ? this.arcadeLadder.length : (ROSTER.length - 1);
 
-        // Story Mode Midpoint Check (Always active for EVERY character in Arcade/Story Mode!)
-        if (nextIdx === 7 && (this.arcadeMode || (this.combatData && this.combatData.storyMode))) {
+        // Story Mode Midpoint Check (Active for Story Mode at Fight 7!)
+        if (nextIdx === 7 && this.storyMode && !this.arcadeLadder) {
             this._transitioning = true;
             const nextOpponent = ROSTER[7];
             preloadFighterSprites(this.game.assetManager, nextOpponent);
@@ -1842,7 +1886,7 @@ export default class CombatState {
             return;
         }
 
-        if (nextIdx >= ROSTER.length) {
+        if (nextIdx > totalStages) {
             // Beat the game!
             try { localStorage.setItem('lotl_story_complete', 'true'); } catch (e) { }
 
@@ -1862,7 +1906,7 @@ export default class CombatState {
                 });
             }
 
-            if (this.arcadeMode || (this.combatData && this.combatData.storyMode)) {
+            if (this.storyMode) {
                 this._transitioning = true;
                 const epiloguePayload = {
                     ...STORY_EPILOGUE,
@@ -1900,8 +1944,10 @@ export default class CombatState {
     startArcadeFight(nextIdx, wins) {
         const player1 = this.combatData ? this.combatData.p1 : ROSTER[0];
         const allyChar = this.combatData ? this.combatData.ally : null;
-        const opponent = ROSTER[nextIdx];
-        const stageId = opponent.stageId;
+        const opponent = (this.arcadeLadder && this.arcadeLadder[nextIdx - 1])
+            ? this.arcadeLadder[nextIdx - 1]
+            : ROSTER[nextIdx];
+        const stageId = opponent.stageId || 'Japan';
 
         preloadFighterSprites(this.game.assetManager, opponent);
         preloadStageAssets(this.game.assetManager, stageId);
@@ -1912,7 +1958,8 @@ export default class CombatState {
             p2: { ...opponent, rosterIndex: nextIdx },
             stageId: stageId,
             arcadeMode: true,
-            storyMode: true,
+            storyMode: this.storyMode,
+            arcadeLadder: this.arcadeLadder,
             coopMode: this.coopMode,
             onlineMode: this.onlineMode,
             arcadeIndex: nextIdx,

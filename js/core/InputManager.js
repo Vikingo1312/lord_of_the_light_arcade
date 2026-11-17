@@ -15,11 +15,12 @@ export default class InputManager {
         // Just-pressed detection
         this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, menu: false };
 
-        // Double-tap dash & simultaneous throw timestamps (ms)
+        // Double-tap dash & simultaneous throw/rush timestamps (ms)
         this._lastLeftTap = 0;
         this._lastRightTap = 0;
         this._lastLPress = 0;
         this._lastHPress = 0;
+        this._lastSPress = 0;
 
         // Motion input history (stores last 24 directional states with timestamps)
         this.inputHistory = [];
@@ -99,11 +100,14 @@ export default class InputManager {
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
-        // Double-tap Left / Right detection (within 260ms window) & Simultaneous L+H Throw (within 70ms)
+        // Double-tap Left / Right detection (within 260ms window) & Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (within 70ms)
         const now = performance.now();
         if (this.p1.lJust) this._lastLPress = now;
         if (this.p1.hJust) this._lastHPress = now;
+        if (this.p1.sJust) this._lastSPress = now;
         this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 70;
+        this.p1.specialRushJust = (this.p1.lJust && this.p1.s) || (this.p1.sJust && this.p1.l) || (this.p1.hJust && this.p1.s) || (this.p1.sJust && this.p1.h)
+            || ((this.p1.lJust || this.p1.hJust || this.p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 70 || Math.abs(this._lastHPress - this._lastSPress) <= 70));
 
         this.p1.dashLeftJust = false;
         this.p1.dashRightJust = false;
@@ -198,6 +202,48 @@ export default class InputManager {
                 return true;
             }
             // Fast Down -> Up + Punch shortcut
+            if (!foundDown && h.down && !h.up) {
+                foundDown = true;
+            } else if (foundDown && h.up) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check for Back -> Forward (← →) E. Honda / Blanka / Bison horizontal torpedo motion within 540ms
+     * @param {number} facing - 1 for right-facing, -1 for left-facing
+     */
+    hasBackForward(facing) {
+        const now = performance.now();
+        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        if (recent.length < 2) return false;
+
+        const back = facing === 1 ? 'left' : 'right';
+        const fwd = facing === 1 ? 'right' : 'left';
+        let foundBack = false;
+
+        for (const h of recent) {
+            if (!foundBack && h[back] && !h[fwd]) {
+                foundBack = true;
+            } else if (foundBack && h[fwd] && !h[back]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check for Down -> Up (↓ ↑) Chun-Li / Guile vertical charge motion within 540ms
+     */
+    hasDownUp() {
+        const now = performance.now();
+        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        if (recent.length < 2) return false;
+
+        let foundDown = false;
+        for (const h of recent) {
             if (!foundDown && h.down && !h.up) {
                 foundDown = true;
             } else if (foundDown && h.up) {

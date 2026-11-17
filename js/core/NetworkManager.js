@@ -5,15 +5,16 @@
  *  - CO-OP STORY MODE (Host = P1, Guest = Ally fighting side-by-side through Story Mode!)
  *  - 1v1 DUEL MODE (Host = P1, Guest = P2 fighting head-to-head!)
  */
-import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.41';
-import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.41';
+import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.42';
+import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.42';
 
 const PEER_PREFIX = 'lotl-arcade-v234-room-';
 const MQTT_TOPIC_PREFIX = 'lotl-arcade-v234/room/';
 
 const MQTT_BROKERS = [
     'wss://broker.emqx.io:8084/mqtt',
-    'wss://broker.hivemq.com:8884/mqtt'
+    'wss://broker.hivemq.com:8884/mqtt',
+    'wss://test.mosquitto.org:8081/mqtt'
 ];
 
 // STUN + Free OpenRelay TURN servers so WebRTC traverses symmetric NATs, iOS Private Relay & 5G
@@ -59,6 +60,7 @@ export default class NetworkManager {
         this.mode = 'coop';      // 'coop' (2v1 Story Co-Op) | 'duel' (1v1 Versus)
         this.hostCharId = 'Keano';
         this.guestCharId = 'JJDark';
+        this._guestHasPickedChar = false;
         this.stageId = 'Dojo';
 
         // Remote player's live controller state (consumed by Host in Combat.js)
@@ -168,7 +170,7 @@ export default class NetworkManager {
                     client.subscribe(topic, { qos: 0 }, (err) => {
                         if (!err) {
                             if (this.role === 'guest') {
-                                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode });
+                                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode, guestCharId: this.guestCharId });
                             } else if (this.role === 'host') {
                                 this.syncLobby();
                             }
@@ -209,6 +211,7 @@ export default class NetworkManager {
         this.mode = (initialMode === 'duel') ? 'duel' : 'coop';
         this.hostCharId = 'Keano';
         this.guestCharId = 'JJDark';
+        this._guestHasPickedChar = false;
 
         // 1. Setup BroadcastChannel for same-device / local testing
         this._setupBroadcastChannel(this.roomCode);
@@ -266,10 +269,11 @@ export default class NetworkManager {
         this.roomCode = cleanCode;
         this.status = 'connecting';
         this.errorMsg = '';
+        this._guestHasPickedChar = false;
 
         // 1. Setup BroadcastChannel for instant local-tab connection
         this._setupBroadcastChannel(cleanCode);
-        this.send({ type: 'HELLO_FROM_GUEST', code: cleanCode });
+        this.send({ type: 'HELLO_FROM_GUEST', code: cleanCode, guestCharId: this.guestCharId });
 
         // 2. Setup WSS Cloud Relay (100% reliable mobile-to-PC and mobile-to-mobile!)
         this._setupCloudRelay(cleanCode);
@@ -306,7 +310,7 @@ export default class NetworkManager {
             this.status = 'connected';
             this.errorMsg = '';
             if (this.role === 'guest') {
-                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode });
+                this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode, guestCharId: this.guestCharId });
             } else if (this.role === 'host') {
                 this.syncLobby();
             }
@@ -360,10 +364,11 @@ export default class NetworkManager {
         // 2. Send via WSS Cloud Relay (MQTT) so NAT/firewalls never block packets
         if (this.mqttClients.length > 0) {
             const serialized = JSON.stringify(packet);
+            const shouldRetain = Boolean(msg.type === 'LOBBY_SYNC');
             for (const item of this.mqttClients) {
                 if (item.client && item.client.connected) {
                     try {
-                        item.client.publish(item.topic, serialized, { qos: 0 });
+                        item.client.publish(item.topic, serialized, { qos: 0, retain: shouldRetain });
                     } catch (e) {}
                 }
             }
@@ -403,18 +408,26 @@ export default class NetworkManager {
                 if (this.role === 'host') {
                     this.status = 'connected';
                     this.errorMsg = '';
+                    if (msg.guestCharId) this.guestCharId = msg.guestCharId;
                     this.syncLobby();
                 }
                 break;
 
             case 'LOBBY_SYNC':
                 if (this.role === 'guest') {
+                    const wasWaiting = this.status !== 'connected';
                     this.status = 'connected';
                     this.errorMsg = '';
                     this.mode = msg.mode || 'coop';
                     this.hostCharId = msg.hostCharId || 'Keano';
-                    this.guestCharId = msg.guestCharId || 'JJDark';
-                    this.stageId = msg.stageId || 'Dojo';
+                    if (!this._guestHasPickedChar && msg.guestCharId) {
+                        this.guestCharId = msg.guestCharId;
+                    }
+                    if (msg.stageId) this.stageId = msg.stageId;
+                    if (wasWaiting) {
+                        // Immediately reply with Guest's chosen character so Host flips from 'waiting' to 'connected' and shows Guest's fighter!
+                        this.send({ type: 'GUEST_SELECT', guestCharId: this.guestCharId });
+                    }
                 }
                 break;
 
@@ -423,6 +436,7 @@ export default class NetworkManager {
                     this.status = 'connected';
                     this.errorMsg = '';
                     if (msg.guestCharId) this.guestCharId = msg.guestCharId;
+                    if (msg.stageId) this.stageId = msg.stageId;
                     if (msg.mode === 'duel' || msg.mode === 'coop') this.mode = msg.mode;
                     this.syncLobby();
                 }
@@ -526,14 +540,25 @@ export default class NetworkManager {
     update(dt) {
         if (!this.active) return;
 
-        // Automatic Lobby Discovery Heartbeat (every 0.8s while waiting/connecting or in Lobby)
+        // Automatic Lobby Discovery Heartbeat (every 0.65s while waiting/connecting or in Lobby)
         this._handshakeTimer += dt;
-        if (this._handshakeTimer >= 0.8) {
+        if (this._handshakeTimer >= 0.65) {
             this._handshakeTimer = 0;
-            const inLobby = this.game.stateManager?.currentState?.constructor?.name === 'OnlineLobbyState';
+            const curState = this.game.stateManager?.currentState;
+            const inLobby = Boolean(curState && (curState.step !== undefined || curState.constructor?.name === 'OnlineLobbyState'));
             if (this.role === 'guest' && (this.status !== 'connected' || inLobby)) {
                 this.send({ type: 'HELLO_FROM_GUEST', code: this.roomCode });
-            } else if (this.role === 'host' && inLobby && this.status === 'connected') {
+                // Retry direct PeerJS WebRTC connection if DataChannel isn't open yet
+                if (this.peer && this.peer.open && (!this.conn || !this.conn.open)) {
+                    try {
+                        const hostPeerId = `${PEER_PREFIX}${this.roomCode}`;
+                        const conn = this.peer.connect(hostPeerId, { reliable: true, serialization: 'json' });
+                        this.conn = conn;
+                        this._setupDataConnection(conn);
+                    } catch (e) {}
+                }
+            } else if (this.role === 'host' && (inLobby || this.status === 'waiting')) {
+                // Broadcast LOBBY_SYNC both while waiting AND while connected in Lobby so Guest discovers Room in <0.5s!
                 this.syncLobby();
             }
         }

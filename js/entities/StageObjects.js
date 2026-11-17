@@ -99,10 +99,42 @@ const STAGE_OBJECTS = {
         { x: 300, y: 0.85, w: 110, h: 100, img: 'ice' },
         { x: 1620, y: 0.85, w: 130, h: 100, img: 'crate' },
     ],
+    'Annikina_Pub': [
+        { x: 95, y: 0.83, w: 120, h: 110, img: 'barrel' },
+        { x: 1825, y: 0.83, w: 120, h: 110, img: 'barrel' },
+        { x: 310, y: 0.84, w: 125, h: 130, img: 'brazier' },
+        { x: 1610, y: 0.85, w: 130, h: 110, img: 'chair' },
+    ],
+    'Colosseum': [
+        { x: 90, y: 0.82, w: 120, h: 140, img: 'brazier' },
+        { x: 1830, y: 0.82, w: 120, h: 140, img: 'brazier' },
+        { x: 300, y: 0.84, w: 120, h: 100, img: 'barrel' },
+    ],
+    'France': [
+        { x: 90, y: 0.83, w: 120, h: 110, img: 'chair' },
+        { x: 1830, y: 0.83, w: 120, h: 110, img: 'chair' },
+        { x: 300, y: 0.84, w: 120, h: 110, img: 'crate' },
+    ],
+    'UK': [
+        { x: 90, y: 0.83, w: 120, h: 110, img: 'trashcan' },
+        { x: 1830, y: 0.83, w: 130, h: 120, img: 'barricade' },
+        { x: 300, y: 0.85, w: 120, h: 100, img: 'barrel' },
+    ],
+    'USA': [
+        { x: 90, y: 0.83, w: 120, h: 110, img: 'trashcan' },
+        { x: 1830, y: 0.83, w: 120, h: 100, img: 'speaker' },
+        { x: 300, y: 0.85, w: 130, h: 120, img: 'barricade' },
+        { x: 1620, y: 0.85, w: 120, h: 100, img: 'barrel' },
+    ],
 };
 
 // Stage-specific floor rim & reflection tint palettes
 const STAGE_FLOOR_THEMES = {
+    'Annikina_Pub': { rim: 'rgba(255, 140, 40, 0.65)', glowTop: 'rgba(255, 110, 20, 0.22)', glowBottom: 'rgba(40, 14, 5, 0.44)', accent: '#ff7700' },
+    'Colosseum': { rim: 'rgba(255, 190, 110, 0.58)', glowTop: 'rgba(255, 140, 50, 0.18)', glowBottom: 'rgba(45, 28, 15, 0.36)', accent: '#ffae42' },
+    'France': { rim: 'rgba(130, 210, 255, 0.62)', glowTop: 'rgba(100, 180, 255, 0.20)', glowBottom: 'rgba(12, 20, 42, 0.42)', accent: '#66ccff' },
+    'UK': { rim: 'rgba(0, 225, 255, 0.58)', glowTop: 'rgba(0, 180, 255, 0.18)', glowBottom: 'rgba(10, 18, 30, 0.42)', accent: '#00e5ff' },
+    'USA': { rim: 'rgba(255, 120, 40, 0.62)', glowTop: 'rgba(255, 90, 20, 0.20)', glowBottom: 'rgba(30, 12, 10, 0.42)', accent: '#ff6600' },
     'Japan': { rim: 'rgba(255, 183, 197, 0.55)', glowTop: 'rgba(255, 160, 120, 0.16)', glowBottom: 'rgba(40, 15, 25, 0.35)', accent: '#ffb7c5' },
     'India': { rim: 'rgba(255, 195, 60, 0.60)', glowTop: 'rgba(255, 153, 51, 0.20)', glowBottom: 'rgba(60, 25, 5, 0.38)', accent: '#ff9933' },
     'Brazil': { rim: 'rgba(255, 180, 50, 0.55)', glowTop: 'rgba(191, 255, 0, 0.14)', glowBottom: 'rgba(35, 20, 10, 0.35)', accent: '#bfff00' },

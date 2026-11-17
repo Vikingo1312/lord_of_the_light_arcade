@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.41';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.41';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.41';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.42';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.42';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -18,6 +18,10 @@ export default class CharacterSelectState {
         this.p2Index = this.mainRoster.length - 1; // Default to Putin
         this.p2Locked = false;
 
+        this.selectedStageKeys = Object.keys(STAGES);
+        this.stageIndex = 0;
+        this._customStagePicked = false;
+
         this.inputCooldown = 0;
         this.loadingCombat = false;
         this.bgMusic = null;
@@ -26,6 +30,10 @@ export default class CharacterSelectState {
     enter(data) {
         console.log("Entering Character Select");
         this.arcadeMode = data && data.arcadeMode !== undefined ? data.arcadeMode : false;
+        this.storyMode = Boolean(data && data.storyMode);
+        this.selectedStageKeys = Object.keys(STAGES);
+        this.stageIndex = 0;
+        this._customStagePicked = false;
         const annikinaIdx = this.allFighters.findIndex(f => f.id === 'Annikina');
         const highlightAnnikina = typeof localStorage !== 'undefined' && (localStorage.getItem('lotl_vip_jan') === 'true' || localStorage.getItem('lotl_vip_annikina') === 'true');
         this.p1Index = (highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0;
@@ -38,7 +46,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.41`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.42`);
                 needsLoad = true;
             }
         }
@@ -63,6 +71,68 @@ export default class CharacterSelectState {
         this._removeSelectTap();
         this.game.audioManager.stopAnnouncerVoice?.();
         this.game.audioManager.stopBGM();
+    }
+
+    _cycleVersusStage(dir) {
+        if (!this.selectedStageKeys || !this.selectedStageKeys.length) {
+            this.selectedStageKeys = Object.keys(STAGES);
+        }
+        this._customStagePicked = true;
+        this.stageIndex = (this.stageIndex + dir + this.selectedStageKeys.length) % this.selectedStageKeys.length;
+        const stKey = this.selectedStageKeys[this.stageIndex];
+        preloadStageAssets(this.game.assetManager, stKey);
+        this.game.assetManager.loadAll();
+    }
+
+    /**
+     * Builds a 14-opponent Arcade Shuffle Challenger Ladder from ALL 26 fighters in ALL_FIGHTERS
+     * (including Secret / Special fighters even if not unlocked yet!), assigning each fighter
+     * their signature Arena or one of the 21 stages!
+     */
+    _buildArcadeShuffleLadder(p1Char) {
+        const customStageMap = {
+            Annikina: 'Annikina_Pub',
+            CayleMinogue: 'France',
+            Vikingo: 'Canada',
+            SupremeKeano: 'Supreme_Keano',
+            HyperKeano: 'Japan_Night',
+            JayX: 'USA',
+            GargamelHoodie: 'UK',
+            AlCapone: 'Colosseum',
+            HyperEmely: 'Japan_Night',
+            Cayle: 'Russia'
+        };
+        const shuffle = (arr) => {
+            const copy = [...arr];
+            for (let i = copy.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [copy[i], copy[j]] = [copy[j], copy[i]];
+            }
+            return copy;
+        };
+
+        const bossIds = ['Vikingo', 'SupremeKeano', 'Annikina', 'VikingoRaw'];
+        const allPool = this.allFighters.filter(f => f.id !== p1Char.id);
+        const bossPool = shuffle(allPool.filter(f => bossIds.includes(f.id)));
+        const finalBoss = bossPool[0] || ROSTER[ROSTER.length - 1];
+
+        const remainingSpecials = shuffle(SPECIALS.filter(s => s.id !== p1Char.id && s.id !== finalBoss.id));
+        const remainingRoster = shuffle(ROSTER.filter(r => r.id !== p1Char.id && r.id !== finalBoss.id));
+
+        // Pick 6 secret/special challengers + 7 main roster challengers = 13 + 1 Final Boss = 14 stages!
+        const pickedSpecials = remainingSpecials.slice(0, 6);
+        const pickedRoster = remainingRoster.slice(0, 13 - pickedSpecials.length);
+        const midPool = shuffle([...pickedSpecials, ...pickedRoster]);
+        const fullList = [...midPool, finalBoss];
+
+        return fullList.map((f, idx) => {
+            const assignedStage = customStageMap[f.id] || f.stageId || 'Japan';
+            return {
+                ...f,
+                stageId: assignedStage,
+                rosterIndex: idx + 1
+            };
+        });
     }
 
     _setupSelectTap() {
@@ -93,12 +163,19 @@ export default class CharacterSelectState {
                 return;
             }
 
+            // Versus Mode Interactive Arena Selector Pill (x: 55..1387, y: 655..725)
+            if (!this.arcadeMode && tx >= 55 && tx <= 1387 && ty >= 655 && ty <= 725) {
+                const midPillX = 55 + (this.columns * 148) / 2;
+                this._cycleVersusStage(tx < midPillX ? -1 : 1);
+                return;
+            }
+
             // Fighter Grid cells (startX=55, startY=115, cellW=148, cellH=175, columns=9)
             const startX = 55;
             const startY = 115;
             const cellW = 148;
             const cellH = 175;
-            if (tx >= startX && tx <= startX + this.columns * cellW && ty >= startY) {
+            if (tx >= startX && tx <= startX + this.columns * cellW && ty >= startY && ty < startY + 3 * cellH) {
                 const col = Math.floor((tx - startX) / cellW);
                 const row = Math.floor((ty - startY) / cellH);
                 const idx = row * this.columns + col;
@@ -120,6 +197,10 @@ export default class CharacterSelectState {
                         }
                     } else if (!this.p2Locked && !this.arcadeMode) {
                         this.p2Index = idx;
+                        if (!this._customStagePicked && char.stageId) {
+                            const stIdx = this.selectedStageKeys.indexOf(char.stageId);
+                            if (stIdx >= 0) this.stageIndex = stIdx;
+                        }
                         this.p2Locked = true;
                         this.inputCooldown = 60;
                         this.loadingCombat = true;
@@ -188,6 +269,14 @@ export default class CharacterSelectState {
             else if (p1.up) { this.p2Index = Math.max(0, this.p2Index - this.columns); this.inputCooldown = 10; }
             else if (p1.down) { this.p2Index = Math.min(this.allFighters.length - 1, this.p2Index + this.columns); this.inputCooldown = 10; }
 
+            if (!this._customStagePicked) {
+                const hoverChar = this.allFighters[this.p2Index];
+                if (hoverChar && hoverChar.stageId) {
+                    const stIdx = this.selectedStageKeys.indexOf(hoverChar.stageId);
+                    if (stIdx >= 0) this.stageIndex = stIdx;
+                }
+            }
+
             if (p1.l || p1.h) {
                 const char = this.allFighters[this.p2Index];
                 if (!isFighterUnlocked(char.id)) {
@@ -210,20 +299,45 @@ export default class CharacterSelectState {
 
     async preloadAndFight() {
         const p1Char = this.allFighters[this.p1Index];
-        const p2Char = this.allFighters[this.p2Index];
+        let p2Char = this.allFighters[this.p2Index];
+        let arcadeLadder = null;
+
+        if (this.arcadeMode && !this.storyMode) {
+            // Pure ARCADE Shuffle Challenger Mode: all 26 fighters & their Arenas in a shuffled 14-stage ladder!
+            arcadeLadder = this._buildArcadeShuffleLadder(p1Char);
+            p2Char = arcadeLadder[0];
+        } else if (this.arcadeMode) {
+            p2Char = ROSTER[1];
+        }
 
         preloadFighterSprites(this.game.assetManager, p1Char);
         preloadFighterSprites(this.game.assetManager, p2Char);
 
-        const stageId = p2Char.stageId || 'Cosmic';
-        preloadStageAssets(this.game.assetManager, stageId);
+        const chosenStageKey = (!this.arcadeMode && this.selectedStageKeys && this.selectedStageKeys[this.stageIndex])
+            ? this.selectedStageKeys[this.stageIndex]
+            : (p2Char.stageId || 'Japan');
+        preloadStageAssets(this.game.assetManager, chosenStageKey);
 
         // Stop the select menu music instantly BEFORE we transition.
         this.game.audioManager.stopBGM();
 
         setTimeout(() => {
-            if (this.arcadeMode) {
-                // Arcade Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
+            if (this.arcadeMode && !this.storyMode && arcadeLadder) {
+                // Pure ARCADE Shuffle Challenger Mode: go straight to VersusIntro against the 1st Shuffled Challenger!
+                const firstOpponent = arcadeLadder[0];
+                const combatData = {
+                    p1: p1Char,
+                    p2: firstOpponent,
+                    stageId: firstOpponent.stageId,
+                    arcadeMode: true,
+                    storyMode: false,
+                    arcadeLadder: arcadeLadder,
+                    arcadeIndex: 1,
+                    arcadeWins: 0,
+                };
+                this.game.stateManager.switchState('VersusIntro', combatData);
+            } else if (this.arcadeMode) {
+                // Story Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
                 // Always play Anfang-Part (STORY_PROLOGUE), Mittelpart (STORY_REFLEXION), and Endpart (STORY_EPILOGUE/OUTRO) with Voice & Text!
                 const opponent = ROSTER[1];
                 const combatData = {
@@ -244,7 +358,7 @@ export default class CharacterSelectState {
                 this.game.stateManager.switchState('VersusIntro', {
                     p1: p1Char,
                     p2: { ...p2Char, rosterIndex: this.p2Index },
-                    stageId: stageId,
+                    stageId: chosenStageKey,
                     arcadeMode: false
                 });
             }
@@ -378,6 +492,37 @@ export default class CharacterSelectState {
             ctx.fillText(displayName, x + cellW / 2, y + cellH - 12);
         }
 
+        // ─── VERSUS MODE ARENA SELECTOR PILL OR ARCADE SHUFFLE CHALLENGER BANNER (BELOW GRID) ───
+        const pillX = startX;
+        const pillY = 660;
+        const pillW = mainGridW;
+        const pillH = 56;
+        ctx.save();
+        if (!this.arcadeMode) {
+            const stKey = (this.selectedStageKeys && this.selectedStageKeys[this.stageIndex]) || 'Japan';
+            const stName = (STAGES[stKey] && STAGES[stKey].name) ? STAGES[stKey].name.toUpperCase() : stKey.toUpperCase();
+            ctx.fillStyle = 'rgba(8, 16, 38, 0.92)';
+            ctx.strokeStyle = '#00e5ff';
+            ctx.lineWidth = 2.5;
+            ctx.fillRect(pillX, pillY, pillW, pillH);
+            ctx.strokeRect(pillX, pillY, pillW, pillH);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 18px "Press Start 2P"';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText(`🏟️ ARENA: ◀ ${stName} (${stKey.toUpperCase()}) ▶  [ANTIPPEN ZUM WECHSELN]`, pillX + pillW / 2, pillY + 35);
+        } else if (!this.storyMode) {
+            ctx.fillStyle = 'rgba(28, 12, 42, 0.92)';
+            ctx.strokeStyle = '#ff66dd';
+            ctx.lineWidth = 2.5;
+            ctx.fillRect(pillX, pillY, pillW, pillH);
+            ctx.strokeRect(pillX, pillY, pillW, pillH);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 15px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillText('🎲 ARCADE SHUFFLE-LADDER: ALLE 26 KÄMPFER (INKL. SECRET-BOSSES) & 21 ARENEN!', pillX + pillW / 2, pillY + 35);
+        }
+        ctx.restore();
+
         // ─── SINGLE ACTIVE FIGHTER CARD (RIGHT SIDE) ───
         // Only ever draw ONE card. Either P1's current selection, or P2's if P1 is locked in.
         let activeChar = null;
@@ -451,8 +596,8 @@ export default class CharacterSelectState {
         if (!isP1Cursor && this.arcadeMode) {
             ctx.fillStyle = '#ff0055';
             ctx.textAlign = 'center';
-            ctx.font = 'bold 36px "Press Start 2P"';
-            ctx.fillText("ARCADE", x + cardW / 2, y + 450);
+            ctx.font = 'bold 34px "Press Start 2P"';
+            ctx.fillText(this.storyMode ? "STORY" : "SHUFFLE", x + cardW / 2, y + 450);
             ctx.fillText("LADDER", x + cardW / 2, y + 510);
             return;
         }

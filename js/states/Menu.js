@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.41';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.41';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.41';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.41';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.42';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.42';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
 
 export default class MenuState {
     constructor(game) {
@@ -34,25 +34,39 @@ export default class MenuState {
 
         this.universalCombos = [
             {
-                name: '4. 3ER LIGHT-KOMBO',
-                input: 'P ➔ P ➔ P  (Tastatur: A/J 3x)',
-                badges: ['P', '➔', 'P', '➔', 'P'],
-                dmg: '79 DMG · SCHNELLER LAUNCHER',
-                desc: 'Schneller Jab, gefolgt vom Cross-Hook und einem explosiven Aufwärtshaken-Finisher!',
+                name: '4. TORPEDO FLIGHT (→+L / ←→+J)',
+                input: '[→+L / ←→+J] TORPEDO FLIGHT',
+                badges: ['→', '+', 'S'],
+                dmg: '3x 16 DMG · FULL-SCREEN SIGNATURE FLIGHT',
+                desc: 'Katapultiert deinen Kämpfer horizontal über den ganzen Bildschirm (Torpedo / Psycho Crusher / Bird Kick / Lariat / Cannonball)!',
                 frames: [
-                    { suffix: '_windup_punch.png', dur: 0.14, x: 0, y: 0 },
-                    { suffix: '_punch.png', dur: 0.22, x: 26, y: 0, slash: 'cyan', hit: 'JAB!' },
-                    { suffix: '_hook_punch.png', dur: 0.24, x: 52, y: 0, slash: 'gold', hit: 'CROSS!' },
-                    { suffix: '_uppercut.png', dur: 0.28, x: 74, y: -25, slash: 'fire', hit: '3 HIT COMBO!' },
-                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
+                    { suffix: '_windup_punch.png', dur: 0.12, x: 10, y: -15 },
+                    { suffix: '_dive_kick.png', dur: 0.20, x: 64, y: -42, slash: 'cyan', hit: 'TORPEDO 1!' },
+                    { suffix: '_special.png', dur: 0.22, x: 112, y: -42, slash: 'gold', hit: 'TORPEDO 2!' },
+                    { suffix: '_dive_kick.png', dur: 0.22, x: 152, y: -38, slash: 'super', hit: 'CRUSHER!!' },
+                    { suffix: '_right.png', dur: 0.36, x: 0, y: 0 }
                 ]
             },
             {
-                name: '5. TARGET-KOMBO & SUPER-CANCEL',
-                input: 'P ➔ K ➔ S  (Tastatur: J ➔ K ➔ L)',
+                name: '5. FULLSCREEN RUSH COMBO (J+L)',
+                input: '[J+L / ↓↘→+K] FULLSCREEN RUSH COMBO',
+                badges: ['P', '+', 'S'],
+                dmg: '4x 14 DMG · 4-HIT RUSH + LAUNCHER',
+                desc: 'Stürmt über die gesamte Stage mit einer automatischen 4-Pose Street-Fighter-Kombo bis zum Shoryuken-Finisher!',
+                frames: [
+                    { suffix: '_hurricane_kick.png', dur: 0.16, x: 42, y: -25, slash: 'cyan', hit: 'RUSH 1!' },
+                    { suffix: '_punch.png', dur: 0.16, x: 76, y: 0, slash: 'gold', hit: 'RUSH 2!' },
+                    { suffix: '_hook_punch.png', dur: 0.18, x: 106, y: 0, slash: 'fire', hit: 'RUSH 3!' },
+                    { suffix: '_dragon_uppercut.png', dur: 0.30, x: 132, y: -95, slash: 'super', hit: '4 HIT FINISH!!' },
+                    { suffix: '_right.png', dur: 0.36, x: 0, y: 0 }
+                ]
+            },
+            {
+                name: '6. 3ER LIGHT-KOMBO & TARGET-CANCEL',
+                input: 'P ➔ P ➔ P  oder  P ➔ K ➔ S (J ➔ K ➔ L)',
                 badges: ['P', '➔', 'K', '➔', 'S'],
-                dmg: '100+ DMG · MAXIMALE KOMBO',
-                desc: 'Leichter Schlag (P) nahtlos in schweren Kick (K) und direkt in deine Super-Art (S) canceln!',
+                dmg: '100+ DMG · SCHNELLER LAUNCHER',
+                desc: 'Schneller Jab (P), gefolgt vom Cross-Kick (K) und nahtlos gecancelt in deine Super-Art (S)!',
                 frames: [
                     { suffix: '_punch.png', dur: 0.20, x: 24, y: 0, slash: 'cyan', hit: 'HIT 1!' },
                     { suffix: '_kick.png', dur: 0.22, x: 52, y: 0, slash: 'gold', hit: 'HIT 2!' },
@@ -61,27 +75,14 @@ export default class MenuState {
                 ]
             },
             {
-                name: '6. OVERHEAD BACKFIST (→+P)',
-                input: '→ + P  (Vorwärts + Punch)',
-                badges: ['→', '+', 'P'],
-                dmg: '26 DMG · BRICHT DUCK-BLOCK!',
-                desc: 'Gedrehter Rückfaust-Schlag von oben — trifft Gegner, die geduckt blocken!',
-                frames: [
-                    { suffix: '_windup_punch.png', dur: 0.16, x: 10, y: 0 },
-                    { suffix: '_backfist.png', dur: 0.26, x: 55, y: 0, slash: 'gold', hit: 'OVERHEAD!' },
-                    { suffix: '_hook_punch.png', dur: 0.22, x: 64, y: 0 },
-                    { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
-                ]
-            },
-            {
-                name: '7. STEP AXE KICK (→+K)',
-                input: '→ + K  (Vorwärts + Kick)',
+                name: '7. OVERHEAD BACKFIST & AXE KICK',
+                input: '→ + P (J)  oder  → + K (Vorwärts + Kick)',
                 badges: ['→', '+', 'K'],
-                dmg: '42 DMG · SCHWERER OVERHEAD',
-                desc: 'Mächtiger Axt-Tritt von oben herab — bricht tiefe Deckung und schleudert den Gegner hoch!',
+                dmg: '42 DMG · BRICHT DUCK-BLOCK!',
+                desc: 'Mächtiger Überkopf-Schlag oder Axt-Tritt von oben — bricht jede geduckte Deckung sofort!',
                 frames: [
                     { suffix: '_windup_kick.png', dur: 0.16, x: 18, y: 0 },
-                    { suffix: '_axe_kick.png', dur: 0.28, x: 62, y: -18, slash: 'fire', hit: 'AXE KICK!' },
+                    { suffix: '_axe_kick.png', dur: 0.28, x: 62, y: -18, slash: 'fire', hit: 'OVERHEAD!' },
                     { suffix: '_kick.png', dur: 0.22, x: 70, y: 0 },
                     { suffix: '_right.png', dur: 0.42, x: 0, y: 0 }
                 ]
@@ -100,8 +101,8 @@ export default class MenuState {
                 ]
             },
             {
-                name: '9. DRAGON UPPERCUT (↑+S)',
-                input: '↑ + S  oder  → ↓ ↘ + P',
+                name: '9. DRAGON UPPERCUT (↑+L / ↓↑+J)',
+                input: '↑ + S (L)  oder  → ↓ ↘ + P (J)',
                 badges: ['↑', '+', 'S'],
                 dmg: '46 DMG · UNVERWUNDBAR GEGEN SPRÜNGE',
                 desc: 'Aufsteigender Drachen-Uppercut in die Luft! Perfekt als Konter gegen springende Gegner.',
@@ -114,8 +115,8 @@ export default class MenuState {
                 ]
             },
             {
-                name: '10. HURRICANE KICK (↓+S)',
-                input: '↓ + S  oder  ↓ ↙ ← + K',
+                name: '10. HURRICANE KICK (↓+L / ↓↙←+K)',
+                input: '↓ + S (L)  oder  ↓ ↙ ← + K',
                 badges: ['↓', '+', 'S'],
                 dmg: '3x 18 DMG · 3-TREFFER WIRBELKICK',
                 desc: 'Fliegender Wirbelsturm-Kick quer über die Stage mit bis zu 3 Treffern hintereinander!',
@@ -177,7 +178,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.41`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.42`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -707,7 +708,7 @@ export default class MenuState {
                     this.startStoryMode();
                 }
             } else if (this.selectedIndex === 1) {
-                // ARCADE MODE — locked until story complete
+                // ARCADE MODE (Shuffle Challenger Mode with all 26 fighters & their Arenas!) — locked until story complete
                 if (!this.storyCompleted) return;
                 this.playConfirm();
                 this.inputCooldown = 60;
@@ -715,7 +716,7 @@ export default class MenuState {
                 this.isTransitioning = true;
                 this.game.audioManager.stopBGM();
                 setTimeout(() => {
-                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true });
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: false });
                 }, 500);
             } else if (this.selectedIndex === 2) {
                 // VERSUS MODE — locked until story complete
