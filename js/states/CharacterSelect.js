@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.38';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.38';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.38';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.39';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.39';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.39';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -27,8 +27,8 @@ export default class CharacterSelectState {
         console.log("Entering Character Select");
         this.arcadeMode = data && data.arcadeMode !== undefined ? data.arcadeMode : false;
         const annikinaIdx = this.allFighters.findIndex(f => f.id === 'Annikina');
-        const isJanVip = typeof localStorage !== 'undefined' && localStorage.getItem('lotl_vip_jan') === 'true';
-        this.p1Index = (isJanVip && annikinaIdx >= 0) ? annikinaIdx : 0;
+        const highlightAnnikina = typeof localStorage !== 'undefined' && (localStorage.getItem('lotl_vip_jan') === 'true' || localStorage.getItem('lotl_vip_annikina') === 'true');
+        this.p1Index = (highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0;
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
         this.p2Locked = false;
@@ -38,7 +38,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.38`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.39`);
                 needsLoad = true;
             }
         }

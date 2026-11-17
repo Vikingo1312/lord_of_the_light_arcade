@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.38';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.38';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.38';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.38';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.39';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.39';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.39';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.39';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays

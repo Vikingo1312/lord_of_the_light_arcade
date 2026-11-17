@@ -4,9 +4,9 @@
  *  1) 1 VS 1 DUELL (Head-to-head PvP!)
  *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.38';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.38';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.38';
+import { ROSTER, SPECIALS, isFighterUnlocked } from '../data.js?v=2.39';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.39';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.39';
 
 export default class OnlineLobbyState {
     constructor(game) {

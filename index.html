@@ -10,7 +10,9 @@
                 var host = window.location.hostname || '';
                 var isLocal = (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.endsWith('.local'));
                 var hasJanParam = window.location.search.indexOf('jan=1') !== -1 || window.location.hash.indexOf('jan') !== -1;
+                var hasAnnikaParam = window.location.search.indexOf('annika=1') !== -1 || window.location.search.indexOf('annikina=1') !== -1 || window.location.hash.indexOf('annika') !== -1;
                 var isVip = localStorage.getItem('lotl_vip_jan') === 'true';
+                var isAnnikaVip = localStorage.getItem('lotl_vip_annikina') === 'true';
                 if (isLocal || hasJanParam || isVip) {
                     localStorage.setItem('lotl_vip_jan', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
@@ -19,6 +21,13 @@
                         localStorage.setItem('unlock_' + allSpecials[i], 'true');
                     }
                     if (hasJanParam && window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } else if (hasAnnikaParam || isAnnikaVip) {
+                    localStorage.setItem('lotl_vip_annikina', 'true');
+                    localStorage.setItem('lotl_story_complete', 'true');
+                    localStorage.setItem('unlock_Annikina', 'true');
+                    if (hasAnnikaParam && window.history && window.history.replaceState) {
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 }
@@ -328,14 +337,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.38').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.39').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.38"></script>
+    <script type="module" src="js/main.js?v=2.39"></script>
 </body>
 
 </html>

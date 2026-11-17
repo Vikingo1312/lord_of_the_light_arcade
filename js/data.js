@@ -224,6 +224,7 @@ export function syncJanBrowserUnlocks() {
     const host = window.location.hostname || '';
     const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
     const hasJanParam = window.location.search.includes('jan=1') || window.location.hash.includes('jan');
+    const hasAnnikaParam = window.location.search.includes('annika=1') || window.location.search.includes('annikina=1') || window.location.hash.includes('annika');
     if (isJanLocal || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
@@ -233,6 +234,13 @@ export function syncJanBrowserUnlocks() {
             }
         } catch (e) {}
         return true;
+    }
+    if (hasAnnikaParam || localStorage.getItem('lotl_vip_annikina') === 'true') {
+        try {
+            localStorage.setItem('lotl_vip_annikina', 'true');
+            localStorage.setItem('lotl_story_complete', 'true');
+            localStorage.setItem('unlock_Annikina', 'true');
+        } catch (e) {}
     }
     return false;
 }
@@ -258,6 +266,19 @@ export function isFighterUnlocked(id) {
     return false;
 }
 export function unlockFighter(id) {
+    // When playing as Annikina, beating Story/Arcade unlocks her children (Emy -> Hyper-Emy -> Hyper Keano -> Supreme Keano)!
+    if (id === 'Annikina') {
+        const kidsChain = ['Emely', 'HyperEmely', 'HyperKeano', 'SupremeKeano'];
+        for (const kidId of kidsChain) {
+            if (!isFighterUnlocked(kidId)) {
+                const kidObj = SPECIALS.find(s => s.id === kidId);
+                if (kidObj) {
+                    localStorage.setItem(`unlock_${kidObj.id}`, 'true');
+                    return kidObj;
+                }
+            }
+        }
+    }
     // If they beat the game with a specific character, unlock the next in their bloodline
     const specialToUnlock = SPECIALS.find(s =>
         !isFighterUnlocked(s.id) &&
