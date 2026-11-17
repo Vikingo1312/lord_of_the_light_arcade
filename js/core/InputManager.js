@@ -102,16 +102,18 @@ export default class InputManager {
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
-        // Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (strictly requires BOTH buttons pressed within 80ms of now!)
+        // Simultaneous L+H Throw / J+L Full-Screen Rush (strictly requires both buttons held together within 35ms and consumes timestamps!)
         const now = performance.now();
         if (this.p1.lJust) this._lastLPress = now;
         if (this.p1.hJust) this._lastHPress = now;
         if (this.p1.sJust) this._lastSPress = now;
-        const lRecent = (now - this._lastLPress) <= 80;
-        const hRecent = (now - this._lastHPress) <= 80;
-        const sRecent = (now - this._lastSPress) <= 80;
-        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && lRecent && hRecent;
-        this.p1.specialRushJust = (this.p1.lJust || this.p1.hJust || this.p1.sJust) && sRecent && (lRecent || hRecent);
+        const lRecent = this.p1.l && (now - this._lastLPress) <= 35;
+        const hRecent = this.p1.h && (now - this._lastHPress) <= 35;
+        const sRecent = this.p1.s && (now - this._lastSPress) <= 35;
+        this.p1.throwJust = Boolean((this.p1.lJust || this.p1.hJust) && lRecent && hRecent);
+        if (this.p1.throwJust) { this._lastLPress = -99999; this._lastHPress = -99999; }
+        this.p1.specialRushJust = Boolean((this.p1.lJust || this.p1.sJust) && sRecent && lRecent && !this.p1.up && !this.p1.down && !this.p1.left && !this.p1.right);
+        if (this.p1.specialRushJust) { this._lastLPress = -99999; this._lastSPress = -99999; }
 
         this.p1.dashLeftJust = false;
         this.p1.dashRightJust = false;
