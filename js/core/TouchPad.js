@@ -19,25 +19,28 @@ export default class TouchPad {
         this.stickDist = 0;
         this.stickTouchId = null;
 
-        // Attack + Dash buttons — current + previous frame for "just pressed"
-        this.buttons = { l: false, h: false, s: false, dash: false };
-        this.prevButtons = { l: false, h: false, s: false, dash: false };
+        // Attack + Guard + Dash buttons — current + previous frame for "just pressed"
+        this.buttons = { l: false, h: false, s: false, dash: false, guard: false };
+        this.prevButtons = { l: false, h: false, s: false, dash: false, guard: false };
 
         // Latch: once a button/dpad is pressed, hold it until injectInput consumes it.
-        this.latchedButtons = { l: false, h: false, s: false, dash: false };
+        this.latchedButtons = { l: false, h: false, s: false, dash: false, guard: false };
         this.latchedDpad = { up: false, down: false, left: false, right: false };
         this.anyTapLatched = false;
 
         // Double-tap dash timestamps on mobile stick
         this._lastLeftTap = 0;
         this._lastRightTap = 0;
+        this._lastLPress = 0;
+        this._lastHPress = 0;
+        this._lastSPress = 0;
 
         // Layout — raised well above iOS Safari toolbar / iPhone Home Bar
         this.stickCenter = { x: 250, y: 785 };
         this.stickRadius = 115;
         this.stickOuter = 165;
         this.stickPos = { x: 250, y: 785 };
-        this.btnRadius = 74;
+        this.btnRadius = 70;
         this.btnPositions = [];
 
         // Detect touch device (or mobile viewport)
@@ -58,7 +61,7 @@ export default class TouchPad {
         this.stickCenter = { x: 255, y: h - 295 };
         this.stickPos = { ...this.stickCenter };
 
-        // 4 Arcade Action buttons — bottom-right ergonomic diamond/arc layout
+        // 5 Arcade Action buttons — bottom-right ergonomic diamond + dedicated BLOCK shield button!
         const rx = w - 255;
         const ry = h - 295;
         const spacing = 118;
@@ -67,6 +70,7 @@ export default class TouchPad {
             { id: 'h', x: rx, y: ry - spacing + 10, label: 'K', sub: 'KICK', color: '#ff4444' },
             { id: 's', x: rx + spacing, y: ry + 10, label: 'S', sub: 'SPEC', color: '#ffcc00' },
             { id: 'dash', x: rx, y: ry + spacing - 5, label: 'D', sub: 'DASH', color: '#bb66ff' },
+            { id: 'guard', x: rx - spacing * 1.85, y: ry - spacing * 0.72, label: 'B', sub: 'BLOCK', color: '#00ff88' },
         ];
     }
 
@@ -126,7 +130,7 @@ export default class TouchPad {
     handleTouches(touchList) {
         // Reset live state (represents what fingers are CURRENTLY touching)
         this.dpad = { up: false, down: false, left: false, right: false };
-        this.buttons = { l: false, h: false, s: false, dash: false };
+        this.buttons = { l: false, h: false, s: false, dash: false, guard: false };
 
         let foundStickTouch = false;
 
@@ -158,14 +162,13 @@ export default class TouchPad {
                 this.stickDist = clampedDist / this.stickOuter;
 
                 // Ergonomic 8-way arcade gate:
-                // Wide horizontal zones (-65°..65°) so walking forward/back never accidentally crouches or jumps!
-                if (this.stickDist > 0.24) {
+                if (this.stickDist > 0.22) {
                     const deg = angle * (180 / Math.PI);
                     if (deg > -68 && deg < 68) this.dpad.right = true;
                     if (deg > 112 || deg < -112) this.dpad.left = true;
-                    // Up (Jump / Salto) and Down (Crouch) require deliberate vertical push
-                    if (deg > -135 && deg < -45 && (dy / this.stickOuter) < -0.38) this.dpad.up = true;
-                    if (deg > 45 && deg < 135 && (dy / this.stickOuter) > 0.38) this.dpad.down = true;
+                    // Up (Jump / Salto) and Down (Crouch)
+                    if (deg > -135 && deg < -45 && (dy / this.stickOuter) < -0.35) this.dpad.up = true;
+                    if (deg > 45 && deg < 135 && (dy / this.stickOuter) > 0.35) this.dpad.down = true;
                 }
                 continue;
             }
@@ -187,7 +190,7 @@ export default class TouchPad {
         }
 
         // LATCH: Ensure fast taps between 60fps ticks are never dropped
-        for (const k of ['l', 'h', 's', 'dash']) {
+        for (const k of ['l', 'h', 's', 'dash', 'guard']) {
             if (this.buttons[k]) this.latchedButtons[k] = true;
         }
         for (const k of ['up', 'down', 'left', 'right']) {
@@ -195,7 +198,7 @@ export default class TouchPad {
         }
     }
 
-    /** Inject touch state into InputManager (including Just-Pressed, Double-Tap Dash, and QCF History!) */
+    /** Inject touch state into InputManager (including Just-Pressed, Guard, and QCF History!) */
     injectInput(inputManager) {
         if (!this.active) return;
 
@@ -222,17 +225,19 @@ export default class TouchPad {
         p1.upJust = p1.upJust || upJust;
         p1.downJust = p1.downJust || downJust;
 
-        // Double-tap left/right on virtual stick triggers Dash
-        if (leftJust) {
-            if (now - this._lastLeftTap < 280) {
+        // Only double-tap FORWARD on the stick triggers Dash (so holding/tapping BACK on the stick always BLOCKS cleanly!)
+        const combatSt = this.game?.stateManager?.states?.['Combat'];
+        const p1Facing = (this.game?.stateManager?.currentState === combatSt && combatSt?.p1) ? combatSt.p1.facing : 1;
+        if (leftJust && p1Facing === -1) {
+            if (now - this._lastLeftTap < 260) {
                 p1.dashLeftJust = true;
                 this._lastLeftTap = 0;
             } else {
                 this._lastLeftTap = now;
             }
         }
-        if (rightJust) {
-            if (now - this._lastRightTap < 280) {
+        if (rightJust && p1Facing === 1) {
+            if (now - this._lastRightTap < 260) {
                 p1.dashRightJust = true;
                 this._lastRightTap = 0;
             } else {
@@ -245,17 +250,26 @@ export default class TouchPad {
         const latchH = this.buttons.h || this.latchedButtons.h;
         const latchS = this.buttons.s || this.latchedButtons.s;
         const latchDash = this.buttons.dash || this.latchedButtons.dash;
+        const latchGuard = this.buttons.guard || this.latchedButtons.guard;
 
         p1.l = p1.l || latchL;
         p1.h = p1.h || latchH;
         p1.s = p1.s || latchS;
         p1.dash = p1.dash || latchDash;
+        p1.guard = Boolean(p1.guard || latchGuard);
 
-        if (latchL && !this.prevButtons.l) p1.lJust = true;
-        if (latchH && !this.prevButtons.h) p1.hJust = true;
-        if (latchS && !this.prevButtons.s) p1.sJust = true;
+        if (latchL && !this.prevButtons.l) { p1.lJust = true; this._lastLPress = now; }
+        if (latchH && !this.prevButtons.h) { p1.hJust = true; this._lastHPress = now; }
+        if (latchS && !this.prevButtons.s) { p1.sJust = true; this._lastSPress = now; }
         if (latchDash && !this.prevButtons.dash) p1.dashJust = true;
-        if ((p1.lJust && p1.h) || (p1.hJust && p1.l)) p1.throwJust = true;
+
+        if ((p1.lJust && p1.h) || (p1.hJust && p1.l) || ((p1.lJust || p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 95)) {
+            p1.throwJust = true;
+        }
+        if ((p1.lJust && p1.s) || (p1.sJust && p1.l) || (p1.hJust && p1.s) || (p1.sJust && p1.h) ||
+            ((p1.lJust || p1.hJust || p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 95 || Math.abs(this._lastHPress - this._lastSPress) <= 95))) {
+            p1.specialRushJust = true;
+        }
 
         if (this.anyTapLatched || p1.lJust || p1.hJust || p1.sJust || p1.dashJust) {
             p1.skipJust = true;
@@ -271,8 +285,8 @@ export default class TouchPad {
 
         // Save previous states & clear latches
         this.prevDpad = { left: curLeft, right: curRight, up: curUp, down: curDown };
-        this.prevButtons = { l: latchL, h: latchH, s: latchS, dash: latchDash };
-        this.latchedButtons = { l: false, h: false, s: false, dash: false };
+        this.prevButtons = { l: latchL, h: latchH, s: latchS, dash: latchDash, guard: latchGuard };
+        this.latchedButtons = { l: false, h: false, s: false, dash: false, guard: false };
         this.latchedDpad = { up: false, down: false, left: false, right: false };
         this.anyTapLatched = false;
     }

@@ -78,8 +78,8 @@ export default class AssetManager {
                             resolve();
                         }
                     };
-                    // Avoid malformed double "?v=2.43?v=..." URLs and allow session caching
-                    img.src = item.path.includes('?') ? item.path : `${item.path}?v=2.43`;
+                    // Avoid malformed double "?v=2.44?v=..." URLs and allow session caching
+                    img.src = item.path.includes('?') ? item.path : `${item.path}?v=2.44`;
                 } else if (item.type === 'audio') {
                     this.audioBuffer[item.key] = true;
                     let settled = false;

@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.43';
-import Projectile from '../entities/Projectile.js?v=2.43';
-import Hitbox from '../entities/Hitbox.js?v=2.43';
-import StageObjectManager from '../entities/StageObjects.js?v=2.43';
-import AIController from '../ai/AIController.js?v=2.43';
-import CombatHUD from '../ui/CombatHUD.js?v=2.43';
+import Fighter from '../entities/Fighter.js?v=2.44';
+import Projectile from '../entities/Projectile.js?v=2.44';
+import Hitbox from '../entities/Hitbox.js?v=2.44';
+import StageObjectManager from '../entities/StageObjects.js?v=2.44';
+import AIController from '../ai/AIController.js?v=2.44';
+import CombatHUD from '../ui/CombatHUD.js?v=2.44';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.43';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.43';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.43';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.43';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.43';
+} from '../core/AssetPreloader.js?v=2.44';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.44';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.44';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.44';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.44';
 
 export default class CombatState {
     constructor(game) {
@@ -84,6 +84,24 @@ export default class CombatState {
             this.ally = null;
             this.p1 = new Fighter(this.game, p1Data, this.game.width * 0.25, this.game.height * 0.9, 1);
             this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
+        }
+
+        // Fair Difficulty & Arena-Progression Scaling for CPU (Single-Player Story / Arcade / Versus / Survival)
+        if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
+            const diff = (this.game.settings && this.game.settings.difficulty) || 'NORMAL';
+            const stageNum = Math.max(1, Math.min(14, this.arcadeIndex || (p2Data.rosterIndex ?? 4)));
+            const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
+            if (diff === 'EASY') {
+                const hpMul = 0.78 + stageRatio * 0.10;
+                this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
+                this.p2.hp = this.p2.maxHP;
+                this.p2.power = Math.round((p2Data.power || 100) * (0.66 + stageRatio * 0.12));
+            } else if (diff === 'NORMAL') {
+                const hpMul = 0.84 + stageRatio * 0.16;
+                this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
+                this.p2.hp = this.p2.maxHP;
+                this.p2.power = Math.round((p2Data.power || 100) * (0.74 + stageRatio * 0.24));
+            }
         }
 
         // Carry over healed HP in Survival Mode!
@@ -866,35 +884,36 @@ export default class CombatState {
             const hasBF = im.hasBackForward(this.p1.facing);
             const hasDU = im.hasDownUp();
             const holdingFwd = (this.p1.facing === 1 && p1.right) || (this.p1.facing === -1 && p1.left);
+            const holdingBack = (this.p1.facing === 1 && p1.left) || (this.p1.facing === -1 && p1.right);
 
-            if (p1.throwJust && p1Dist <= 165 && this.p1.isGrounded && this.p2.isGrounded) {
-                // L + H simultaneously at close range: Unblockable Street Fighter Throw!
+            if (p1.throwJust && p1Dist <= 185 && this.p1.isGrounded && this.p2.isGrounded) {
+                // P + K simultaneously at close range: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
-            } else if ((p1.specialRushJust || (p1.hJust && hasQCF)) && this.p1.specialMoveCooldown <= 0) {
-                // J+L / K+L simultaneously OR ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
+            } else if ((p1.specialRushJust || (p1.sJust && holdingBack) || (p1.hJust && hasQCF)) && this.p1.specialMoveCooldown <= 0) {
+                // P+S / K+S simultaneously OR ← + S (Back + Special) OR ↓ ↘ → + K: Full-Screen 4-Hit Street Fighter Signature Rush Combo!
                 p1InputCopy.commandMove = 'DRAGON_RUSH_COMBO';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.sJust && holdingFwd && !p1.up && !p1.down) || ((p1.lJust || p1.hJust) && hasBF)) && this.p1.specialMoveCooldown <= 0) {
-                // → + L (Forward + Special) OR ← → + J/K: Character-Specific Full-Screen Signature Flight (Torpedo / Drill / Bird Kick / Psycho Crusher / Lariat / Cannonball)!
+            } else if (((p1.sJust && holdingFwd) || ((p1.lJust || p1.hJust) && hasBF)) && this.p1.specialMoveCooldown <= 0) {
+                // → + S (Forward + Special, works even if stick is slightly diagonal!) OR ← → + P/K: Character-Specific Signature Flight!
                 p1InputCopy.commandMove = 'FLYING_TORPEDO';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.lJust && (hasDP || hasDU)) || (p1.hJust && hasDU) || (p1.sJust && p1.up)) && this.p1.specialMoveCooldown <= 0) {
-                // → ↓ ↘ + L or ↓ ↑ + L/K or ↑ + S: Rising Shoryuken Dragon Uppercut / Flash Kick!
+            } else if (((p1.lJust && (hasDP || hasDU || (p1.up && this.p1.isGrounded))) || (p1.hJust && hasDU) || (p1.sJust && p1.up && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
+                // ↑ + P, ↑ + S, → ↓ ↘ + P, or ↓ ↑ + P/K: Rising Shoryuken Dragon Uppercut / Flash Kick!
                 p1InputCopy.commandMove = (p1.hJust && hasDU) ? 'FLYING_TORPEDO' : 'DRAGON_UPPERCUT';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.hJust && hasQCB) || (p1.sJust && p1.down)) && this.p1.specialMoveCooldown <= 0) {
-                // ↓ ↙ ← + H or ↓ + S: Airborne Tatsumaki Hurricane Kick (3-hit cyclone)!
+            } else if (((p1.hJust && (hasQCB || (holdingBack && this.p1.isGrounded))) || (p1.sJust && p1.down && !holdingFwd)) && this.p1.specialMoveCooldown <= 0) {
+                // ← + K, ↓ + S, or ↓ ↙ ← + K: Airborne Tatsumaki Hurricane Kick (3-hit cyclone)!
                 p1InputCopy.commandMove = 'HURRICANE_KICK';
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
@@ -904,9 +923,9 @@ export default class CombatState {
                     im.clearMotionHistory();
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
-                } else if (hasQCF && this.p1.specialMoveCooldown <= 0) {
-                    // Explicit QCF motion triggers physical special when Super Energy < 100
-                    p1InputCopy.commandMove = 'DRAGON_UPPERCUT';
+                } else if (this.p1.specialMoveCooldown <= 0) {
+                    // When Super Energy < 100%, pressing S or ↓↘→+P immediately executes the fighter's Signature Move instead of doing nothing!
+                    p1InputCopy.commandMove = hasQCF ? 'DRAGON_UPPERCUT' : 'FLYING_TORPEDO';
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
                     im.clearMotionHistory();
@@ -958,29 +977,18 @@ export default class CombatState {
         } else {
             p2Input = AIController.computeInput(this, dt);
             const dist = Math.abs(this.p1.x - this.p2.x);
-            const stageTier = this.arcadeMode ? (this.arcadeIndex || 1) : 5;
+            const diff = this.game.settings?.difficulty || 'NORMAL';
+            const stageTier = (this.arcadeMode || this.storyMode || this.survivalMode) ? (this.arcadeIndex || 1) : 4;
             if ((p2Input.commandMove === 'DRAGON_UPPERCUT' || p2Input.commandMove === 'HURRICANE_KICK' || p2Input.commandMove === 'FLYING_TORPEDO' || p2Input.commandMove === 'DRAGON_RUSH_COMBO') && this.p2.specialMoveCooldown <= 0) {
                 playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
-            } else if (dist >= 240 && stageTier >= 2 && this.p2.specialMoveCooldown <= 0 && this.p2.isGrounded && (this.p2.state === 'IDLE' || this.p2.state === 'WALK') && Math.random() < 0.012) {
-                // AI occasionally unleashes its Full-Screen Street Fighter Signature Torpedo or Rush Combo at long range!
+            } else if (diff !== 'EASY' && dist >= 270 && stageTier >= 5 && this.p2.specialMoveCooldown <= 0 && this.p2.isGrounded && (this.p2.state === 'IDLE' || this.p2.state === 'WALK') && Math.random() < 0.0045) {
+                // On higher stages in Normal/Hard, AI occasionally uses its Signature Torpedo or Rush Combo at long range
                 p2Input.commandMove = Math.random() < 0.55 ? 'FLYING_TORPEDO' : 'DRAGON_RUSH_COMBO';
                 p2Input.sJust = false;
                 playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
             } else if (p2Input.sJust) {
-                const useMeleeSpecial = dist <= 200 && this.p2.data.specialType !== 'SPECIAL_DASH' && this.p2.specialMoveCooldown <= 0 && Math.random() < 0.55;
-                const useLongRangeTorpedo = dist > 230 && this.p2.specialEnergy < 100 && this.p2.specialMoveCooldown <= 0 && Math.random() < 0.65;
-                if (useMeleeSpecial) {
-                    p2Input.sJust = false;
-                    p2Input.commandMove = (!this.p1.isGrounded || Math.random() < 0.5) ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
-                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
-                } else if (useLongRangeTorpedo) {
-                    p2Input.sJust = false;
-                    p2Input.commandMove = Math.random() < 0.55 ? 'FLYING_TORPEDO' : 'DRAGON_RUSH_COMBO';
-                    playCombatSound(this.game.audioManager, 'special', this.p2.data.id);
-                } else {
-                    p2Input.sJust = false;
-                    this.tryExecuteSpecial(this.p2, 'p2');
-                }
+                p2Input.sJust = false;
+                this.tryExecuteSpecial(this.p2, 'p2');
             }
         }
 

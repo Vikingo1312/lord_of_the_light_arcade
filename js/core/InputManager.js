@@ -7,13 +7,13 @@ export default class InputManager {
         // P1 & P2 Buffer objects for input reading
         this.p1 = {
             up: false, down: false, left: false, right: false,
-            l: false, h: false, s: false, dash: false, menu: false,
+            l: false, h: false, s: false, dash: false, guard: false, menu: false,
             skipJust: false, dashLeftJust: false, dashRightJust: false, dashJust: false
         };
         this.p2 = { up: false, down: false, left: false, right: false, l: false, h: false, s: false };
 
         // Just-pressed detection
-        this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, menu: false };
+        this.p1Prev = { up: false, down: false, left: false, right: false, l: false, h: false, s: false, dash: false, guard: false, menu: false };
 
         // Double-tap dash & simultaneous throw/rush timestamps (ms)
         this._lastLeftTap = 0;
@@ -22,9 +22,9 @@ export default class InputManager {
         this._lastHPress = 0;
         this._lastSPress = 0;
 
-        // Motion input history (stores last 24 directional states with timestamps)
+        // Motion input history (stores last 32 directional states with timestamps)
         this.inputHistory = [];
-        this.maxHistory = 24;
+        this.maxHistory = 32;
 
         window.addEventListener('keydown', (e) => {
             if (!e.repeat) {
@@ -58,7 +58,7 @@ export default class InputManager {
 
     update() {
         const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-        const gp1 = gamepads[0];
+        const gp1 = gamepads[0] || gamepads[1] || null;
 
         // Save previous states
         this.p1Prev.up = this.p1.up;
@@ -69,18 +69,20 @@ export default class InputManager {
         this.p1Prev.h = this.p1.h;
         this.p1Prev.s = this.p1.s;
         this.p1Prev.dash = this.p1.dash;
+        this.p1Prev.guard = this.p1.guard;
         this.p1Prev.menu = this.p1.menu;
 
-        this.p1.left = this._isKeyActive('KeyA') || this._isKeyActive('ArrowLeft') || (gp1 && (gp1.axes[0] < -0.5 || gp1.buttons[14]?.pressed));
-        this.p1.right = this._isKeyActive('KeyD') || this._isKeyActive('ArrowRight') || (gp1 && (gp1.axes[0] > 0.5 || gp1.buttons[15]?.pressed));
-        this.p1.up = this._isKeyActive('KeyW') || this._isKeyActive('ArrowUp') || (gp1 && (gp1.axes[1] < -0.5 || gp1.buttons[12]?.pressed));
-        this.p1.down = this._isKeyActive('KeyS') || this._isKeyActive('ArrowDown') || (gp1 && (gp1.axes[1] > 0.5 || gp1.buttons[13]?.pressed));
+        this.p1.left = this._isKeyActive('KeyA') || this._isKeyActive('ArrowLeft') || Boolean(gp1 && (gp1.axes[0] < -0.38 || gp1.buttons[14]?.pressed));
+        this.p1.right = this._isKeyActive('KeyD') || this._isKeyActive('ArrowRight') || Boolean(gp1 && (gp1.axes[0] > 0.38 || gp1.buttons[15]?.pressed));
+        this.p1.up = this._isKeyActive('KeyW') || this._isKeyActive('ArrowUp') || Boolean(gp1 && (gp1.axes[1] < -0.38 || gp1.buttons[12]?.pressed));
+        this.p1.down = this._isKeyActive('KeyS') || this._isKeyActive('ArrowDown') || Boolean(gp1 && (gp1.axes[1] > 0.38 || gp1.buttons[13]?.pressed));
 
-        this.p1.l = this._isKeyActive('KeyJ') || this._isKeyActive('Enter') || this._isKeyActive('Space') || (gp1 && (gp1.buttons[0]?.pressed || gp1.buttons[2]?.pressed));
-        this.p1.h = this._isKeyActive('KeyK') || (gp1 && (gp1.buttons[1]?.pressed || gp1.buttons[3]?.pressed));
-        this.p1.s = this._isKeyActive('KeyL') || (gp1 && gp1.buttons[5]?.pressed);
-        this.p1.dash = this._isKeyActive('ShiftLeft') || this._isKeyActive('ShiftRight') || this._isKeyActive('KeyI') || (gp1 && gp1.buttons[4]?.pressed);
-        this.p1.menu = this._isKeyActive('Escape') || (gp1 && gp1.buttons[9]?.pressed);
+        this.p1.l = this._isKeyActive('KeyJ') || this._isKeyActive('Enter') || this._isKeyActive('Space') || Boolean(gp1 && (gp1.buttons[0]?.pressed || gp1.buttons[2]?.pressed));
+        this.p1.h = this._isKeyActive('KeyK') || Boolean(gp1 && (gp1.buttons[1]?.pressed || gp1.buttons[3]?.pressed));
+        this.p1.s = this._isKeyActive('KeyL') || this._isKeyActive('KeyU') || Boolean(gp1 && (gp1.buttons[5]?.pressed || gp1.buttons[7]?.pressed));
+        this.p1.dash = this._isKeyActive('ShiftLeft') || this._isKeyActive('ShiftRight') || this._isKeyActive('KeyI') || Boolean(gp1 && gp1.buttons[4]?.pressed);
+        this.p1.guard = this._isKeyActive('KeyB') || this._isKeyActive('ShiftLeft') || this._isKeyActive('ShiftRight') || Boolean(gp1 && (gp1.buttons[6]?.pressed || gp1.buttons[4]?.pressed));
+        this.p1.menu = this._isKeyActive('Escape') || Boolean(gp1 && (gp1.buttons[9]?.pressed || gp1.buttons[8]?.pressed));
 
         const pointerJust = this.pointerLatched;
 
@@ -100,19 +102,19 @@ export default class InputManager {
         this.p1.menuJust = this.p1.menu && !this.p1Prev.menu;
         this.p1.skipJust = this.p1.lJust || this.p1.hJust || this.p1.sJust || this.p1.menuJust || pointerJust;
 
-        // Double-tap Left / Right detection (within 260ms window) & Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (within 70ms)
+        // Simultaneous L+H Throw / J+L or K+L Full-Screen Rush (within 105ms window for controllers & keyboards)
         const now = performance.now();
         if (this.p1.lJust) this._lastLPress = now;
         if (this.p1.hJust) this._lastHPress = now;
         if (this.p1.sJust) this._lastSPress = now;
-        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 70;
+        this.p1.throwJust = (this.p1.lJust || this.p1.hJust) && Math.abs(this._lastLPress - this._lastHPress) <= 105;
         this.p1.specialRushJust = (this.p1.lJust && this.p1.s) || (this.p1.sJust && this.p1.l) || (this.p1.hJust && this.p1.s) || (this.p1.sJust && this.p1.h)
-            || ((this.p1.lJust || this.p1.hJust || this.p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 70 || Math.abs(this._lastHPress - this._lastSPress) <= 70));
+            || ((this.p1.lJust || this.p1.hJust || this.p1.sJust) && (Math.abs(this._lastLPress - this._lastSPress) <= 105 || Math.abs(this._lastHPress - this._lastSPress) <= 105));
 
         this.p1.dashLeftJust = false;
         this.p1.dashRightJust = false;
         if (this.p1.leftJust) {
-            if (now - this._lastLeftTap < 260) {
+            if (now - this._lastLeftTap < 240) {
                 this.p1.dashLeftJust = true;
                 this._lastLeftTap = 0;
             } else {
@@ -120,7 +122,7 @@ export default class InputManager {
             }
         }
         if (this.p1.rightJust) {
-            if (now - this._lastRightTap < 260) {
+            if (now - this._lastRightTap < 240) {
                 this.p1.dashRightJust = true;
                 this._lastRightTap = 0;
             } else {
@@ -135,21 +137,21 @@ export default class InputManager {
     }
 
     /**
-     * Check for Quarter-Circle Forward input (↓↘→ or ↓→ on keyboard)
+     * Check for Quarter-Circle Forward input (↓↘→ or ↓→ on keyboard/controller/touch)
      * @param {number} facing - 1 for right-facing, -1 for left-facing
      */
     hasQCF(facing) {
         const now = performance.now();
-        const recent = this.inputHistory.filter(h => (now - h.t) < 520);
+        const recent = this.inputHistory.filter(h => (now - h.t) < 650);
         if (recent.length < 2) return false;
 
         const fwd = facing === 1 ? 'right' : 'left';
         let foundDown = false;
 
         for (const h of recent) {
-            if (!foundDown && h.down && !h[fwd]) {
+            if (!foundDown && h.down) {
                 foundDown = true;
-            } else if (foundDown && !h.down && h[fwd]) {
+            } else if (foundDown && h[fwd]) {
                 return true;
             }
         }
@@ -162,16 +164,16 @@ export default class InputManager {
      */
     hasQCB(facing) {
         const now = performance.now();
-        const recent = this.inputHistory.filter(h => (now - h.t) < 520);
+        const recent = this.inputHistory.filter(h => (now - h.t) < 650);
         if (recent.length < 2) return false;
 
         const back = facing === 1 ? 'left' : 'right';
         let foundDown = false;
 
         for (const h of recent) {
-            if (!foundDown && h.down && !h[back]) {
+            if (!foundDown && h.down) {
                 foundDown = true;
-            } else if (foundDown && !h.down && h[back]) {
+            } else if (foundDown && h[back]) {
                 return true;
             }
         }
@@ -184,7 +186,7 @@ export default class InputManager {
      */
     hasDP(facing) {
         const now = performance.now();
-        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        const recent = this.inputHistory.filter(h => (now - h.t) < 650);
         if (recent.length < 2) return false;
 
         const fwd = facing === 1 ? 'right' : 'left';
@@ -194,7 +196,7 @@ export default class InputManager {
 
         for (const h of recent) {
             // Classic Shoryuken: Forward -> Down -> Forward/Down-Forward
-            if (!foundFwd && h[fwd] && !h.down) {
+            if (!foundFwd && h[fwd]) {
                 foundFwd = true;
             } else if (foundFwd && !foundDownAfterFwd && h.down) {
                 foundDownAfterFwd = true;
@@ -212,12 +214,12 @@ export default class InputManager {
     }
 
     /**
-     * Check for Back -> Forward (← →) E. Honda / Blanka / Bison horizontal torpedo motion within 540ms
+     * Check for Back -> Forward (← →) E. Honda / Blanka / Bison horizontal torpedo motion within 650ms
      * @param {number} facing - 1 for right-facing, -1 for left-facing
      */
     hasBackForward(facing) {
         const now = performance.now();
-        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        const recent = this.inputHistory.filter(h => (now - h.t) < 650);
         if (recent.length < 2) return false;
 
         const back = facing === 1 ? 'left' : 'right';
@@ -235,11 +237,11 @@ export default class InputManager {
     }
 
     /**
-     * Check for Down -> Up (↓ ↑) Chun-Li / Guile vertical charge motion within 540ms
+     * Check for Down -> Up (↓ ↑) Chun-Li / Guile vertical charge motion within 650ms
      */
     hasDownUp() {
         const now = performance.now();
-        const recent = this.inputHistory.filter(h => (now - h.t) < 540);
+        const recent = this.inputHistory.filter(h => (now - h.t) < 650);
         if (recent.length < 2) return false;
 
         let foundDown = false;

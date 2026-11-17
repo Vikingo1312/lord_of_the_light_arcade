@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.43';
+import Hitbox from './Hitbox.js?v=2.44';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -171,14 +171,15 @@ export default class Fighter {
         }
 
         // Street Fighter Guard System:
-        // Holding Back (standing or crouching) OR Crouching (without pressing forward) activates guard!
+        // Holding Guard button (B / Shift / Trigger / Mobile 'B' button) OR Holding Back (standing or crouching) OR Crouching (without pressing forward) activates guard!
+        const holdingGuardBtn = Boolean(inputQueue.guard);
         const holdingBack = (this.facing === 1 && inputQueue.left) || (this.facing === -1 && inputQueue.right);
         const holdingFwd = (this.facing === 1 && inputQueue.right) || (this.facing === -1 && inputQueue.left);
         const holdingCrouchGuard = Boolean(inputQueue.down && !holdingFwd);
         const oppAttackingNear = Boolean(this.opponent && this.opponent.state === 'ATTACK' && Math.abs(this.opponent.x - this.x) < 420);
-        const inRecoveryGuardWindow = this.state === 'ATTACK' && this.currentAttack && this.stateTimer >= (this.currentAttack.startup + this.currentAttack.active + (this.currentAttack.recovery || 0.2) * 0.55);
-        this.isBlocking = (holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && this.state !== 'DASH' && this.state !== 'HIT' && this.state !== 'KO';
-        this.isActivelyGuarding = Boolean(this.isBlocking && (this.blockStun > 0 || inputQueue.opponentThreat || oppAttackingNear || holdingBack || holdingCrouchGuard));
+        const inRecoveryGuardWindow = this.state === 'ATTACK' && this.currentAttack && this.stateTimer >= (this.currentAttack.startup + this.currentAttack.active + (this.currentAttack.recovery || 0.2) * 0.45);
+        this.isBlocking = (holdingGuardBtn || holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && this.state !== 'DASH' && this.state !== 'HIT' && this.state !== 'KO';
+        this.isActivelyGuarding = Boolean(this.isBlocking && (holdingGuardBtn || this.blockStun > 0 || inputQueue.opponentThreat || oppAttackingNear || holdingBack || holdingCrouchGuard));
 
         // Hit-immunity countdown (prevents chain-stun after recovering from HIT)
         if (this.hitImmunity > 0) this.hitImmunity -= dt;
@@ -203,14 +204,14 @@ export default class Fighter {
             this.state = inputQueue.down ? 'CROUCH' : 'IDLE';
         }
 
-        // Check for Dash trigger (double-tap Left/Right or Shift/Dash button)
+        // Check for Dash trigger (double-tap Forward or Dash button; never back-dash when holding guard or blocking an enemy attack!)
         const tryTriggerDash = () => {
-            if (this.dashCooldown > 0 || !this.isGrounded) return false;
-            if (inputQueue.dashLeftJust) {
+            if (this.dashCooldown > 0 || !this.isGrounded || holdingGuardBtn) return false;
+            if (inputQueue.dashLeftJust && !(this.facing === 1 && oppAttackingNear)) {
                 this.executeDash(-1);
                 return true;
             }
-            if (inputQueue.dashRightJust) {
+            if (inputQueue.dashRightJust && !(this.facing === -1 && oppAttackingNear)) {
                 this.executeDash(1);
                 return true;
             }
@@ -856,7 +857,7 @@ export default class Fighter {
             this.specialEnergy = 0;
         } else if (type === 'DRAGON_UPPERCUT' || type === 'HURRICANE_KICK' || type === 'FLYING_TORPEDO' || type === 'DRAGON_RUSH_COMBO') {
             if (this.specialMoveCooldown > 0) return false;
-            this.specialMoveCooldown = 0.68;
+            this.specialMoveCooldown = 0.16;
         }
 
         this.state = 'ATTACK';

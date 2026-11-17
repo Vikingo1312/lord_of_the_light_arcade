@@ -30,66 +30,64 @@ export default class AIController {
         const dirAwayFromP1 = p1.x > p2.x ? 'left' : 'right';
         const styleId = (p2.data && p2.data.styleId) || 'LIGHT_DRAGON';
 
-        // Progressive stage index: Stage 1 (Hattori, rosterIdx=1) -> progress = 0.0
-        // Stage 14 (Dark Vikingo, rosterIdx=14) -> progress = 1.0
-        const rosterIdx = Math.max(1, Math.min(14, combat.combatData?.p2?.rosterIndex ?? 6));
-        let progress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 stages
+        // Progressive stage index: Stage 1 (Arena 1) -> stageProgress = 0.0, Stage 14 (Arena 14) -> stageProgress = 1.0
+        const rawStage = (combat.storyMode || combat.arcadeMode || combat.survivalMode)
+            ? (combat.arcadeIndex || 1)
+            : (combat.combatData?.p2?.rosterIndex ?? 4);
+        const rosterIdx = Math.max(1, Math.min(14, rawStage));
+        const stageProgress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 arenas
 
-        // Calibrated to genuine Street Fighter II: Champion Edition / Alpha 3 Arcade challenge on NORMAL!
-        if (difficultySetting === 'EASY') progress = Math.max(0.18, progress * 0.48);
-        else if (difficultySetting === 'NORMAL') progress = Math.min(0.92, 0.48 + progress * 0.44);
-        else if (difficultySetting === 'HARD') progress = Math.min(1.0, 0.72 + progress * 0.28);
+        // Balanced progression:
+        // - EASY: 0.00 -> 0.16 (genuinely easy & welcoming)
+        // - NORMAL: 0.05 (Arena 1) -> 0.53 (Arena 14) — steady, fair ramp where player always has a real chance!
+        // - HARD: 0.45 -> 0.85
+        let progress = stageProgress;
+        if (difficultySetting === 'EASY') progress = stageProgress * 0.16;
+        else if (difficultySetting === 'NORMAL') progress = 0.05 + stageProgress * 0.48;
+        else if (difficultySetting === 'HARD') progress = 0.45 + stageProgress * 0.40;
 
-        // Initialize AI state & anti-mash trackers on p2
+        // Initialize AI state trackers on p2
         if (typeof p2.aiWaitTimer === 'undefined') p2.aiWaitTimer = 0;
         if (typeof p2.aiBlockTimer === 'undefined') p2.aiBlockTimer = 0;
         if (typeof p2._lastSeenP1Attack === 'undefined') p2._lastSeenP1Attack = null;
-        if (typeof p2._p1MashCount === 'undefined') p2._p1MashCount = 0;
 
-        // Track every new attack swing by P1 (even while P2 is blocking!) to detect button-mashing
         const isNewP1Swing = (p1.state === 'ATTACK' && p1.currentAttack && p2._lastSeenP1Attack !== p1.currentAttack);
         if (isNewP1Swing) {
             p2._lastSeenP1Attack = p1.currentAttack;
-            p2._p1MashCount = Math.min(5, p2._p1MashCount + 1);
         } else if (p1.state !== 'ATTACK') {
             p2._lastSeenP1Attack = null;
         }
 
-        // Decay P1 button-mash counter smoothly over time
-        if (p2._p1MashCount > 0) {
-            p2._p1MashCount = Math.max(0, p2._p1MashCount - 1.55 * dt);
-        }
-
-        // Give P1 brief wake-up respect when P1 has wake-up immunity
-        if (p1.hitImmunity > 0.16) {
-            p2.aiWaitTimer = Math.max(p2.aiWaitTimer, 0.24);
+        // Give P1 wake-up respect when P1 has wake-up immunity
+        if (p1.hitImmunity > 0.12) {
+            p2.aiWaitTimer = Math.max(p2.aiWaitTimer, 0.35);
             if (dist < 160 && styleId !== 'TITAN_GRAPPLER') ai[dirAwayFromP1] = true;
             return ai;
         }
 
-        // Helper for executing a Street Fighter Whiff / Guard Reversal Punish tailored to p2's Fight Style
+        // Helper for executing a Whiff / Guard Reversal Punish tailored to p2's Fight Style
         const triggerPunishAttack = () => {
             p2.aiBlockTimer = 0;
             ai[dirAwayFromP1] = false;
             ai.down = false;
             const r = Math.random();
-            const throwRange = styleId === 'TITAN_GRAPPLER' ? 210 : 152;
-            if (dist <= throwRange && p1.isGrounded && p2.isGrounded && (styleId === 'TITAN_GRAPPLER' ? r < 0.55 : r < 0.28)) {
+            const throwRange = styleId === 'TITAN_GRAPPLER' ? 195 : 145;
+            if (difficultySetting !== 'EASY' && dist <= throwRange && p1.isGrounded && p2.isGrounded && (styleId === 'TITAN_GRAPPLER' ? r < 0.35 : r < 0.16)) {
                 ai.commandMove = 'THROW';
-            } else if (p2.specialMoveCooldown <= 0 && r < 0.58) {
+            } else if (difficultySetting !== 'EASY' && p2.specialMoveCooldown <= 0 && r < 0.38) {
                 ai.commandMove = (styleId === 'CAPOEIRA_TRICKSTER' || dist > 165) ? 'HURRICANE_KICK' : 'DRAGON_UPPERCUT';
-            } else if (r < 0.80) {
+            } else if (r < 0.68) {
                 if (styleId === 'CAPOEIRA_TRICKSTER' || Math.random() < 0.5) {
                     ai.down = true;
-                    ai.hJust = true; // Low Sweep punish
+                    ai.hJust = true; // Low Sweep
                 } else {
                     ai[dirToP1] = true;
-                    ai.hJust = true; // Overhead Axe Kick punish
+                    ai.hJust = true; // Overhead Axe Kick
                 }
             } else {
-                ai.lJust = true; // Fast 3-hit combo starter
+                ai.lJust = true;
             }
-            p2.aiWaitTimer = Math.max(0.22, 0.42 - progress * 0.16);
+            p2.aiWaitTimer = difficultySetting === 'EASY' ? 0.85 : Math.max(0.32, 0.62 - progress * 0.28);
             return ai;
         };
 
@@ -98,42 +96,37 @@ export default class AIController {
         const p2HitConfirmed = p2.state === 'ATTACK' && (p2.attackHasHit || p2.attackHitCount > 0) && !p2.attackWasBlocked;
 
         if (p2HitConfirmed && p2.isGrounded && dist <= 230) {
-            const styleChainProb = 0.52 + progress * 0.40;
+            const styleChainProb = difficultySetting === 'EASY' ? 0.12 : (0.18 + progress * 0.42);
             if (Math.random() < styleChainProb) {
-                // 1) SHADOW_ASSASSIN Signature: HEAVY/SWEEP -> P (Phantom Shadow Blitz) -> K (Execution Axe Kick)
                 if (styleId === 'SHADOW_ASSASSIN' && (p2AtkType === 'HEAVY' || p2AtkType === 'SWEEP')) {
                     ai.lJust = true;
-                    p2.aiWaitTimer = 0.16;
+                    p2.aiWaitTimer = 0.26;
                     return ai;
                 }
                 if (styleId === 'SHADOW_ASSASSIN' && p2AtkType === 'COMMAND_PUNCH') {
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.42;
+                    p2.aiWaitTimer = 0.52;
                     return ai;
                 }
-                // 2) CAPOEIRA_TRICKSTER Signature: K -> K -> K (Triple Capoeira Helicopter)
                 if (styleId === 'CAPOEIRA_TRICKSTER' && (p2AtkType === 'HEAVY' || p2AtkType === 'SWEEP' || p2AtkType === 'COMBO_KICK')) {
                     ai.hJust = true;
-                    p2.aiWaitTimer = p2AtkType === 'COMBO_KICK' ? 0.44 : 0.16;
+                    p2.aiWaitTimer = p2AtkType === 'COMBO_KICK' ? 0.55 : 0.24;
                     return ai;
                 }
-                // 3) TITAN_GRAPPLER Signature: LIGHT / COMBO_KICK -> P+K Unblockable Titan Combo Slam!
-                if (styleId === 'TITAN_GRAPPLER' && (p2AtkType === 'LIGHT' || p2AtkType === 'COMBO_KICK') && dist <= 215) {
+                if (difficultySetting !== 'EASY' && styleId === 'TITAN_GRAPPLER' && (p2AtkType === 'LIGHT' || p2AtkType === 'COMBO_KICK') && dist <= 200) {
                     ai.l = true;
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.46;
+                    p2.aiWaitTimer = 0.58;
                     return ai;
                 }
-                // 4) VALHALLA_BERSERKER Signature: COMMAND_PUNCH -> L -> H
                 if (styleId === 'VALHALLA_BERSERKER' && p2AtkType === 'COMMAND_PUNCH') {
                     ai.lJust = true;
-                    p2.aiWaitTimer = 0.16;
+                    p2.aiWaitTimer = 0.26;
                     return ai;
                 }
-                // 5) MASTER_STRIKER Signature: 4-Hit Blade Rush (HEAVY -> H)
                 if (styleId === 'MASTER_STRIKER' && p2AtkType === 'HEAVY' && p2.comboChainStep >= 1) {
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.42;
+                    p2.aiWaitTimer = 0.52;
                     return ai;
                 }
             }
@@ -142,46 +135,38 @@ export default class AIController {
         if (p2.comboChainStep > 0 && p2.comboChainTimer > 0.04 && dist <= 215) {
             const canCancel = p2.state === 'IDLE' || p2.state === 'WALK' || p2HitConfirmed;
             if (canCancel) {
-                const chainProb = p2.comboChainStep === 1 ? (0.58 + progress * 0.36) : (0.50 + progress * 0.42);
+                const chainProb = difficultySetting === 'EASY'
+                    ? 0.15
+                    : (p2.comboChainStep === 1 ? (0.24 + progress * 0.42) : (0.18 + progress * 0.38));
                 if (Math.random() < chainProb) {
-                    if (p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < (0.48 + progress * 0.30)) {
-                        ai.sJust = true; // Hit-confirm Super Arts cancel!
-                    } else if (p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < 0.48) {
+                    if (difficultySetting !== 'EASY' && p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < (0.22 + progress * 0.35)) {
+                        ai.sJust = true;
+                    } else if (difficultySetting !== 'EASY' && p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < (0.20 + progress * 0.30)) {
                         if (styleId === 'LIGHT_DRAGON') {
                             ai.up = true;
-                            ai.lJust = true; // Solar Dragon Uppercut Launcher!
+                            ai.lJust = true;
                         } else {
                             ai.commandMove = Math.random() < 0.55 ? 'DRAGON_UPPERCUT' : 'HURRICANE_KICK';
                         }
                     } else {
-                        ai.lJust = true; // Chain next step in 3-hit combo
+                        ai.lJust = true;
                     }
-                    p2.aiWaitTimer = p2.comboChainStep === 2 ? Math.max(0.32, 0.55 - progress * 0.20) : 0.14;
+                    p2.aiWaitTimer = p2.comboChainStep === 2 ? Math.max(0.42, 0.72 - progress * 0.28) : 0.22;
                     return ai;
                 } else {
-                    p2.aiWaitTimer = 0.32;
+                    p2.aiWaitTimer = 0.45;
                 }
             }
         }
 
-        // ─── 1. SUSTAINED BLOCKING & STREET FIGHTER GUARD REVERSAL ───
+        // ─── 1. SUSTAINED BLOCKING (No cheating high/low auto-switch so player Sweeps & Overheads break guard!) ───
         if (p2.aiBlockTimer > 0) {
             p2.aiBlockTimer -= dt;
             ai[dirAwayFromP1] = true;
 
             if (p1.state === 'ATTACK' && p1.currentAttack && dist < 245) {
                 const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
-                if (p1.stateTimer < activeEnd) {
-                    // Keep holding guard until P1's active frames finish!
-                    p2.aiBlockTimer = Math.max(p2.aiBlockTimer, 0.08);
-                    if (p1.currentAttack.isOverhead) {
-                        ai.down = false;
-                    } else if (p1.currentAttack.isLow || p1.currentAttack.type === 'SWEEP' || p1.currentAttack.type === 'CROUCH_LIGHT') {
-                        ai.down = true;
-                    }
-                    return ai;
-                } else if (p2.blockStun <= 0 && dist <= 215 && Math.random() < (0.42 + progress * 0.45)) {
-                    // P1 is now in recovery frames after getting blocked — Street Fighter Guard Reversal Punish!
+                if (p1.stateTimer >= activeEnd && p2.blockStun <= 0 && dist <= 205 && difficultySetting !== 'EASY' && Math.random() < (0.08 + progress * 0.28)) {
                     return triggerPunishAttack();
                 }
             }
@@ -191,100 +176,91 @@ export default class AIController {
         // ─── 2. REACT TO INCOMING PROJECTILES ───
         const incomingProj = combat.projectiles.find(
             proj => proj.owner === 'p1' && proj.alive &&
-                Math.abs(proj.x - p2.x) < 460 &&
+                Math.abs(proj.x - p2.x) < 420 &&
                 ((proj.facing === 1 && proj.x < p2.x) || (proj.facing === -1 && proj.x > p2.x))
         );
         if (incomingProj && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            const reactChance = 0.48 + progress * 0.44;
+            const reactChance = difficultySetting === 'EASY' ? 0.12 : (0.22 + progress * 0.42);
             if (Math.random() < reactChance) {
-                if (styleId === 'SHADOW_ASSASSIN' && dist < 340 && p2.dashCooldown <= 0 && Math.random() < 0.65) {
-                    // Shadow Assassins phase-dash right through projectiles!
+                if (styleId === 'SHADOW_ASSASSIN' && dist < 340 && p2.dashCooldown <= 0 && Math.random() < 0.45) {
                     if (dirToP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
                     return ai;
-                } else if (Math.random() < 0.58 + progress * 0.25) {
+                } else if (Math.random() < 0.55) {
                     ai[dirToP1] = true;
                     ai.up = true;
-                    p2.aiWaitTimer = 0.24;
+                    p2.aiWaitTimer = 0.35;
                     return ai;
                 } else {
-                    p2.aiBlockTimer = 0.26;
+                    p2.aiBlockTimer = 0.22;
                     ai[dirAwayFromP1] = true;
                     return ai;
                 }
             }
         }
 
-        // ─── 2B. STREET FIGHTER SHORYUKEN ANTI-AIR REACTION (When P1 jumps in!) ───
-        if (!p1.isGrounded && dist < 235 && p1.y < p2.y - 55 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            if (Math.random() < (0.26 + progress * 0.52) * dt * 12) {
-                if (p2.specialMoveCooldown <= 0 && Math.random() < 0.65) {
+        // ─── 2B. ANTI-AIR REACTION (Only on higher stages, never unfair) ───
+        if (difficultySetting !== 'EASY' && !p1.isGrounded && dist < 220 && p1.y < p2.y - 65 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+            if (Math.random() < (0.06 + progress * 0.28) * dt * 10) {
+                if (p2.specialMoveCooldown <= 0 && Math.random() < 0.45) {
                     ai.commandMove = 'DRAGON_UPPERCUT';
-                    p2.aiWaitTimer = 0.36;
-                    return ai;
-                } else if (Math.random() < 0.65) {
-                    ai.hJust = true;
-                    p2.aiWaitTimer = 0.32;
+                    p2.aiWaitTimer = 0.48;
                     return ai;
                 } else {
-                    p2.aiBlockTimer = 0.24;
+                    p2.aiBlockTimer = 0.22;
                     ai[dirAwayFromP1] = true;
                     return ai;
                 }
             }
         }
 
-        // ─── 3. REACT TO P1 MELEE ATTACK (Smart Guarding, Super-Armor Counter, or Whiff Punish!) ───
+        // ─── 3. REACT TO P1 MELEE ATTACK (Fair, balanced guard probability!) ───
         if (p1.state === 'ATTACK' && p1.currentAttack && dist < 245) {
             const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
 
             if (isNewP1Swing) {
-                // Berserkers & Grapplers occasionally use Super-Armor to power right through P1's light pokes!
-                if ((styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER') &&
-                    !p1.currentAttack.unblockable && p1.currentAttack.damage <= 26 &&
-                    Math.random() < (0.28 + progress * 0.28)) {
-                    ai[dirToP1] = true;
-                    ai.hJust = true; // Armored AXE_KICK / HEAVY counter-crush!
-                    p2.aiWaitTimer = 0.34;
-                    return ai;
-                }
-
-                const mashBonus = Math.min(0.28, Math.max(0, p2._p1MashCount - 1.2) * 0.12);
-                const blockProb = Math.min(0.84, 0.42 + progress * 0.36 + mashBonus);
+                // EASY: 6% - 13% block chance; NORMAL: 10% (Arena 1) -> 30% (Arena 14); HARD: 28% -> 46%
+                const blockProb = difficultySetting === 'EASY'
+                    ? (0.06 + progress * 0.42)
+                    : (0.08 + progress * 0.42);
                 const roll = Math.random();
 
                 if (roll < blockProb) {
-                    p2.aiBlockTimer = 0.18 + progress * 0.12;
+                    p2.aiBlockTimer = 0.16 + progress * 0.10;
                     ai[dirAwayFromP1] = true;
-                    if (!p1.currentAttack.isOverhead && (p1.currentAttack.isLow || p1.currentAttack.type === 'SWEEP' || p1.currentAttack.type === 'CROUCH_LIGHT')) {
+                    // Only crouch-block 25% of the time so player Low Sweeps (↓+K) reliably break CPU's standing guard!
+                    if (Math.random() < 0.25) {
                         ai.down = true;
                     }
                     return ai;
                 }
-            } else if (p1.stateTimer >= activeEnd + 0.04 && p2.blockStun <= 0 &&
+            } else if (difficultySetting !== 'EASY' && p1.stateTimer >= activeEnd + 0.08 && p2.blockStun <= 0 &&
                        (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') &&
-                       dist <= 215 && Math.random() < (0.38 + progress * 0.46)) {
-                // Whiff punish P1 when P1 misses or is stuck in recovery frames!
+                       dist <= 200 && Math.random() < (0.08 + progress * 0.26)) {
                 return triggerPunishAttack();
             }
         }
 
-        // ─── 4. ACTION COOLDOWN / PACING (Active Street Fighter Footsies) ───
+        // ─── 4. ACTION COOLDOWN / PACING (Gives the player breathing room to attack!) ───
         if (p2.aiWaitTimer > 0) {
             p2.aiWaitTimer -= dt;
-            if (dist > 195) {
+            if (dist > 215) {
                 ai[dirToP1] = true;
-            } else if (dist < 130 && styleId !== 'TITAN_GRAPPLER' && Math.random() < 0.42) {
-                ai[dirAwayFromP1] = true; // Micro-shimmy footsies
+            } else if (dist < 130 && styleId !== 'TITAN_GRAPPLER' && Math.random() < 0.35) {
+                ai[dirAwayFromP1] = true;
             }
             return ai;
         }
 
         const applyCooldown = () => {
             if (ai.lJust || ai.hJust || ai.sJust || ai.commandMove) {
-                const minWait = Math.max(0.18, 0.46 - progress * 0.26);
-                const randWait = Math.max(0.10, 0.24 - progress * 0.12);
-                p2.aiWaitTimer = minWait + Math.random() * randWait;
+                if (difficultySetting === 'EASY') {
+                    p2.aiWaitTimer = 0.78 + Math.random() * 0.48;
+                } else {
+                    const minWait = Math.max(0.28, 0.58 - progress * 0.34);
+                    const randWait = Math.max(0.16, 0.32 - progress * 0.16);
+                    p2.aiWaitTimer = minWait + Math.random() * randWait;
+                }
             }
             return ai;
         };
@@ -343,57 +319,41 @@ export default class AIController {
         const strikeRange = styleId === 'MASTER_STRIKER' ? 220 : (styleId === 'TITAN_GRAPPLER' ? 210 : 192);
         if (dist <= strikeRange) {
             if (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') {
-                // If P1 is turtle-blocking at close range, immediately punish with Unblockable Throw or Overhead!
-                const grabRange = styleId === 'TITAN_GRAPPLER' ? 215 : 155;
-                if (p1.isBlocking && dist <= grabRange && Math.random() < (0.55 + progress * 0.38)) {
-                    if (p1.isGrounded && (styleId === 'TITAN_GRAPPLER' || Math.random() < 0.62)) {
-                        ai.commandMove = 'THROW';
-                    } else {
-                        ai[dirToP1] = true;
-                        if (Math.random() < 0.45) ai.lJust = true; // COMMAND_PUNCH overhead
-                        else ai.hJust = true; // AXE_KICK overhead
-                    }
-                    return applyCooldown();
-                }
-
-                // TITAN_GRAPPLER command throw mixup even when P1 isn't blocking!
-                if (styleId === 'TITAN_GRAPPLER' && dist <= 210 && p1.isGrounded && Math.random() < (0.28 + progress * 0.25)) {
+                // Only rarely attempt a throw on high stages (never on EASY, and never spam-throw a blocking player!)
+                const grabRange = styleId === 'TITAN_GRAPPLER' ? 195 : 145;
+                if (difficultySetting !== 'EASY' && dist <= grabRange && p1.isGrounded && Math.random() < (styleId === 'TITAN_GRAPPLER' ? (0.06 + progress * 0.14) : (0.02 + progress * 0.08))) {
                     ai.commandMove = 'THROW';
                     return applyCooldown();
                 }
 
-                const attackChance = 0.68 + progress * 0.28;
+                const attackChance = difficultySetting === 'EASY' ? 0.35 : (0.45 + progress * 0.35);
                 if (Math.random() < attackChance) {
                     const mixup = Math.random();
-                    const superThreshold = 0.12 + progress * 0.16;
-                    const physSpecialThreshold = superThreshold + (0.14 + progress * 0.16);
-                    const sweepThreshold = physSpecialThreshold + (styleId === 'CAPOEIRA_TRICKSTER' ? 0.26 : 0.16);
-                    const commandThreshold = sweepThreshold + ((styleId === 'VALHALLA_BERSERKER' || styleId === 'SHADOW_ASSASSIN') ? 0.26 : 0.18);
-                    const heavyThreshold = commandThreshold + 0.18;
+                    const superThreshold = difficultySetting === 'EASY' ? 0.04 : (0.08 + progress * 0.14);
+                    const physSpecialThreshold = superThreshold + (difficultySetting === 'EASY' ? 0.05 : (0.08 + progress * 0.14));
+                    const sweepThreshold = physSpecialThreshold + (styleId === 'CAPOEIRA_TRICKSTER' ? 0.18 : 0.12);
+                    const commandThreshold = sweepThreshold + 0.14;
+                    const heavyThreshold = commandThreshold + 0.22;
 
                     if (mixup < superThreshold && p2.specialEnergy >= 100) {
                         ai.sJust = true;
                     } else if (mixup < physSpecialThreshold && p2.specialMoveCooldown <= 0) {
                         ai.commandMove = (styleId === 'CAPOEIRA_TRICKSTER' || Math.random() < 0.48) ? 'HURRICANE_KICK' : 'DRAGON_UPPERCUT';
                     } else if (mixup < sweepThreshold) {
-                        // Street Fighter Low Sweep mixup!
                         ai.down = true;
                         ai.hJust = true;
                     } else if (mixup < commandThreshold) {
-                        // Overhead Command Backfist or Axe Kick!
                         ai[dirToP1] = true;
                         if (styleId === 'VALHALLA_BERSERKER' || Math.random() < 0.5) ai.lJust = true;
                         else ai.hJust = true;
                     } else if (mixup < heavyThreshold) {
                         ai.hJust = true;
                     } else {
-                        // Start a 3-hit combo with Light Jab or Crouch Low Kick!
-                        if (Math.random() < 0.22) ai.down = true;
                         ai.lJust = true;
                     }
                     return applyCooldown();
                 } else {
-                    p2.aiWaitTimer = Math.max(0.06, 0.16 - progress * 0.10);
+                    p2.aiWaitTimer = difficultySetting === 'EASY' ? 0.45 : Math.max(0.18, 0.36 - progress * 0.18);
                 }
             }
             return applyCooldown();
