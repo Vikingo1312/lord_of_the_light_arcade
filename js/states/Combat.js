@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.42';
-import Projectile from '../entities/Projectile.js?v=2.42';
-import Hitbox from '../entities/Hitbox.js?v=2.42';
-import StageObjectManager from '../entities/StageObjects.js?v=2.42';
-import AIController from '../ai/AIController.js?v=2.42';
-import CombatHUD from '../ui/CombatHUD.js?v=2.42';
+import Fighter from '../entities/Fighter.js?v=2.43';
+import Projectile from '../entities/Projectile.js?v=2.43';
+import Hitbox from '../entities/Hitbox.js?v=2.43';
+import StageObjectManager from '../entities/StageObjects.js?v=2.43';
+import AIController from '../ai/AIController.js?v=2.43';
+import CombatHUD from '../ui/CombatHUD.js?v=2.43';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.42';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.42';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.42';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.42';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
+} from '../core/AssetPreloader.js?v=2.43';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.43';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.43';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.43';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.43';
 
 export default class CombatState {
     constructor(game) {
@@ -51,9 +51,12 @@ export default class CombatState {
         console.log("Entering Combat State");
         this.combatData = data;
 
-        // Arcade & Online / Co-Op Mode tracking
+        // Arcade & Online / Co-Op / Training / Survival Mode tracking
         this.arcadeMode = Boolean(data && data.arcadeMode);
         this.storyMode = Boolean(data && data.storyMode);
+        this.trainingMode = Boolean(data && data.trainingMode);
+        this.survivalMode = Boolean(data && data.survivalMode);
+        this.trainingDummyMode = (data && data.trainingDummyMode) || 'STAND'; // 'STAND' | 'CROUCH' | 'GUARD' | 'CPU'
         this.arcadeLadder = (data && Array.isArray(data.arcadeLadder)) ? data.arcadeLadder : null;
         this.coopMode = Boolean(data && data.coopMode);
         this.onlineMode = (data && data.onlineMode) || null;
@@ -83,10 +86,15 @@ export default class CombatState {
             this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
         }
 
+        // Carry over healed HP in Survival Mode!
+        if (this.survivalMode && data && data.survivalHP) {
+            this.p1.hp = Math.min(this.p1.maxHP, Math.max(25, data.survivalHP));
+        }
+
         // Reset match timers & flags cleanly for every round/fight
         this.time = 0;
-        this.matchPhase = 'FIGHT_INTRO';
-        this.timer = (this.game.settings && this.game.settings.timer) || 99;
+        this.matchPhase = this.trainingMode ? 'FIGHTING' : 'FIGHT_INTRO';
+        this.timer = this.trainingMode ? 99 : ((this.game.settings && this.game.settings.timer) || 99);
         this.introTimer = 0;
         this.koFreezeTimer = 0;
         this.finishHimTimer = 0;
@@ -113,12 +121,12 @@ export default class CombatState {
 
         // Story-Driven Match Dialogue Banner
         this.storyDialogue = STORY_DIALOGUES[p2Data.id] || STORY_DIALOGUES[p1Data.id] || null;
-        this.storyBannerTimer = 22.0;
+        this.storyBannerTimer = this.trainingMode ? 0 : 22.0;
         this.introSubPhase = 'STORY_DIALOGUE';
         this.introSubTimer = 0;
 
         // Street Fighter Trailing Red Damage Bars
-        this.p1TrailHP = this.p1.maxHP;
+        this.p1TrailHP = this.p1.hp;
         this.p2TrailHP = this.p2.maxHP;
         this.allyTrailHP = this.ally ? this.ally.maxHP : 0;
 
@@ -131,7 +139,7 @@ export default class CombatState {
         this.firstAttackAwarded = false;
         this.callout = (this.arcadeMode && p2Data.special)
             ? { text: '⚠️ SECRET CHALLENGER!', color: '#ff3366', side: 'p2', timer: 3.2, maxTimer: 3.2 }
-            : null;
+            : (this.trainingMode ? { text: '🥋 DOJO TRAINING READY!', color: '#00ff88', side: 'p1', timer: 2.2, maxTimer: 2.2 } : null);
 
         // Combo Counter tracking
         this.p1ComboCount = 0;
@@ -161,13 +169,15 @@ export default class CombatState {
         this.game.audioManager.stopFighterVoice?.();
         this.game.audioManager.stopAnnouncerVoice?.();
 
-        playFighterSound(this.game.audioManager, p2Data.id, 'intro', () => {
-            this._startRoundCall(false);
-        });
-        // Generous 18s safety fallback (only if browser blocked audio; never cuts off 9-13s intro speeches!)
-        this._storyIntroTimeout = setTimeout(() => {
-            this._startRoundCall(false);
-        }, 18000);
+        if (!this.trainingMode) {
+            playFighterSound(this.game.audioManager, p2Data.id, 'intro', () => {
+                this._startRoundCall(false);
+            });
+            // Generous 18s safety fallback (only if browser blocked audio; never cuts off 9-13s intro speeches!)
+            this._storyIntroTimeout = setTimeout(() => {
+                this._startRoundCall(false);
+            }, 18000);
+        }
 
         this.game.canvas.addEventListener('mousedown', this._onMouseClick);
     }
@@ -343,6 +353,13 @@ export default class CombatState {
         }
     }
 
+    _cycleTrainingDummyMode() {
+        const modes = ['STAND', 'CROUCH', 'GUARD', 'CPU'];
+        const idx = modes.indexOf(this.trainingDummyMode || 'STAND');
+        this.trainingDummyMode = modes[(idx + 1) % modes.length];
+        this.triggerCallout(`🥋 DUMMY: ${this.trainingDummyMode}`, '#00ff88', 'p2');
+    }
+
     _handleCanvasTap(x, y) {
         const cx = this.game.width / 2;
         const cy = this.game.height / 2;
@@ -398,6 +415,12 @@ export default class CombatState {
 
         if (hitTopRightMenu || hitTopCenterPause) {
             this.setPaused(true);
+            return true;
+        }
+
+        // Training Mode: tap the top-center Dojo Telemetry Banner to cycle Dummy mode!
+        if (this.trainingMode && x >= cx - 460 && x <= cx + 460 && y >= 142 && y <= 198) {
+            this._cycleTrainingDummyMode();
             return true;
         }
         return false;
@@ -797,16 +820,25 @@ export default class CombatState {
             return;
         }
 
-        this.timer -= dt;
-        if (this.timer <= 0) {
-            this.timer = 0;
-            const teamP1HP = this.p1.hp + (this.ally ? this.ally.hp : 0);
-            this.winner = (teamP1HP >= this.p2.hp) ? 'p1' : 'p2';
-            this.matchPhase = 'KO_FREEZE';
-            this.koFreezeTimer = 0;
-            this._koKnockbackApplied = false;
-            if (isOnlineHost) this._broadcastHostSnapshot();
-            return;
+        if (this.trainingMode) {
+            this.timer = 99;
+            this.p1.specialEnergy = 100;
+            this.p2.hp = Math.max(15, this.p2.hp);
+            if ((this.p2.state === 'IDLE' || this.p2.state === 'CROUCH') && this.p1ComboTimer <= 0 && this.p2.hp < this.p2.maxHP) {
+                this.p2.hp = Math.min(this.p2.maxHP, this.p2.hp + 340 * dt);
+            }
+        } else {
+            this.timer -= dt;
+            if (this.timer <= 0) {
+                this.timer = 0;
+                const teamP1HP = this.p1.hp + (this.ally ? this.ally.hp : 0);
+                this.winner = (teamP1HP >= this.p2.hp) ? 'p1' : 'p2';
+                this.matchPhase = 'KO_FREEZE';
+                this.koFreezeTimer = 0;
+                this._koKnockbackApplied = false;
+                if (isOnlineHost) this._broadcastHostSnapshot();
+                return;
+            }
         }
 
         // Decay combo timers
@@ -901,7 +933,7 @@ export default class CombatState {
             }
         }
 
-        // --- P2 Input (Online 1v1 Guest OR AI Opponent) ---
+        // --- P2 Input (Online 1v1 Guest, Training Dummy, OR AI Opponent) ---
         let p2Input = null;
         if (this.onlineMode === 'duel' && guestInput) {
             p2Input = { ...guestInput, sJust: false, s: false };
@@ -911,6 +943,18 @@ export default class CombatState {
                 p2Input.lJust = false;
                 p2Input.hJust = false;
             }
+        } else if (this.trainingMode && this.trainingDummyMode !== 'CPU') {
+            const isCrouchDummy = this.trainingDummyMode === 'CROUCH';
+            const isGuardDummy = this.trainingDummyMode === 'GUARD';
+            const shouldCrouchGuard = isGuardDummy && (this.p1.state === 'CROUCH' || (this.p1.currentAttack && this.p1.currentAttack.isLow));
+            p2Input = {
+                up: false,
+                down: Boolean(isCrouchDummy || shouldCrouchGuard),
+                left: Boolean(isGuardDummy && this.p2.facing === 1),
+                right: Boolean(isGuardDummy && this.p2.facing === -1),
+                l: false, h: false, s: false,
+                lJust: false, hJust: false, sJust: false
+            };
         } else {
             p2Input = AIController.computeInput(this, dt);
             const dist = Math.abs(this.p1.x - this.p2.x);
@@ -1857,6 +1901,18 @@ export default class CombatState {
         const isOnlineHost = Boolean(net && net.active && net.role === 'host' && this.onlineMode);
         const totalStages = this.arcadeLadder ? this.arcadeLadder.length : (ROSTER.length - 1);
 
+        if (this.survivalMode) {
+            const wins = this.arcadeWins + 1;
+            try {
+                const best = Math.max(Number(localStorage.getItem('lotl_survival_best') || 0), wins);
+                localStorage.setItem('lotl_survival_best', String(best));
+            } catch (e) { }
+            const wrappedIdx = ((nextIdx - 1) % Math.max(1, totalStages)) + 1;
+            this._transitioning = true;
+            this.startArcadeFight(wrappedIdx, wins);
+            return;
+        }
+
         // Story Mode Midpoint Check (Active for Story Mode at Fight 7!)
         if (nextIdx === 7 && this.storyMode && !this.arcadeLadder) {
             this._transitioning = true;
@@ -1952,6 +2008,10 @@ export default class CombatState {
         preloadFighterSprites(this.game.assetManager, opponent);
         preloadStageAssets(this.game.assetManager, stageId);
 
+        const healedHP = this.survivalMode
+            ? Math.min(this.p1.maxHP, Math.max(1, this.p1.hp) + Math.round(this.p1.maxHP * 0.30))
+            : undefined;
+
         const nextCombatData = {
             p1: player1,
             ally: allyChar,
@@ -1959,6 +2019,8 @@ export default class CombatState {
             stageId: stageId,
             arcadeMode: true,
             storyMode: this.storyMode,
+            survivalMode: this.survivalMode,
+            survivalHP: healedHP,
             arcadeLadder: this.arcadeLadder,
             coopMode: this.coopMode,
             onlineMode: this.onlineMode,

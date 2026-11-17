@@ -264,7 +264,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.42`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.43`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
@@ -625,19 +625,49 @@ export default class AudioManager {
             this.applyMixerSettings();
             const src = this.audioCtx.createBufferSource();
             const clipGain = this.audioCtx.createGain();
-            clipGain.gain.value = type === 'hit' ? 0.68 : 1.0;
+            clipGain.gain.value = type === 'hit' ? 0.68 : (type === 'ko' ? 1.15 : 1.0);
             src.buffer = buffer;
-            // Snappy Street Fighter delivery (fixes slow reading pace across all fighter voices)
-            const rate = (type === 'special' || type === 'super' || type === 'hit' || type === 'taunt') ? 1.10 : 1.06;
+            // Snappy Street Fighter delivery, or dramatic 0.92x pitch-drop on K.O. scream
+            const rate = type === 'ko'
+                ? 0.92
+                : ((type === 'special' || type === 'super' || type === 'hit' || type === 'taunt') ? 1.10 : 1.06);
             src.playbackRate.value = rate;
             src.connect(clipGain);
             clipGain.connect(this.voiceGain);
+
+            // Street Fighter II 4-Tap K.O. Stadium Echo ("Uwaaaah... waaah... aaah...")
+            if (type === 'ko') {
+                try {
+                    const koDelay = this.audioCtx.createDelay(1.0);
+                    koDelay.delayTime.value = 0.24;
+
+                    const koFeedback = this.audioCtx.createGain();
+                    koFeedback.gain.value = 0.42;
+
+                    const koFilter = this.audioCtx.createBiquadFilter();
+                    koFilter.type = 'lowpass';
+                    koFilter.frequency.value = 1600;
+
+                    const koWetGain = this.audioCtx.createGain();
+                    koWetGain.gain.value = 0.58;
+
+                    clipGain.connect(koDelay);
+                    koDelay.connect(koFilter);
+                    koFilter.connect(koWetGain);
+                    koWetGain.connect(this.voiceGain);
+
+                    koFilter.connect(koFeedback);
+                    koFeedback.connect(koDelay);
+                } catch (e) {}
+            }
+
             src.onended = finish;
             this.fighterVoiceSource = src;
 
             try {
                 src.start(0);
-                this._fighterVoiceTimeout = setTimeout(finish, Math.ceil((buffer.duration / rate) * 1000) + 350);
+                const extraTail = type === 'ko' ? 1100 : 350;
+                this._fighterVoiceTimeout = setTimeout(finish, Math.ceil((buffer.duration / rate) * 1000) + extraTail);
             } catch (e) {
                 finish();
             }
@@ -725,7 +755,18 @@ export default class AudioManager {
         });
     }
 
-    // ─── STREET FIGHTER COMBAT SFX HELPERS ───
+    // ─── STREET FIGHTER CPS-2 ARCADE IMPACT SYNTHESIS & COMBAT SFX HELPERS ───
+    _createCPS2NoiseBuffer(durationSec = 0.12) {
+        if (!this.audioCtx) return null;
+        const length = Math.max(1, Math.floor(this.audioCtx.sampleRate * durationSec));
+        const buf = this.audioCtx.createBuffer(1, length, this.audioCtx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < length; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        return buf;
+    }
+
     playHitImpactSound(isHeavy = false, isSpecialHit = false) {
         if (isSpecialHit) {
             this.playSFX('assets/audio/sfx/sfx_hit_special.mp3', true);
@@ -734,22 +775,184 @@ export default class AudioManager {
         } else {
             this.playSFX('assets/audio/sfx/sfx_hit_light.mp3', false);
         }
+
+        // CPS-2 Sub-Bass Punch (110Hz -> 38Hz) + Crispy Karate Snap Noise Burst
+        try {
+            this._initWebAudio();
+            if (!this.audioCtx || !this.sfxGain) return;
+            const ctx = this.audioCtx;
+            const now = ctx.currentTime;
+
+            const punchOsc = ctx.createOscillator();
+            const punchGain = ctx.createGain();
+            punchOsc.type = isSpecialHit ? 'sawtooth' : 'triangle';
+            const startFreq = isSpecialHit ? 135 : (isHeavy ? 118 : 110);
+            const endFreq = isSpecialHit ? 30 : 38;
+            const dur = isSpecialHit ? 0.19 : (isHeavy ? 0.15 : 0.11);
+
+            punchOsc.frequency.setValueAtTime(startFreq, now);
+            punchOsc.frequency.exponentialRampToValueAtTime(endFreq, now + dur);
+
+            punchGain.gain.setValueAtTime(isSpecialHit ? 0.42 : (isHeavy ? 0.34 : 0.25), now);
+            punchGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+            punchOsc.connect(punchGain);
+            punchGain.connect(this.sfxGain);
+            punchOsc.start(now);
+            punchOsc.stop(now + dur);
+
+            const noiseBuf = this._createCPS2NoiseBuffer(0.08);
+            if (noiseBuf) {
+                const noiseSrc = ctx.createBufferSource();
+                noiseSrc.buffer = noiseBuf;
+                const snapFilter = ctx.createBiquadFilter();
+                snapFilter.type = 'bandpass';
+                snapFilter.frequency.setValueAtTime(isHeavy || isSpecialHit ? 2100 : 2600, now);
+                snapFilter.Q.value = 1.4;
+
+                const snapGain = ctx.createGain();
+                snapGain.gain.setValueAtTime(isSpecialHit ? 0.32 : (isHeavy ? 0.26 : 0.18), now);
+                snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+
+                noiseSrc.connect(snapFilter);
+                snapFilter.connect(snapGain);
+                snapGain.connect(this.sfxGain);
+                noiseSrc.start(now);
+                noiseSrc.stop(now + 0.08);
+            }
+        } catch (e) {}
     }
 
     playWhooshSound(isHeavy = false) {
         this.playSFX(isHeavy ? 'assets/audio/sfx/sfx_whoosh_heavy.mp3' : 'assets/audio/sfx/sfx_whoosh_light.mp3', false);
+
+        // CPS-2 Filtered Air-Whip Transient
+        try {
+            this._initWebAudio();
+            if (!this.audioCtx || !this.sfxGain) return;
+            const ctx = this.audioCtx;
+            const now = ctx.currentTime;
+            const dur = isHeavy ? 0.14 : 0.09;
+            const noiseBuf = this._createCPS2NoiseBuffer(dur);
+            if (!noiseBuf) return;
+
+            const src = ctx.createBufferSource();
+            src.buffer = noiseBuf;
+            const bp = ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(isHeavy ? 950 : 1350, now);
+            bp.frequency.exponentialRampToValueAtTime(isHeavy ? 280 : 420, now + dur);
+            bp.Q.value = 1.8;
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(isHeavy ? 0.18 : 0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+            src.connect(bp);
+            bp.connect(gain);
+            gain.connect(this.sfxGain);
+            src.start(now);
+            src.stop(now + dur);
+        } catch (e) {}
     }
 
     playThrowSound() {
         this.playSFX('assets/audio/sfx/sfx_throw.mp3', true);
+
+        // CPS-2 Grapple Snap + Low Body-Slam Thud
+        try {
+            this._initWebAudio();
+            if (!this.audioCtx || !this.sfxGain) return;
+            const ctx = this.audioCtx;
+            const now = ctx.currentTime;
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(98, now);
+            osc.frequency.exponentialRampToValueAtTime(32, now + 0.18);
+            gain.gain.setValueAtTime(0.34, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+            osc.connect(gain);
+            gain.connect(this.sfxGain);
+            osc.start(now);
+            osc.stop(now + 0.18);
+        } catch (e) {}
     }
 
     playKOBoomSound() {
         this.playSFX('assets/audio/sfx/sfx_ko_boom.mp3', true);
+
+        // CPS-2 Seismic 90Hz -> 24Hz K.O. Stadium Sub-Drop & Impact Burst
+        try {
+            this._initWebAudio();
+            if (!this.audioCtx || !this.sfxGain) return;
+            const ctx = this.audioCtx;
+            const now = ctx.currentTime;
+
+            const boomOsc = ctx.createOscillator();
+            const boomGain = ctx.createGain();
+            boomOsc.type = 'sine';
+            boomOsc.frequency.setValueAtTime(90, now);
+            boomOsc.frequency.exponentialRampToValueAtTime(24, now + 0.65);
+
+            boomGain.gain.setValueAtTime(0.55, now);
+            boomGain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+            boomOsc.connect(boomGain);
+            boomGain.connect(this.sfxGain);
+            boomOsc.start(now);
+            boomOsc.stop(now + 0.65);
+
+            const crunchBuf = this._createCPS2NoiseBuffer(0.22);
+            if (crunchBuf) {
+                const nSrc = ctx.createBufferSource();
+                nSrc.buffer = crunchBuf;
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(1100, now);
+                lp.frequency.exponentialRampToValueAtTime(180, now + 0.22);
+
+                const nGain = ctx.createGain();
+                nGain.gain.setValueAtTime(0.32, now);
+                nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                nSrc.connect(lp);
+                lp.connect(nGain);
+                nGain.connect(this.sfxGain);
+                nSrc.start(now);
+                nSrc.stop(now + 0.22);
+            }
+        } catch (e) {}
     }
 
     playBlockSound() {
         this.playSFX('assets/audio/sfx/sfx_block.mp3', false);
+
+        // CPS-2 Metallic Parry Ring (1180Hz / 1640Hz) + Guard Thud
+        try {
+            this._initWebAudio();
+            if (!this.audioCtx || !this.sfxGain) return;
+            const ctx = this.audioCtx;
+            const now = ctx.currentTime;
+
+            [1180, 1640].forEach((freq, idx) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = idx === 0 ? 'triangle' : 'square';
+                osc.frequency.setValueAtTime(freq, now);
+                osc.frequency.exponentialRampToValueAtTime(freq * 0.86, now + 0.085);
+
+                gain.gain.setValueAtTime(idx === 0 ? 0.18 : 0.10, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+
+                osc.connect(gain);
+                gain.connect(this.sfxGain);
+                osc.start(now);
+                osc.stop(now + 0.085);
+            });
+        } catch (e) {}
     }
 
     // ─── CINEMATIC BOOT & CAESAR SPLASH SYNTHS ───

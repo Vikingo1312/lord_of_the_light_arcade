@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.42';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.42';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.43';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.43';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.43';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -31,6 +31,8 @@ export default class CharacterSelectState {
         console.log("Entering Character Select");
         this.arcadeMode = data && data.arcadeMode !== undefined ? data.arcadeMode : false;
         this.storyMode = Boolean(data && data.storyMode);
+        this.trainingMode = Boolean(data && data.trainingMode);
+        this.survivalMode = Boolean(data && data.survivalMode);
         this.selectedStageKeys = Object.keys(STAGES);
         this.stageIndex = 0;
         this._customStagePicked = false;
@@ -46,7 +48,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.42`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.43`);
                 needsLoad = true;
             }
         }
@@ -323,7 +325,7 @@ export default class CharacterSelectState {
 
         setTimeout(() => {
             if (this.arcadeMode && !this.storyMode && arcadeLadder) {
-                // Pure ARCADE Shuffle Challenger Mode: go straight to VersusIntro against the 1st Shuffled Challenger!
+                // Pure ARCADE Shuffle Challenger Mode or SURVIVAL Mode: go straight to VersusIntro against the 1st Shuffled Challenger!
                 const firstOpponent = arcadeLadder[0];
                 const combatData = {
                     p1: p1Char,
@@ -331,6 +333,7 @@ export default class CharacterSelectState {
                     stageId: firstOpponent.stageId,
                     arcadeMode: true,
                     storyMode: false,
+                    survivalMode: this.survivalMode,
                     arcadeLadder: arcadeLadder,
                     arcadeIndex: 1,
                     arcadeWins: 0,
@@ -354,12 +357,21 @@ export default class CharacterSelectState {
                     nextState: 'VersusIntro',
                     nextData: combatData,
                 });
+            } else if (this.trainingMode) {
+                this.game.stateManager.switchState('Combat', {
+                    p1: p1Char,
+                    p2: { ...p2Char, rosterIndex: this.p2Index },
+                    stageId: chosenStageKey,
+                    arcadeMode: false,
+                    trainingMode: true
+                });
             } else {
                 this.game.stateManager.switchState('VersusIntro', {
                     p1: p1Char,
                     p2: { ...p2Char, rosterIndex: this.p2Index },
                     stageId: chosenStageKey,
-                    arcadeMode: false
+                    arcadeMode: false,
+                    trainingMode: false
                 });
             }
         }, 800);
@@ -507,9 +519,9 @@ export default class CharacterSelectState {
             ctx.fillRect(pillX, pillY, pillW, pillH);
             ctx.strokeRect(pillX, pillY, pillW, pillH);
             ctx.textAlign = 'center';
-            ctx.font = 'bold 18px "Press Start 2P"';
+            ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffd700';
-            ctx.fillText(`🏟️ ARENA: ◀ ${stName} (${stKey.toUpperCase()}) ▶  [ANTIPPEN ZUM WECHSELN]`, pillX + pillW / 2, pillY + 35);
+            ctx.fillText(`ARENA: ◀ ${stName} ▶  [ANTIPPEN ZUM WECHSELN]`, pillX + pillW / 2, pillY + 35);
         } else if (!this.storyMode) {
             ctx.fillStyle = 'rgba(28, 12, 42, 0.92)';
             ctx.strokeStyle = '#ff66dd';

@@ -4,9 +4,9 @@
  *  1) 1 VS 1 DUELL (Head-to-head PvP!)
  *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.42';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.42';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.43';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.43';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.43';
 
 export default class OnlineLobbyState {
     constructor(game) {
@@ -33,7 +33,7 @@ export default class OnlineLobbyState {
         for (const f of ALL_FIGHTERS) {
             const key = `${f.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.42`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.43`);
             }
         }
         this.game.assetManager.loadAll();
@@ -170,14 +170,14 @@ export default class OnlineLobbyState {
                 return;
             }
 
-            // Center Arena Selector Pill (y ~ 668, x ~ cx - 280 .. cx + 280)
-            if (Math.abs(ty - 668) < 34 && Math.abs(tx - cx) < 290) {
+            // Center Arena Selector Pill (y ~ 676, x ~ cx - 280 .. cx + 280)
+            if (Math.abs(ty - 676) < 32 && Math.abs(tx - cx) < 290) {
                 this._cycleStage(tx < cx ? -1 : 1);
                 return;
             }
 
-            // P1 character cycle (left card x ~ cx - 410, y ~ 320..650)
-            if (Math.abs(tx - (cx - 410)) < 250 && ty > 320 && ty < 650) {
+            // P1 character cycle (left card x ~ cx - 410, y ~ 304..640)
+            if (Math.abs(tx - (cx - 410)) < 250 && ty > 304 && ty < 640) {
                 if (net.role === 'host') {
                     this._cycleChar('host', tx < (cx - 410) ? -1 : 1);
                 } else if (net.role === 'guest') {
@@ -187,8 +187,8 @@ export default class OnlineLobbyState {
                 return;
             }
 
-            // P2 character cycle (right card x ~ cx + 410, y ~ 320..650)
-            if (Math.abs(tx - (cx + 410)) < 250 && ty > 320 && ty < 650) {
+            // P2 character cycle (right card x ~ cx + 410, y ~ 304..640)
+            if (Math.abs(tx - (cx + 410)) < 250 && ty > 304 && ty < 640) {
                 this._cycleChar('guest', tx < (cx + 410) ? -1 : 1);
                 return;
             }
@@ -295,7 +295,7 @@ export default class OnlineLobbyState {
 
         const key = `${nextChar.id}_front.png`;
         if (!this.game.assetManager.images[key]) {
-            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.42`);
+            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.43`);
             this.game.assetManager.loadAll();
         }
 
@@ -774,11 +774,11 @@ export default class OnlineLobbyState {
         ctx.font = 'bold 18px "Press Start 2P"';
         ctx.fillText('1 VS 1 DUELL', duelX, modeY + 7);
 
-        // Player 1 & Player 2 Fighter Cards
+        // Player 1 & Player 2 Fighter Cards (y=470, boxH=336 -> bottom at 638, leaving clean gap above Arena Pill at 652..700)
         this._drawFighterSlot(
             ctx,
             cx - 410,
-            492,
+            470,
             net.role === 'host' ? 'DU: SPIELER 1 (HOST)' : 'SPIELER 1 (HOST)',
             net.getFighterById(net.hostCharId),
             '#00ffff',
@@ -788,7 +788,7 @@ export default class OnlineLobbyState {
         this._drawFighterSlot(
             ctx,
             cx + 410,
-            492,
+            470,
             net.role === 'guest'
                 ? 'DU: SPIELER 2 (GAST)'
                 : (isConnected ? 'SPIELER 2 (BEREIT)' : 'SPIELER 2 (WARTET)'),
@@ -801,36 +801,36 @@ export default class OnlineLobbyState {
         if (isCoop) {
             ctx.font = 'bold 32px "Press Start 2P"';
             ctx.fillStyle = '#00ff88';
-            ctx.fillText('TEAM', cx, 465);
+            ctx.fillText('TEAM', cx, 450);
             ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('GEGEN', cx, 500);
+            ctx.fillText('GEGEN', cx, 485);
             ctx.fillStyle = '#ff4466';
-            ctx.fillText('1. BOSS:', cx, 528);
+            ctx.fillText('1. BOSS:', cx, 513);
             ctx.fillStyle = '#ffffff';
-            ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 556);
+            ctx.fillText((ROSTER[1] && ROSTER[1].name) || 'HATTORI', cx, 541);
         } else {
             ctx.font = 'bold 50px "Press Start 2P"';
             ctx.fillStyle = '#ff3366';
             ctx.shadowColor = '#ff3366';
             ctx.shadowBlur = 16;
-            ctx.fillText('VS', cx, 510);
+            ctx.fillText('VS', cx, 492);
             ctx.shadowBlur = 0;
             ctx.font = 'bold 14px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('DIREKTES DUELL', cx, 548);
+            ctx.fillText('DIREKTES DUELL', cx, 530);
         }
 
-        // Interactive Center Arena Selector Pill (y = 668)
+        // Interactive Center Arena Selector Pill (y = 676)
         const curStageKey = net.stageId || 'Dojo';
         const stageName = (STAGES[curStageKey] && STAGES[curStageKey].name) ? STAGES[curStageKey].name.toUpperCase() : curStageKey.toUpperCase();
         this._drawRoundedBox(
             ctx,
             cx - 275,
-            668 - 25,
+            676 - 24,
             550,
-            50,
-            25,
+            48,
+            24,
             'rgba(0, 229, 255, 0.16)',
             '#00e5ff',
             2.5,
@@ -839,23 +839,23 @@ export default class OnlineLobbyState {
         ctx.font = 'bold 15px "Press Start 2P"';
         ctx.fillStyle = '#ffd700';
         ctx.textAlign = 'center';
-        ctx.fillText(`🏟️ ARENA: ◀ ${stageName} ▶`, cx, 675);
+        ctx.fillText(`ARENA: ◀ ${stageName} ▶`, cx, 683);
 
         // Connection Status & Ping
         ctx.font = 'bold 18px "Press Start 2P"';
         if (isConnected) {
             ctx.fillStyle = '#00ff88';
             const pingTxt = net.latencyMs ? ` (${net.latencyMs}ms)` : '';
-            ctx.fillText(`VERBUNDEN! BEREIT ZUM KAMPF${pingTxt}`, cx, 738);
+            ctx.fillText(`VERBUNDEN! BEREIT ZUM KAMPF${pingTxt}`, cx, 744);
         } else if (net.status === 'error') {
             ctx.fillStyle = '#ff4466';
-            ctx.fillText(net.errorMsg || 'Verbindungsfehler', cx, 738);
+            ctx.fillText(net.errorMsg || 'Verbindungsfehler', cx, 744);
         } else {
             ctx.fillStyle = '#ffcc00';
             const msg = net.role === 'host'
                 ? `Spieler 2 gibt Code ${net.roomCode} ein...`
                 : `Verbinde mit Raum ${net.roomCode}...`;
-            ctx.fillText(msg, cx, 738);
+            ctx.fillText(msg, cx, 744);
         }
 
         // Sleek Rounded Start Pill Button
@@ -887,7 +887,7 @@ export default class OnlineLobbyState {
 
     _drawFighterSlot(ctx, x, y, header, fighter, color, canChange) {
         const boxW = 460;
-        const boxH = 350;
+        const boxH = 336;
 
         this._drawRoundedBox(
             ctx,
@@ -913,10 +913,10 @@ export default class OnlineLobbyState {
         if (img && (img.naturalWidth || img.width)) {
             const iw = img.naturalWidth || img.width;
             const ih = img.naturalHeight || img.height;
-            const targetH = 192;
+            const targetH = 180;
             const scale = targetH / ih;
             const drawW = iw * scale;
-            ctx.drawImage(img, x - drawW / 2, y - 114, drawW, targetH);
+            ctx.drawImage(img, x - drawW / 2, y - 116, drawW, targetH);
         }
 
         if (canChange) {
@@ -932,16 +932,16 @@ export default class OnlineLobbyState {
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 21px "Press Start 2P"';
         const label = canChange ? `◀ ${fighter.name.toUpperCase()} ▶` : fighter.name.toUpperCase();
-        ctx.fillText(label, x, y + 114);
+        ctx.fillText(label, x, y + 104);
 
         ctx.fillStyle = '#99bbdd';
         ctx.font = '12px "Press Start 2P"';
-        ctx.fillText(fighter.nickname || '', x, y + 138);
+        ctx.fillText(fighter.nickname || '', x, y + 128);
 
         if (canChange) {
             ctx.fillStyle = '#ffd700';
             ctx.font = 'bold 10px "Press Start 2P"';
-            ctx.fillText(`TIPPE ◀ / ▶ ZUM KÄMPFER WÄHLEN (${this.selectableFighters.length} FREI)`, x, y + 163);
+            ctx.fillText(`TIPPE ◀ / ▶ ZUM KÄMPFER WÄHLEN (${this.selectableFighters.length} FREI)`, x, y + 152);
         }
         ctx.restore();
     }

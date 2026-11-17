@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.42';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.42';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.42';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.43';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.43';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.43';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.43';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -321,6 +321,56 @@ export default class CombatHUD {
                 `${isConn ? '🟢' : '🟡'} ${modeTag} CODE ${game.networkManager.roomCode}`,
                 cx,
                 164
+            );
+            ctx.restore();
+        } else if (combat.trainingMode) {
+            ctx.save();
+            const pillW = 860;
+            const pillH = 34;
+            const pillX = cx - pillW / 2;
+            const pillY = 148;
+            ctx.fillStyle = 'rgba(6, 12, 28, 0.85)';
+            ctx.fillRect(pillX, pillY, pillW, pillH);
+            ctx.strokeStyle = 'rgba(0, 238, 255, 0.72)';
+            ctx.lineWidth = 1.6;
+            ctx.strokeRect(pillX, pillY, pillW, pillH);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 13px "Press Start 2P"';
+            ctx.fillStyle = '#00eeff';
+            ctx.shadowColor = '#004466';
+            ctx.shadowBlur = 8;
+            const dummyMode = combat.trainingDummyMode || 'STAND';
+            const hits = combat.p1ComboCount || 0;
+            ctx.fillText(
+                `🥋 DOJO TRAINING · DUMMY: [${dummyMode}] (ANTIPPEN) · COMBO: ${hits} HITS`,
+                cx,
+                170
+            );
+            ctx.restore();
+        } else if (combat.survivalMode) {
+            ctx.save();
+            const pillW = 700;
+            const pillH = 34;
+            const pillX = cx - pillW / 2;
+            const pillY = 148;
+            ctx.fillStyle = 'rgba(26, 8, 12, 0.85)';
+            ctx.fillRect(pillX, pillY, pillW, pillH);
+            ctx.strokeStyle = 'rgba(255, 136, 0, 0.78)';
+            ctx.lineWidth = 1.6;
+            ctx.strokeRect(pillX, pillY, pillW, pillH);
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 13px "Press Start 2P"';
+            ctx.fillStyle = '#ffcc00';
+            ctx.shadowColor = '#ff4400';
+            ctx.shadowBlur = 8;
+            let best = combat.arcadeWins || 0;
+            try {
+                best = Math.max(best, Number(localStorage.getItem('lotl_survival_best') || 0));
+            } catch (e) { }
+            ctx.fillText(
+                `🔥 SURVIVAL STREAK: ${combat.arcadeWins || 0} SIEGE (REKORD: ${best})`,
+                cx,
+                170
             );
             ctx.restore();
         }

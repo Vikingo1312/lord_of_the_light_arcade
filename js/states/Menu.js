@@ -1,12 +1,12 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.42';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.42';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.42';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.42';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.43';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.43';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.43';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.43';
 
 export default class MenuState {
     constructor(game) {
         this.game = game;
-        this.options = ['STORY', 'ARCADE', 'VERSUS', 'ONLINE & KOOP', 'OPTIONEN'];
+        this.options = ['STORY', 'ARCADE', 'VERSUS', 'TRAINING / DOJO', 'SURVIVAL', 'ONLINE & KOOP', 'OPTIONEN'];
         this.selectedIndex = 0;
         this.inputCooldown = 0;
         this.time = 0;
@@ -178,7 +178,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.42`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.43`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -572,9 +572,9 @@ export default class MenuState {
             }
 
             // Check if tap hits a menu item
-            const menuStartY = this.game.height * 0.61;
-            const itemHeight = 56;
-            const hitPadding = 28;
+            const menuStartY = this.game.height * 0.56;
+            const itemHeight = 46;
+            const hitPadding = 22;
 
             for (let i = 0; i < this.options.length; i++) {
                 const itemY = menuStartY + (i * itemHeight);
@@ -730,6 +730,26 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: false });
                 }, 500);
             } else if (this.selectedIndex === 3) {
+                // TRAINING / DOJO — always unlocked for everyone!
+                this.playConfirm();
+                this.inputCooldown = 40;
+                this.isTransitioning = true;
+                this.game.audioManager.stopBGM();
+                setTimeout(() => {
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: false, trainingMode: true });
+                }, 350);
+            } else if (this.selectedIndex === 4) {
+                // SURVIVAL MODE — locked until story complete!
+                if (!this.storyCompleted) return;
+                this.playConfirm();
+                this.inputCooldown = 60;
+                this.credits--;
+                this.isTransitioning = true;
+                this.game.audioManager.stopBGM();
+                setTimeout(() => {
+                    this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: false, survivalMode: true });
+                }, 400);
+            } else if (this.selectedIndex === 5) {
                 // ONLINE / KOOP — always available
                 this.playConfirm();
                 this.inputCooldown = 30;
@@ -737,7 +757,7 @@ export default class MenuState {
                 setTimeout(() => {
                     this.game.stateManager.switchState('OnlineLobby');
                 }, 250);
-            } else if (this.selectedIndex === 4) {
+            } else if (this.selectedIndex === 6) {
                 // OPTIONEN, KOMBO-SHOW & FREISCHALT-GUIDE
                 this.playConfirm();
                 this.inOptions = true;
@@ -1177,28 +1197,29 @@ export default class MenuState {
         ctx.fillText("LORD OF THE LIGHT I", cx, titleY + 235);
         ctx.shadowBlur = 0;
 
-        // ─── Menu Options (Sleek Rounded Arcade-Neon Pill Buttons) ───
-        const menuStartY = this.game.height * 0.61;
+        // ─── Menu Options (7 Sleek Rounded Arcade-Neon Pill Buttons) ───
+        const menuStartY = this.game.height * 0.56;
         for (let i = 0; i < this.options.length; i++) {
-            const y = menuStartY + (i * 56);
-            const isLocked = (i === 1 || i === 2) && !this.storyCompleted;
-            const isOnline = (i === 3);
+            const y = menuStartY + (i * 46);
+            const isLocked = (i === 1 || i === 2 || i === 4) && !this.storyCompleted;
+            const isOnline = (i === 5);
+            const isTraining = (i === 3);
             const isSel = (i === this.selectedIndex);
-            const btnW = 540;
-            const btnH = 46;
-            const accent = isLocked ? '#664444' : (isOnline ? '#00ff88' : '#00ffff');
+            const btnW = 580;
+            const btnH = 40;
+            const accent = isLocked ? '#664444' : (isOnline ? '#00ff88' : (isTraining ? '#ffcc00' : '#00ffff'));
 
             ctx.save();
             ctx.beginPath();
             if (typeof ctx.roundRect === 'function') {
-                ctx.roundRect(cx - btnW / 2, y - 32, btnW, btnH, 23);
+                ctx.roundRect(cx - btnW / 2, y - 28, btnW, btnH, 20);
             } else {
-                ctx.rect(cx - btnW / 2, y - 32, btnW, btnH);
+                ctx.rect(cx - btnW / 2, y - 28, btnW, btnH);
             }
             if (isSel) {
                 ctx.shadowColor = accent;
                 ctx.shadowBlur = 16;
-                ctx.fillStyle = isOnline ? 'rgba(0, 255, 136, 0.22)' : 'rgba(0, 229, 255, 0.22)';
+                ctx.fillStyle = isOnline ? 'rgba(0, 255, 136, 0.22)' : (isTraining ? 'rgba(255, 204, 0, 0.22)' : 'rgba(0, 229, 255, 0.22)');
             } else {
                 ctx.fillStyle = 'rgba(10, 16, 36, 0.78)';
             }
@@ -1208,9 +1229,9 @@ export default class MenuState {
             ctx.lineWidth = isSel ? 3 : 1.8;
             ctx.stroke();
 
-            ctx.font = 'bold 26px "Press Start 2P"';
-            ctx.fillStyle = isSel ? (isLocked ? '#995555' : (isOnline ? '#00ff88' : '#00ffff')) : (isLocked ? '#666666' : (isOnline ? '#99ffcc' : '#e6f4ff'));
-            const label = isLocked ? `GESPERRT: ${this.options[i]}` : this.options[i];
+            ctx.font = isLocked ? 'bold 18px "Press Start 2P"' : 'bold 22px "Press Start 2P"';
+            ctx.fillStyle = isSel ? (isLocked ? '#995555' : (isOnline ? '#00ff88' : (isTraining ? '#ffcc00' : '#00ffff'))) : (isLocked ? '#666666' : (isOnline ? '#99ffcc' : '#e6f4ff'));
+            const label = isLocked ? `🔒 ${this.options[i]} (ERST STORY)` : this.options[i];
             ctx.fillText(label, cx, y + 1);
             ctx.restore();
         }
