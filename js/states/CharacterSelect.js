@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.50';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.50';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.50';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.51';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.51';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.51';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -37,8 +37,12 @@ export default class CharacterSelectState {
         this.stageIndex = 0;
         this._customStagePicked = false;
         const annikinaIdx = this.allFighters.findIndex(f => f.id === 'Annikina');
+        const emelyIdx = this.allFighters.findIndex(f => f.id === 'Emely');
+        const highlightEmy = typeof localStorage !== 'undefined' && localStorage.getItem('lotl_vip_emy') === 'true' && localStorage.getItem('lotl_vip_jan') !== 'true';
         const highlightAnnikina = typeof localStorage !== 'undefined' && (localStorage.getItem('lotl_vip_jan') === 'true' || localStorage.getItem('lotl_vip_annikina') === 'true');
-        this.p1Index = (highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0;
+        this.p1Index = (highlightEmy && emelyIdx >= 0)
+            ? emelyIdx
+            : ((highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0);
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
         this.p2Locked = false;
@@ -48,7 +52,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.50`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.51`);
                 needsLoad = true;
             }
         }

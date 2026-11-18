@@ -227,9 +227,27 @@ export function syncJanBrowserUnlocks() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
     const host = window.location.hostname || '';
     const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
-    const hasJanParam = window.location.search.includes('jan=1') || window.location.hash.includes('jan');
-    const hasAnnikaParam = window.location.search.includes('annika=1') || window.location.search.includes('annikina=1') || window.location.hash.includes('annika');
-    if (isJanLocal || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    const hasJanParam = search.includes('jan=1') || hash.includes('jan');
+    const hasAnnikaParam = search.includes('annika=1') || search.includes('annikina=1') || hash.includes('annika');
+    const hasEmyParam = search.includes('emy=1') || search.includes('emely=1') || hash.includes('emy');
+
+    if (hasEmyParam) {
+        try {
+            localStorage.removeItem('lotl_vip_jan');
+            localStorage.removeItem('lotl_vip_annikina');
+            for (const s of SPECIALS) {
+                if (s.id !== 'Emely') localStorage.removeItem(`unlock_${s.id}`);
+            }
+            localStorage.setItem('lotl_vip_emy', 'true');
+            localStorage.setItem('lotl_story_complete', 'true');
+            localStorage.setItem('unlock_Emely', 'true');
+        } catch (e) {}
+        return false;
+    }
+
+    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
@@ -244,6 +262,12 @@ export function syncJanBrowserUnlocks() {
             localStorage.setItem('lotl_vip_annikina', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
             localStorage.setItem('unlock_Annikina', 'true');
+        } catch (e) {}
+    }
+    if (localStorage.getItem('lotl_vip_emy') === 'true') {
+        try {
+            localStorage.setItem('lotl_story_complete', 'true');
+            localStorage.setItem('unlock_Emely', 'true');
         } catch (e) {}
     }
     return false;
