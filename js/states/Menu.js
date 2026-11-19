@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.52';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.52';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.52';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.52';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.53';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.53';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.53';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.53';
 
 export default class MenuState {
     constructor(game) {
@@ -177,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.52`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.53`);
                 }
             }
             this.game.assetManager.loadAll();

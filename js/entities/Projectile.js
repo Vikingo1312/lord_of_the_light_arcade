@@ -1,4 +1,4 @@
-import Hitbox from './Hitbox.js?v=2.52';
+import Hitbox from './Hitbox.js?v=2.53';
 
 export default class Projectile {
     constructor(x, y, facing, owner, img, game) {

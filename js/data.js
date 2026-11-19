@@ -175,7 +175,7 @@ export const SPECIALS = [
     { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', heightScale: 0.82, hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'France', unlockedBy: 'Cayle', heightScale: 0.83, hp: 355, speed: 670, power: 126, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
     { id: 'Annikina', folder: '19.Annikina', name: '🔥 Annikina 🔥', nickname: 'Guardian of the Flame', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', unlockedByAny: ['SupremeKeano', 'HyperEmely', 'CayleMinogue', 'HyperKeano', 'Emely'], heightScale: 0.87, hp: 365, speed: 675, power: 130, styleId: 'KNEIPEN_TERRORIST', specialName: 'HELLFIRE METEOR', superName: 'IRON FLAME RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
-    { id: 'Dom', folder: '20.Dom', name: '🥊 DOM 🥊', nickname: 'Sonic Matrix Striker', country: 'Cyber Matrix', special: true, stageId: 'Cyber_Matrix', unlockedBy: 'Lee', unlockedByAny: ['Lee', 'Keano', 'JJDark', 'Emely'], heightScale: 0.94, hp: 350, speed: 640, power: 125, styleId: 'SONIC_STRIKER', specialName: 'SONIC MATRIX BOOM', superName: 'SOMERSAULT FLASH KICK', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'dom', cutinFile: 'proj_dom.png' },
+    { id: 'Dom', folder: '20.Dom', name: '🥊 DOM 🥊', nickname: 'Sonic Matrix Striker', country: 'Cyber Matrix', special: true, stageId: 'Cyber_Matrix', unlockedBy: 'Emely', unlockedByAny: ['Emely', 'HyperEmely', 'Keano', 'JJDark', 'Lee'], heightScale: 0.94, hp: 350, speed: 640, power: 125, styleId: 'SONIC_STRIKER', specialName: 'SONIC MATRIX BOOM', superName: 'SOMERSAULT FLASH KICK', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'dom', cutinFile: 'proj_dom.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
@@ -192,7 +192,7 @@ export const UNLOCK_CHAIN_GUIDE = [
     { playId: 'Emely', unlockId: 'HyperEmely', desc: 'Story / Arcade mit 🌸 Emy 🌸 durchspielen' },
     { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Mit Kinder-Weiterentwicklungen (Hyper-Emy / Supreme Keano) siegen!' },
     { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
-    { playId: 'Lee', unlockId: 'Dom', desc: 'Story / Arcade mit Lee, Keano oder Emy durchspielen' },
+    { playId: 'Emely', unlockId: 'Dom', desc: 'Story / Arcade mit 🌸 Emy 🌸 (seiner Freundin), Keano oder Jayden durchspielen' },
 ];
 
 export function getFighterStyle(fighterOrId) {

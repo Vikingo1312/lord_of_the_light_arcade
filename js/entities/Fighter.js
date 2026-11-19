@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.52';
-import { getFighterStyle } from '../data.js?v=2.52';
+import Hitbox from './Hitbox.js?v=2.53';
+import { getFighterStyle } from '../data.js?v=2.53';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -2239,8 +2239,8 @@ export default class Fighter {
             ctx.beginPath();
             ctx.ellipse(cx + 8, cy, rx * 0.9, ry * 0.9, isUpper ? -0.2 : 0.05, Math.min(startAng, endAng) + 0.15, Math.max(startAng, endAng));
             ctx.stroke();
-        } else if (type === 'SPECIAL' || type === 'SPECIAL_DASH') {
-            const cx = type === 'SPECIAL_DASH' ? 0 : drawW * 0.38;
+        } else if (type === 'SPECIAL_DASH') {
+            const cx = 0;
             const cy = -drawH * 0.54;
             const r = 42 + progress * 36;
             const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);

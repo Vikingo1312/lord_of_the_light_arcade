@@ -11,12 +11,34 @@
                 var isLocal = (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.endsWith('.local'));
                 var hasJanParam = window.location.search.indexOf('jan=1') !== -1 || window.location.hash.indexOf('jan') !== -1;
                 var hasAnnikaParam = window.location.search.indexOf('annika=1') !== -1 || window.location.search.indexOf('annikina=1') !== -1 || window.location.hash.indexOf('annika') !== -1;
+                var hasEmyParam = window.location.search.indexOf('emy=1') !== -1 || window.location.search.indexOf('emely=1') !== -1 || window.location.hash.indexOf('emy') !== -1;
+                var hasDomParam = window.location.search.indexOf('dom=1') !== -1 || window.location.search.indexOf('dominik=1') !== -1 || window.location.hash.indexOf('dom') !== -1;
                 var isVip = localStorage.getItem('lotl_vip_jan') === 'true';
                 var isAnnikaVip = localStorage.getItem('lotl_vip_annikina') === 'true';
-                if (isLocal || hasJanParam || isVip) {
+                var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'Dom'];
+                if (hasEmyParam) {
+                    localStorage.removeItem('lotl_vip_jan');
+                    localStorage.removeItem('lotl_vip_annikina');
+                    localStorage.removeItem('lotl_vip_dom');
+                    for (var e = 0; e < allSpecials.length; e++) {
+                        if (allSpecials[e] !== 'Emely') localStorage.removeItem('unlock_' + allSpecials[e]);
+                    }
+                    localStorage.setItem('lotl_vip_emy', 'true');
+                    localStorage.setItem('lotl_story_complete', 'true');
+                    localStorage.setItem('unlock_Emely', 'true');
+                } else if (hasDomParam) {
+                    localStorage.removeItem('lotl_vip_jan');
+                    localStorage.removeItem('lotl_vip_annikina');
+                    localStorage.removeItem('lotl_vip_emy');
+                    for (var d = 0; d < allSpecials.length; d++) {
+                        if (allSpecials[d] !== 'Dom') localStorage.removeItem('unlock_' + allSpecials[d]);
+                    }
+                    localStorage.setItem('lotl_vip_dom', 'true');
+                    localStorage.setItem('lotl_story_complete', 'true');
+                    localStorage.setItem('unlock_Dom', 'true');
+                } else if ((isLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom')) || hasJanParam || isVip) {
                     localStorage.setItem('lotl_vip_jan', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
-                    var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina'];
                     for (var i = 0; i < allSpecials.length; i++) {
                         localStorage.setItem('unlock_' + allSpecials[i], 'true');
                     }
@@ -338,14 +360,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.52').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.53').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.52"></script>
+    <script type="module" src="js/main.js?v=2.53"></script>
 </body>
 
 </html>
