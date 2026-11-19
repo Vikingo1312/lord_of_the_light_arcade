@@ -30,6 +30,9 @@ export default class VersusIntro {
 
     enter(data) {
         this.time = 0;
+        this.game.audioManager?.stopVoice?.();
+        this.game.audioManager?.stopFighterVoice?.();
+        this.game.audioManager?.stopAnnouncerVoice?.();
         this.combatData = data;
         this.p1Data = data.p1;
         this.allyData = data.ally || null;

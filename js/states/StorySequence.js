@@ -40,6 +40,10 @@ export default class StorySequence {
     enter(data) {
         console.log("Entering Story Sequence");
 
+        // Guarantee zero voice overlap with Character Select or Combat
+        this.game.audioManager?.stopFighterVoice?.();
+        this.game.audioManager?.stopAnnouncerVoice?.();
+
         // Reset state
         this.time = 0;
         this.fadeIn = 0;

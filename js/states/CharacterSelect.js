@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.54';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.54';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.54';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.55';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.55';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.55';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -56,7 +56,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.54`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.55`);
                 needsLoad = true;
             }
         }
@@ -79,6 +79,12 @@ export default class CharacterSelectState {
 
     exit() {
         this._removeSelectTap();
+        if (this._selectFallbackTimer) {
+            clearTimeout(this._selectFallbackTimer);
+            this._selectFallbackTimer = null;
+        }
+        this._finishTransitionNow = null;
+        this.game.audioManager.stopFighterVoice?.();
         this.game.audioManager.stopAnnouncerVoice?.();
         this.game.audioManager.stopBGM();
     }
@@ -197,13 +203,13 @@ export default class CharacterSelectState {
                         this.p1Index = idx;
                         this.p1Locked = true;
                         this.inputCooldown = 20;
-                        playFighterSound(this.game.audioManager, char.id, 'select');
                         if (this.arcadeMode) {
                             this.p2Index = 1;
                             this.p2Locked = true;
                             this.loadingCombat = true;
-                            this.preloadAndFight();
+                            this.preloadAndFight(char.id);
                         } else {
+                            playFighterSound(this.game.audioManager, char.id, 'select');
                             this.p2Index = this.p1Index;
                         }
                     } else if (!this.p2Locked && !this.arcadeMode) {
@@ -215,8 +221,7 @@ export default class CharacterSelectState {
                         this.p2Locked = true;
                         this.inputCooldown = 60;
                         this.loadingCombat = true;
-                        playFighterSound(this.game.audioManager, char.id, 'select');
-                        this.preloadAndFight();
+                        this.preloadAndFight(char.id);
                     }
                 }
             }
@@ -239,6 +244,12 @@ export default class CharacterSelectState {
         }
         const p1 = this.game.inputManager.p1;
 
+        // If a fighter was just locked and their select voice is playing, pressing any action/skip button after 0.35s advances immediately
+        if (this.loadingCombat && this._finishTransitionNow && this.inputCooldown <= 8 && (p1.lJust || p1.hJust || p1.sJust || p1.skipJust)) {
+            this._finishTransitionNow();
+            return;
+        }
+
         if (!this.p1Locked && this.inputCooldown <= 0) {
             // P1 Selection Phase
             if (p1.left) { this.p1Index = Math.max(0, this.p1Index - 1); this.inputCooldown = 10; }
@@ -256,15 +267,15 @@ export default class CharacterSelectState {
 
                 this.p1Locked = true;
                 this.inputCooldown = 20;
-                playFighterSound(this.game.audioManager, char.id, 'select');
 
                 if (this.arcadeMode) {
-                    // Arcade Mode: Skip P2 selection, go straight to ladder
+                    // Arcade Mode: Skip P2 selection, go straight to ladder after select voice finishes
                     this.p2Index = 1; // ROSTER[1] Hattori is the start of the ladder
                     this.p2Locked = true;
                     this.loadingCombat = true;
-                    this.preloadAndFight();
+                    this.preloadAndFight(char.id);
                 } else {
+                    playFighterSound(this.game.audioManager, char.id, 'select');
                     // Versus Mode: Initialize P2 cursor to P1's position to let P1 pick P2
                     this.p2Index = this.p1Index;
                 }
@@ -296,10 +307,9 @@ export default class CharacterSelectState {
                     return;
                 }
                 this.p2Locked = true;
-                this.inputCooldown = 60;
+                this.inputCooldown = 20;
                 this.loadingCombat = true;
-                playFighterSound(this.game.audioManager, char.id, 'select');
-                this.preloadAndFight();
+                this.preloadAndFight(char.id);
             } else if (p1.s) {
                 // Cancel P1 lock
                 this.p1Locked = false;
@@ -308,13 +318,13 @@ export default class CharacterSelectState {
         }
     }
 
-    async preloadAndFight() {
+    async preloadAndFight(selectedVoiceCharId = null) {
         const p1Char = this.allFighters[this.p1Index];
         let p2Char = this.allFighters[this.p2Index];
         let arcadeLadder = null;
 
         if (this.arcadeMode && !this.storyMode) {
-            // Pure ARCADE Shuffle Challenger Mode: all 26 fighters & their Arenas in a shuffled 14-stage ladder!
+            // Pure ARCADE Shuffle Challenger Mode: all 27 fighters & their Arenas in a shuffled 14-stage ladder!
             arcadeLadder = this._buildArcadeShuffleLadder(p1Char);
             p2Char = arcadeLadder[0];
         } else if (this.arcadeMode) {
@@ -329,12 +339,23 @@ export default class CharacterSelectState {
             : (p2Char.stageId || 'Japan');
         preloadStageAssets(this.game.assetManager, chosenStageKey);
 
-        // Stop the select menu music instantly BEFORE we transition.
+        // Stop the select menu music instantly so the fighter's select voice rings out crystal-clear.
         this.game.audioManager.stopBGM();
 
-        setTimeout(() => {
+        let transitioned = false;
+        const doTransition = () => {
+            if (transitioned) return;
+            transitioned = true;
+            if (this._selectFallbackTimer) {
+                clearTimeout(this._selectFallbackTimer);
+                this._selectFallbackTimer = null;
+            }
+            this._finishTransitionNow = null;
+            // Ensure no select voice or announcer bleeds into StorySequence or VersusIntro
+            this.game.audioManager.stopFighterVoice?.();
+            this.game.audioManager.stopAnnouncerVoice?.();
+
             if (this.arcadeMode && !this.storyMode && arcadeLadder) {
-                // Pure ARCADE Shuffle Challenger Mode or SURVIVAL Mode: go straight to VersusIntro against the 1st Shuffled Challenger!
                 const firstOpponent = arcadeLadder[0];
                 const combatData = {
                     p1: p1Char,
@@ -349,8 +370,6 @@ export default class CharacterSelectState {
                 };
                 this.game.stateManager.switchState('VersusIntro', combatData);
             } else if (this.arcadeMode) {
-                // Story Mode: fight opponents sequentially starting from ROSTER[1] (Hattori)
-                // Always play Anfang-Part (STORY_PROLOGUE), Mittelpart (STORY_REFLEXION), and Endpart (STORY_EPILOGUE/OUTRO) with Voice & Text!
                 const opponent = ROSTER[1];
                 const combatData = {
                     p1: p1Char,
@@ -383,7 +402,20 @@ export default class CharacterSelectState {
                     trainingMode: false
                 });
             }
-        }, 800);
+        };
+
+        this._finishTransitionNow = doTransition;
+
+        if (selectedVoiceCharId) {
+            // Play the fighter's select voice clip in full, then wait 180ms and transition cleanly into Story / VersusIntro!
+            playFighterSound(this.game.audioManager, selectedVoiceCharId, 'select', () => {
+                setTimeout(doTransition, 180);
+            });
+            // Safety fallback (max 7.5s) in case audio is muted or blocked
+            this._selectFallbackTimer = setTimeout(doTransition, 7500);
+        } else {
+            this._selectFallbackTimer = setTimeout(doTransition, 800);
+        }
     }
 
     draw(ctx) {

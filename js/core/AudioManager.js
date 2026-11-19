@@ -264,7 +264,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.54`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.55`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
@@ -394,6 +394,9 @@ export default class AudioManager {
 
     playVoice(path, onEndedCallback = null) {
         this.stopVoice();
+        // Guarantee zero overlap with any fighter select/win quote or announcer callout!
+        this.stopFighterVoice();
+        this.stopAnnouncerVoice();
         if (!path) {
             if (onEndedCallback) onEndedCallback();
             return;
@@ -551,6 +554,11 @@ export default class AudioManager {
             if (onEndedCallback) onEndedCallback();
             return;
         }
+        // Never allow any fighter voice to talk over an active Story Narrator voiceover!
+        if (this._voicePlaying) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
         this._initWebAudio();
 
         const PRIORITY = {
@@ -571,13 +579,26 @@ export default class AudioManager {
             if (now - this._lastHitVoiceTime < 950) return;
             this._lastHitVoiceTime = now;
         } else {
-            // Never interrupt an active full sentence (select, taunt, special, super, intro, ko, win) with same or lower priority!
-            if (this._fighterVoicePlaying && prio <= this._fighterVoicePriority) {
-                return;
-            }
-            // If Announcer is currently roaring ("ROUND 1!", "FIGHT!", "K.O.!"), wait for Announcer to finish before speaking win/intro!
-            if (this._announcerPlaying && (type === 'taunt' || type === 'special')) {
-                return;
+            // For 'select' on Character Select screen, if player picks P2 while P1's select quote is still playing,
+            // allow P2's select quote to replace P1's select quote cleanly so they never overlap!
+            if (type === 'select') {
+                // Always silence "SELECT YOUR FIGHTER!" announcer when fighter speaks their select quote!
+                if (this._announcerPlaying) {
+                    this.stopAnnouncerVoice();
+                }
+            } else {
+                // Never interrupt an active full sentence (taunt, special, super, intro, ko, win) with same or lower priority!
+                if (this._fighterVoicePlaying && prio <= this._fighterVoicePriority) {
+                    return;
+                }
+                // If Announcer is currently roaring ("ROUND 1!", "FIGHT!", "K.O.!"), do not overlap!
+                if (this._announcerPlaying) {
+                    if (type === 'taunt' || type === 'special' || type === 'super') {
+                        return;
+                    }
+                    // For higher priority fighter lines (intro, ko, win), stop any lingering announcer first so they never talk together!
+                    this.stopAnnouncerVoice();
+                }
             }
         }
 
@@ -668,10 +689,14 @@ export default class AudioManager {
             if (onEndedCallback) onEndedCallback();
             return;
         }
+        if (this._voicePlaying) {
+            if (onEndedCallback) onEndedCallback();
+            return;
+        }
         this._initWebAudio();
 
-        // Only silence low-priority hit grunts (never cut off select/intro/ko/win speeches!)
-        if (this._fighterVoicePriority <= 1) {
+        // Silence any active fighter voice so Announcer and Fighter never talk at the same time!
+        if (this._fighterVoicePlaying) {
             this.stopFighterVoice();
         }
 
