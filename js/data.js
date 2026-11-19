@@ -260,9 +260,6 @@ export function syncJanBrowserUnlocks() {
             localStorage.removeItem('lotl_vip_jan');
             localStorage.removeItem('lotl_vip_annikina');
             localStorage.removeItem('lotl_vip_dom');
-            for (const s of SPECIALS) {
-                if (s.id !== 'Emely') localStorage.removeItem(`unlock_${s.id}`);
-            }
             localStorage.setItem('lotl_vip_emy', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
             localStorage.setItem('unlock_Emely', 'true');
@@ -275,9 +272,6 @@ export function syncJanBrowserUnlocks() {
             localStorage.removeItem('lotl_vip_jan');
             localStorage.removeItem('lotl_vip_annikina');
             localStorage.removeItem('lotl_vip_emy');
-            for (const s of SPECIALS) {
-                if (s.id !== 'Dom') localStorage.removeItem(`unlock_${s.id}`);
-            }
             localStorage.setItem('lotl_vip_dom', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
             localStorage.setItem('unlock_Dom', 'true');
@@ -285,7 +279,7 @@ export function syncJanBrowserUnlocks() {
         return false;
     }
 
-    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
+    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom') && !localStorage.getItem('lotl_vip_annikina') && !localStorage.getItem('lotl_clean_progression')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
@@ -338,9 +332,9 @@ export function isFighterUnlocked(id) {
     return false;
 }
 export function unlockFighter(id) {
-    // When playing as Annikina, beating Story/Arcade unlocks her children (Emy -> Hyper-Emy -> Hyper Keano -> Supreme Keano)!
+    // When playing as Annikina, beating Story/Arcade unlocks her children & family (Emy -> Hyper-Emy -> Dom -> Hyper Keano -> Supreme Keano)!
     if (id === 'Annikina') {
-        const kidsChain = ['Emely', 'HyperEmely', 'HyperKeano', 'SupremeKeano'];
+        const kidsChain = ['Emely', 'HyperEmely', 'Dom', 'HyperKeano', 'SupremeKeano'];
         for (const kidId of kidsChain) {
             if (!isFighterUnlocked(kidId)) {
                 const kidObj = SPECIALS.find(s => s.id === kidId);
@@ -351,11 +345,27 @@ export function unlockFighter(id) {
             }
         }
     }
-    // If they beat the game with a specific character, unlock the next in their bloodline
-    const specialToUnlock = SPECIALS.find(s =>
-        !isFighterUnlocked(s.id) &&
-        (s.unlockedBy === id || (Array.isArray(s.unlockedByAny) && s.unlockedByAny.includes(id)))
-    );
+    // When playing as Dom, beating Story/Arcade unlocks his girlfriend Emy (or Hyper-Emy if Emy is already unlocked)!
+    if (id === 'Dom') {
+        const domChain = ['Emely', 'HyperEmely', 'Annikina'];
+        for (const targetId of domChain) {
+            if (!isFighterUnlocked(targetId)) {
+                const targetObj = SPECIALS.find(s => s.id === targetId);
+                if (targetObj) {
+                    localStorage.setItem(`unlock_${targetObj.id}`, 'true');
+                    return targetObj;
+                }
+            }
+        }
+    }
+    // Primary match first (exact unlockedBy === id), then fallback to unlockedByAny
+    let specialToUnlock = SPECIALS.find(s => !isFighterUnlocked(s.id) && s.unlockedBy === id);
+    if (!specialToUnlock) {
+        specialToUnlock = SPECIALS.find(s =>
+            !isFighterUnlocked(s.id) &&
+            Array.isArray(s.unlockedByAny) && s.unlockedByAny.includes(id)
+        );
+    }
     if (!specialToUnlock) return null; // No unlock for this fighter
     localStorage.setItem(`unlock_${specialToUnlock.id}`, 'true');
     return specialToUnlock; // Return who was just unlocked

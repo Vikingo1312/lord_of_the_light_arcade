@@ -26,6 +26,9 @@
                     localStorage.setItem('lotl_vip_emy', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
                     localStorage.setItem('unlock_Emely', 'true');
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
                 } else if (hasDomParam) {
                     localStorage.removeItem('lotl_vip_jan');
                     localStorage.removeItem('lotl_vip_annikina');
@@ -36,7 +39,10 @@
                     localStorage.setItem('lotl_vip_dom', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
                     localStorage.setItem('unlock_Dom', 'true');
-                } else if ((isLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom')) || hasJanParam || isVip) {
+                    if (window.history && window.history.replaceState) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } else if ((isLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom') && !localStorage.getItem('lotl_vip_annikina') && !localStorage.getItem('lotl_clean_progression')) || hasJanParam || isVip) {
                     localStorage.setItem('lotl_vip_jan', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
                     for (var i = 0; i < allSpecials.length; i++) {
@@ -360,14 +366,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.53').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.54').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.53"></script>
+    <script type="module" src="js/main.js?v=2.54"></script>
 </body>
 
 </html>
