@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.51';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.51';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.51';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.52';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.52';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.52';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -38,11 +38,15 @@ export default class CharacterSelectState {
         this._customStagePicked = false;
         const annikinaIdx = this.allFighters.findIndex(f => f.id === 'Annikina');
         const emelyIdx = this.allFighters.findIndex(f => f.id === 'Emely');
+        const domIdx = this.allFighters.findIndex(f => f.id === 'Dom');
+        const highlightDom = typeof localStorage !== 'undefined' && localStorage.getItem('lotl_vip_dom') === 'true' && localStorage.getItem('lotl_vip_jan') !== 'true';
         const highlightEmy = typeof localStorage !== 'undefined' && localStorage.getItem('lotl_vip_emy') === 'true' && localStorage.getItem('lotl_vip_jan') !== 'true';
         const highlightAnnikina = typeof localStorage !== 'undefined' && (localStorage.getItem('lotl_vip_jan') === 'true' || localStorage.getItem('lotl_vip_annikina') === 'true');
-        this.p1Index = (highlightEmy && emelyIdx >= 0)
-            ? emelyIdx
-            : ((highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0);
+        this.p1Index = (highlightDom && domIdx >= 0)
+            ? domIdx
+            : ((highlightEmy && emelyIdx >= 0)
+                ? emelyIdx
+                : ((highlightAnnikina && annikinaIdx >= 0) ? annikinaIdx : 0));
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
         this.p2Locked = false;
@@ -52,7 +56,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.51`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.52`);
                 needsLoad = true;
             }
         }
@@ -91,13 +95,14 @@ export default class CharacterSelectState {
     }
 
     /**
-     * Builds a 14-opponent Arcade Shuffle Challenger Ladder from ALL 26 fighters in ALL_FIGHTERS
+     * Builds a 14-opponent Arcade Shuffle Challenger Ladder from ALL 27 fighters in ALL_FIGHTERS
      * (including Secret / Special fighters even if not unlocked yet!), assigning each fighter
-     * their signature Arena or one of the 21 stages!
+     * their signature Arena or one of the 22 stages!
      */
     _buildArcadeShuffleLadder(p1Char) {
         const customStageMap = {
             Annikina: 'Annikina_Pub',
+            Dom: 'Cyber_Matrix',
             CayleMinogue: 'France',
             Vikingo: 'Canada',
             SupremeKeano: 'Supreme_Keano',

@@ -213,6 +213,14 @@ export const FINISHER_MOVES = {
         color2: '#ffcc00',
         bgTint: '#1f0800',
         style: 'THUNDER_HAMMER'
+    },
+    Dom: {
+        title: 'MATRIX SYSTEM OBLITERATION',
+        subtitle: '1000-HIT CYBER KICKBOX-KOMBO',
+        color1: '#00ff66',
+        color2: '#00ffff',
+        bgTint: '#001a08',
+        style: 'DRAGON_RUSH'
     }
 };
 

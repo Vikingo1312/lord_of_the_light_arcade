@@ -105,6 +105,12 @@ const STAGE_OBJECTS = {
         { x: 310, y: 0.84, w: 125, h: 130, img: 'brazier' },
         { x: 1610, y: 0.85, w: 130, h: 110, img: 'chair' },
     ],
+    'Cyber_Matrix': [
+        { x: 95, y: 0.83, w: 115, h: 120, img: 'server' },
+        { x: 1825, y: 0.83, w: 115, h: 120, img: 'server' },
+        { x: 310, y: 0.82, w: 120, h: 150, img: 'crystal' },
+        { x: 1610, y: 0.82, w: 120, h: 150, img: 'crystal' },
+    ],
     'Colosseum': [
         { x: 90, y: 0.82, w: 120, h: 140, img: 'brazier' },
         { x: 1830, y: 0.82, w: 120, h: 140, img: 'brazier' },

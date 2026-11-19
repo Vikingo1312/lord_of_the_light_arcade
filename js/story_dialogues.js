@@ -295,4 +295,15 @@ export const STORY_DIALOGUES = {
         heroReply: 'Das Feuer unserer Blutlinie brennt jedes Hindernis nieder!',
         winQuote: 'Das Licht unserer Familie brennt stärker als jeder Schatten. Legt euch niemals mit uns an!',
     },
+    Dom: {
+        dimension: 'CYBER-DIMENSION · KERN DER DIGITALEN MATRIX',
+        specialAttack: 'SONIC MATRIX BOOM',
+        superAttack: 'SOMERSAULT FLASH KICK',
+        introQuote: 'In dieser Cyber-Matrix ist alles nur ein Code — außer unserem Licht! Zieh deine Handschuhe an, Bruder, jetzt wird geboxt!',
+        keanoReply: 'Dom, mein Bruder! Zusammen brechen wir den Matrix-Code und holen das Licht zurück!',
+        jaydenReply: 'Gute Deckung, Dom — mal sehen, ob dein Kickbox-Style meiner Schattenflamme standhält!',
+        jayXReply: 'Cyber-Matrix gegen Phantom-Puls, Dom — lass uns testen, wer den schnelleren Code hat!',
+        heroReply: 'Meine Fäuste und Kicks sprengen heute jede Matrix!',
+        winQuote: 'System gecrasht, Bruder! Keine Matrix der Welt kann echtes Licht berechnen!',
+    },
 };

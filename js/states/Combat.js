@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.51';
-import Projectile from '../entities/Projectile.js?v=2.51';
-import Hitbox from '../entities/Hitbox.js?v=2.51';
-import StageObjectManager from '../entities/StageObjects.js?v=2.51';
-import AIController from '../ai/AIController.js?v=2.51';
-import CombatHUD from '../ui/CombatHUD.js?v=2.51';
+import Fighter from '../entities/Fighter.js?v=2.52';
+import Projectile from '../entities/Projectile.js?v=2.52';
+import Hitbox from '../entities/Hitbox.js?v=2.52';
+import StageObjectManager from '../entities/StageObjects.js?v=2.52';
+import AIController from '../ai/AIController.js?v=2.52';
+import CombatHUD from '../ui/CombatHUD.js?v=2.52';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.51';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.51';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.51';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.51';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.51';
+} from '../core/AssetPreloader.js?v=2.52';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.52';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.52';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.52';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.52';
 
 export default class CombatState {
     constructor(game) {
@@ -182,9 +182,10 @@ export default class CombatState {
         this.paused = false;
         this.pauseSelection = 0;
 
-        // Preload sprites
+        // Preload sprites & stage background
         preloadFighterSprites(this.game.assetManager, p1Data);
         preloadFighterSprites(this.game.assetManager, p2Data);
+        preloadStageAssets(this.game.assetManager, this.stageId);
         this.game.assetManager.loadAll();
 
         // Initialize stage destructibles & music
@@ -926,8 +927,8 @@ export default class CombatState {
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
-            } else if (((p1.lJust && holdingUp && canGroundedOrEarlyJump) || (p1.sJust && holdingUp && canGroundedOrEarlyJump) || (p1.lJust && (hasDP || hasDU))) && this.p1.specialMoveCooldown <= 0) {
-                // ↑ + P, ↑ + S, or → ↓ ↘ + P: Rising Shoryuken Dragon Uppercut / Flash Kick!
+            } else if (((p1.lJust && holdingUp && canGroundedOrEarlyJump) || (p1.sJust && holdingUp && canGroundedOrEarlyJump) || (p1.hJust && holdingUp && canGroundedOrEarlyJump && this.p1.data?.styleId === 'SONIC_STRIKER') || ((p1.lJust || p1.hJust) && (hasDP || hasDU))) && this.p1.specialMoveCooldown <= 0) {
+                // ↑ + P, ↑ + S, ↓ ↑ + K (Guile Somersault Flash Kick), or → ↓ ↘ + P: Rising Shoryuken Dragon Uppercut / Somersault Flash Kick!
                 p1InputCopy.commandMove = 'DRAGON_UPPERCUT';
                 p1InputCopy.lJust = false;
                 p1InputCopy.hJust = false;
@@ -946,6 +947,11 @@ export default class CombatState {
                 p1InputCopy.hJust = false;
                 im.clearMotionHistory();
                 playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
+            } else if (p1.lJust && hasBF && this.p1.data?.styleId === 'SONIC_STRIKER' && this.tryExecuteSpecial(this.p1, 'p1')) {
+                // Guile Classic ← → + P: Fires SONIC MATRIX BOOM when energy is ready!
+                im.clearMotionHistory();
+                p1InputCopy.lJust = false;
+                p1InputCopy.hJust = false;
             } else if (((p1.lJust || p1.hJust) && hasBF) && this.p1.specialMoveCooldown <= 0) {
                 // ← → + P/K: Character-Specific Signature Flight!
                 p1InputCopy.commandMove = 'FLYING_TORPEDO';
@@ -1561,7 +1567,7 @@ export default class CombatState {
         this.projectiles.push(proj);
 
         // Evolved Second-Variant Twin / Barrage Projectile Mechanics!
-        if (hasFullSuper && (charId === 'Annikina' || charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
+        if (hasFullSuper && (charId === 'Dom' || charId === 'Annikina' || charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
             if (charId === 'JayX' && !isAirCast) {
                 // Jay X lunges forward with a phantom slash while firing his Void Wave!
                 fighter.vx = fighter.facing * 680;
@@ -1569,7 +1575,7 @@ export default class CombatState {
             }
             const twinProj = new Projectile(
                 fighter.x + fighter.facing * 15,
-                fighter.y - (isAirCast ? 155 : (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' || charId === 'Annikina' ? 110 : 175))),
+                fighter.y - (isAirCast ? 155 : (charId === 'GargamelHoodie' ? 95 : (charId === 'CayleMinogue' || charId === 'Annikina' || charId === 'Dom' ? 110 : 175))),
                 fighter.facing,
                 ownerKey,
                 img,
@@ -1580,7 +1586,7 @@ export default class CombatState {
             twinProj.vy = isAirCast ? 440 : (charId === 'Annikina' ? -55 : 0);
             twinProj.damage = Math.round(24 * pwrScale);
             this.projectiles.push(twinProj);
-            this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'Annikina' ? '#ff6600' : (charId === 'HyperEmely' ? '#ff66cc' : '#00ffff'), '#ffffff', 14, 'heavy');
+            this.spawnSparks(fighter.x + fighter.facing * 75, fighter.y - 145, charId === 'Dom' ? '#00ff66' : (charId === 'Annikina' ? '#ff6600' : (charId === 'HyperEmely' ? '#ff66cc' : '#00ffff')), '#ffffff', 14, 'heavy');
         }
 
         playCombatSound(this.game.audioManager, hasFullSuper ? 'super' : 'special', fighter.data.id);
@@ -2333,6 +2339,7 @@ export default class CombatState {
 
         // 2. Stage-specific animated floating elements (zero GC allocations)
         ctx.globalCompositeOperation = 'screen';
+        const isMatrixStage = (st === 'Cyber_Matrix');
         const isFireStage = (st === 'Annikina_Pub' || st === 'Valhalla' || st === 'Spain' || st === 'Mexico' || st === 'India');
         const isSnowStage = (st === 'Russia' || st === 'Canada');
         const isBlossomStage = (st === 'Japan' || st === 'China');
@@ -2340,7 +2347,21 @@ export default class CombatState {
         const count = 24;
         for (let i = 0; i < count; i++) {
             const seed = i * 137.5;
-            if (isFireStage) {
+            if (isMatrixStage) {
+                // Falling emerald-green & cyan Cyber-Matrix digital code streams!
+                const px = ((seed * 23) % w + w) % w;
+                const speed = 135 + (i % 6) * 28;
+                const py = ((t * speed + seed * 19) % (h * 0.92));
+                const trailLen = 38 + (i % 4) * 14;
+                ctx.strokeStyle = (i % 3 === 0) ? 'rgba(0, 255, 220, 0.52)' : 'rgba(0, 255, 102, 0.58)';
+                ctx.lineWidth = 2.6;
+                ctx.beginPath();
+                ctx.moveTo(px, py - trailLen);
+                ctx.lineTo(px, py);
+                ctx.stroke();
+                ctx.fillStyle = '#ccffdd';
+                ctx.fillRect(px - 2, py - 2, 4, 4);
+            } else if (isFireStage) {
                 // Rising grill/forge embers
                 const px = ((seed * 19 + Math.sin(t * 1.8 + i) * 45) % w + w) % w;
                 const py = h - (((t * (55 + (i % 5) * 14) + seed * 11) % (h * 0.85)));

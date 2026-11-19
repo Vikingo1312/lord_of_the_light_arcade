@@ -276,7 +276,30 @@ CAYLE_SYS = (
     "Gib IMMER NUR exakt den geforderten Text aus!"
 )
 
+DOM_SYS = (
+    "Du bist DOM (17 Jahre): Ein cooler, sportlicher, selbstbewusster deutscher Boxer und Kickboxer mit lässigem, "
+    "klarem Straßen-Flow (wie Keano und Jayden, komplett natürlich, menschlich, fokussiert und charismatisch, NICHT theatralisch oder steif). "
+    "Sprich flüssig ohne Pause zwischen den Sätzen und gib IMMER NUR exakt den geforderten Text aus!"
+)
+
 FIGHTERS = {
+    "dom": {
+        "voice": "ash",
+        "copy_root": False,
+        "aliases": [],
+        "sys": DOM_SYS,
+        "filter": STREET_BOY_KEANO_FILTER,
+        "clips": {
+            "intro": "Sprich als cooler, selbstbewusster 17-jähriger deutscher Boxer flüssig ohne Pause: In dieser Cyber-Matrix ist alles nur ein Code — außer unserem Licht! Zieh deine Handschuhe an, Bruder, jetzt wird geboxt!",
+            "win": "Sprich als cooler, selbstbewusster 17-jähriger deutscher Boxer flüssig ohne Pause: System gecrasht, Bruder! Keine Matrix der Welt kann echtes Licht berechnen!",
+            "special": "Rufe explosiv als 17-jähriger Boxer: MATRIX BREAKER!",
+            "super": "Rufe mit voller Knockout-Power: CYBER KNOCKOUT OVERDRIVE!",
+            "select": "Sprich lässig und fokussiert: Dom ist im Ring — bereit, die Matrix zu sprengen!",
+            "taunt": "Sprich lässig und herausfordernd: Deckung hoch, Bruder — meine Kombo sieht man erst, wenn sie einschlägt!",
+            "hit": "Kurzer harter Boxer-Treffer-Laut (0.4 Sekunden): Ugh!",
+            "ko": "Dramatisches K.O.-Stöhnen eines Boxers (1.1 Sekunden): Aaagh...!",
+        },
+    },
     "keano": {
         "voice": "ash",
         "copy_root": True,

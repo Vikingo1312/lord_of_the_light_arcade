@@ -124,6 +124,23 @@ export const FIGHT_STYLES = {
         sig2Badges: ['P', '➔', 'K', '➔', 'S'],
         sig2Dmg: '112 DMG · DOPPEL-FEUER-SALVE',
         sig2Desc: 'High-Top-Kick direkt gecancelt in die brennende Doppel-Salve!'
+    },
+    SONIC_STRIKER: {
+        id: 'SONIC_STRIKER',
+        name: 'SONIC BOOM & FLASH KICK',
+        badge: '🌙 GUILE SONIC STRIKER',
+        color: '#00ff88',
+        passive: 'Guile-Style: Sonic Matrix Boom, 2-Hit Spinning Backfist (→+P) & 360° Backflip Somersault Flash Kick!',
+        sig1Name: 'SOMERSAULT FLASH KICK',
+        sig1Input: '↓↑+K  oder  ↑+S / ↑+P',
+        sig1Badges: ['↓', '↑', '+', 'K'],
+        sig1Dmg: '96 DMG · 360° BACKFLIP FLASH KICK',
+        sig1Desc: 'Guiles legendärer Rückwärtssalto-Flash-Kick mit riesiger grün-goldener Sichelwelle gegen Luft- und Bodenziele!',
+        sig2Name: 'SONIC BOOM & BACKFIST COMBO',
+        sig2Input: '→+P ➔ →+K ➔ S',
+        sig2Badges: ['→+P', '➔', '→+K', '➔', 'S'],
+        sig2Dmg: '108 DMG · SPINNING BACKFIST + SONIC BOOM',
+        sig2Desc: 'Guiles gedrehte Spinning-Backfist in den Reverse-Kick, abgeschlossen mit einer doppelten Sonic-Matrix-Boom-Sichel!'
     }
 };
 
@@ -158,6 +175,7 @@ export const SPECIALS = [
     { id: 'Cayle', folder: '18.Cayle', name: 'Cayle', nickname: 'Frost Princess', country: 'Shadow', special: true, stageId: 'Russia', unlockedBy: 'JayX', heightScale: 0.82, hp: 340, speed: 645, power: 120, styleId: 'SHADOW_ASSASSIN', specialName: 'ICEBALL BARRAGE', superName: 'GLACIER BLIZZARD', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle', cutinFile: 'proj_cayle.png' },
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'France', unlockedBy: 'Cayle', heightScale: 0.83, hp: 355, speed: 670, power: 126, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
     { id: 'Annikina', folder: '19.Annikina', name: '🔥 Annikina 🔥', nickname: 'Guardian of the Flame', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', unlockedByAny: ['SupremeKeano', 'HyperEmely', 'CayleMinogue', 'HyperKeano', 'Emely'], heightScale: 0.87, hp: 365, speed: 675, power: 130, styleId: 'KNEIPEN_TERRORIST', specialName: 'HELLFIRE METEOR', superName: 'IRON FLAME RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
+    { id: 'Dom', folder: '20.Dom', name: '🥊 DOM 🥊', nickname: 'Sonic Matrix Striker', country: 'Cyber Matrix', special: true, stageId: 'Cyber_Matrix', unlockedBy: 'Lee', unlockedByAny: ['Lee', 'Keano', 'JJDark', 'Emely'], heightScale: 0.94, hp: 350, speed: 640, power: 125, styleId: 'SONIC_STRIKER', specialName: 'SONIC MATRIX BOOM', superName: 'SOMERSAULT FLASH KICK', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'dom', cutinFile: 'proj_dom.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
@@ -174,6 +192,7 @@ export const UNLOCK_CHAIN_GUIDE = [
     { playId: 'Emely', unlockId: 'HyperEmely', desc: 'Story / Arcade mit 🌸 Emy 🌸 durchspielen' },
     { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Mit Kinder-Weiterentwicklungen (Hyper-Emy / Supreme Keano) siegen!' },
     { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
+    { playId: 'Lee', unlockId: 'Dom', desc: 'Story / Arcade mit Lee, Keano oder Emy durchspielen' },
 ];
 
 export function getFighterStyle(fighterOrId) {
@@ -184,10 +203,11 @@ export function getFighterStyle(fighterOrId) {
     return FIGHT_STYLES[styleKey] || FIGHT_STYLES.LIGHT_DRAGON;
 }
 /**
- * STORY/ARCADE & VERSUS STAGES — all 21 Arenas keyed by stageId
+ * STORY/ARCADE & VERSUS STAGES — all 22 Arenas keyed by stageId
  */
 export const STAGES = {
     'Annikina_Pub': { file: '19_Annikina_Arena.png', music: '19_Annikina.mp3', name: 'Kneipenterroristen Grill' },
+    'Cyber_Matrix': { file: '20_Dom_Cyber_Matrix.png', music: '11_Japan_Night.mp3', name: 'Cyber Matrix Core' },
     'Japan': { file: '1_Hattori_Japan.png', music: '1_Japan.mp3', name: 'Tokyo Temple' },
     'India': { file: '2_Raheel_India.png', music: '2_India.mp3', name: 'Ganges Palace' },
     'Brazil': { file: '3_Pablo_Brazil.png', music: '3_Brazil.mp3', name: 'Rio Favela' },
@@ -214,6 +234,7 @@ export const STAGES = {
  */
 export const EXTRA_STAGES = [
     { file: '19_Annikina_Arena.png', name: 'Kneipenterroristen Grill' },
+    { file: '20_Dom_Cyber_Matrix.png', name: 'Cyber Matrix Core' },
     { file: 'Extra_Canada.png', name: 'Canada Arena' },
     { file: 'Extra_Colosseum.png', name: 'Gladiator Colosseum' },
     { file: 'Extra_France.png', name: 'Paris Rooftops' },
@@ -232,11 +253,13 @@ export function syncJanBrowserUnlocks() {
     const hasJanParam = search.includes('jan=1') || hash.includes('jan');
     const hasAnnikaParam = search.includes('annika=1') || search.includes('annikina=1') || hash.includes('annika');
     const hasEmyParam = search.includes('emy=1') || search.includes('emely=1') || hash.includes('emy');
+    const hasDomParam = search.includes('dom=1') || search.includes('dominik=1') || hash.includes('dom');
 
     if (hasEmyParam) {
         try {
             localStorage.removeItem('lotl_vip_jan');
             localStorage.removeItem('lotl_vip_annikina');
+            localStorage.removeItem('lotl_vip_dom');
             for (const s of SPECIALS) {
                 if (s.id !== 'Emely') localStorage.removeItem(`unlock_${s.id}`);
             }
@@ -247,7 +270,22 @@ export function syncJanBrowserUnlocks() {
         return false;
     }
 
-    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
+    if (hasDomParam) {
+        try {
+            localStorage.removeItem('lotl_vip_jan');
+            localStorage.removeItem('lotl_vip_annikina');
+            localStorage.removeItem('lotl_vip_emy');
+            for (const s of SPECIALS) {
+                if (s.id !== 'Dom') localStorage.removeItem(`unlock_${s.id}`);
+            }
+            localStorage.setItem('lotl_vip_dom', 'true');
+            localStorage.setItem('lotl_story_complete', 'true');
+            localStorage.setItem('unlock_Dom', 'true');
+        } catch (e) {}
+        return false;
+    }
+
+    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
@@ -268,6 +306,12 @@ export function syncJanBrowserUnlocks() {
         try {
             localStorage.setItem('lotl_story_complete', 'true');
             localStorage.setItem('unlock_Emely', 'true');
+        } catch (e) {}
+    }
+    if (localStorage.getItem('lotl_vip_dom') === 'true') {
+        try {
+            localStorage.setItem('lotl_story_complete', 'true');
+            localStorage.setItem('unlock_Dom', 'true');
         } catch (e) {}
     }
     return false;

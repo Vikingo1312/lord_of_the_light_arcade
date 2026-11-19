@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.51';
-import { getFighterStyle } from '../data.js?v=2.51';
+import Hitbox from './Hitbox.js?v=2.52';
+import { getFighterStyle } from '../data.js?v=2.52';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -834,7 +834,7 @@ export default class Fighter {
         if (id === 'Pablo' || id === 'Simba' || id === 'Paco') return 'BLANKA_CANNONBALL';
         if (id === 'Emely' || id === 'HyperEmely' || id === 'Cayle' || id === 'CayleMinogue') return 'CHUNLI_BIRD_KICK';
         if (id === 'JJDark' || id === 'JayX' || id === 'Hattori') return 'BISON_PSYCHO_CRUSHER';
-        if (id === 'Lee' || id === 'Juan' || id === 'Tzubaza') return 'GUILE_FLASH_KICK';
+        if (id === 'Dom' || id === 'Lee' || id === 'Juan' || id === 'Tzubaza') return 'GUILE_FLASH_KICK';
         if (id === 'Vikingo' || id === 'VikingoRaw' || id === 'DarkVikingo' || id === 'Annikina') return 'ZANGIEF_LARIAT';
         if (id === 'Kowalski' || id === 'Putin' || id === 'AlCapone') return 'HONDA_SUMO_TORPEDO';
         return 'RYU_DRAGON_RUSH';
@@ -898,11 +898,11 @@ export default class Fighter {
         const isAerial = !this.isGrounded;
         // Distinct Style Frame Speed & Hitbox Reach Modifiers (+75px Dhalsim Stretch-Limb reach for Raheel, Marley, Gargamel!)
         const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.80
-            : (styleId === 'LIGHT_DRAGON' || styleId === 'KNEIPEN_TERRORIST' ? 0.84
+            : (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 0.84
             : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.86
             : (styleId === 'MASTER_STRIKER' ? 0.88 : 1.0)));
         const dhalsimStretchBonus = sigArch === 'DHALSIM_DRILL' ? 75 : 0;
-        const reachBonus = (styleId === 'MASTER_STRIKER' ? 38
+        const reachBonus = (styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' ? 38
             : (styleId === 'KNEIPEN_TERRORIST' ? 26
             : (styleId === 'VALHALLA_BERSERKER' ? 22
             : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0)))) + dhalsimStretchBonus;
@@ -921,8 +921,11 @@ export default class Fighter {
                 type: 'LIGHT'
             };
         } else if (type === 'COMMAND_PUNCH') {
-            // → + L: Spinning Overhead Backfist / Phantom Blitz / Master Double-Strike / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
-            const isMasterDouble = (styleId === 'MASTER_STRIKER');
+            // → + L: Guile Spinning Backfist / Phantom Blitz / Master Double-Strike / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
+            const isMasterDouble = (styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER');
+            if (styleId === 'SONIC_STRIKER') {
+                this.pendingStyleCallout = '🥊 GUILE SPINNING BACKFIST!';
+            }
             if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 540 : (isMasterDouble ? 420 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 360 : 300)));
             this.currentAttack = {
                 startup: 0.068 * spdMul, active: isMasterDouble ? 0.21 : 0.15, recovery: 0.22 * spdMul,
@@ -945,8 +948,8 @@ export default class Fighter {
             if (this.isGrounded) this.vx = this.facing * 330;
             this.currentAttack = {
                 startup: 0.062 * spdMul, active: 0.17, recovery: 0.28,
-                damage: Math.round((styleId === 'LIGHT_DRAGON' || styleId === 'KNEIPEN_TERRORIST' ? 44 : 39) * pwrMul), pushback: 420, hitstop: 0.14,
-                lift: styleId === 'LIGHT_DRAGON' ? -360 : -250,
+                damage: Math.round((styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 44 : 39) * pwrMul), pushback: 420, hitstop: 0.14,
+                lift: (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER') ? -360 : -250,
                 box: new Hitbox(-16, 55, 226 + reachBonus, 175),
                 type: 'COMBO_FINISHER'
             };
@@ -986,7 +989,10 @@ export default class Fighter {
                 type: 'HEAVY'
             };
         } else if (type === 'AXE_KICK') {
-            // → + H: Step Axe Kick / Bratpfannen-Schelle von oben!
+            // → + H: Guile Reverse Spin Kick / Step Axe Kick / Bratpfannen-Schelle von oben!
+            if (styleId === 'SONIC_STRIKER') {
+                this.pendingStyleCallout = '🦵 GUILE REVERSE SPIN KICK!';
+            }
             if (this.isGrounded) this.vx = this.facing * 350;
             this.currentAttack = {
                 startup: 0.085 * spdMul, active: 0.17, recovery: 0.26,
@@ -998,19 +1004,28 @@ export default class Fighter {
                 type: 'AXE_KICK'
             };
         } else if (type === 'SWEEP') {
-            // Capoeira Tricksters slide further on Low Sweep!
-            if (this.isGrounded) this.vx = this.facing * (styleId === 'CAPOEIRA_TRICKSTER' ? 500 : 400);
+            // Capoeira Tricksters & Guile Sonic Strikers (2-part Double Sweep!)
+            const isGuileDoubleSweep = (styleId === 'SONIC_STRIKER');
+            if (isGuileDoubleSweep) {
+                this.pendingStyleCallout = '🌀 GUILE DOUBLE SWEEP!';
+            }
+            if (this.isGrounded) this.vx = this.facing * (styleId === 'CAPOEIRA_TRICKSTER' || isGuileDoubleSweep ? 500 : 400);
             this.currentAttack = {
-                startup: 0.07 * spdMul, active: 0.16, recovery: 0.28,
-                damage: Math.round((styleId === 'CAPOEIRA_TRICKSTER' ? 36 : 32) * pwrMul), pushback: 320, hitstop: 0.14,
+                startup: 0.07 * spdMul, active: isGuileDoubleSweep ? 0.22 : 0.16, recovery: 0.28,
+                damage: Math.round((isGuileDoubleSweep ? 19 : (styleId === 'CAPOEIRA_TRICKSTER' ? 36 : 32)) * pwrMul), pushback: 320, hitstop: isGuileDoubleSweep ? 0.09 : 0.14,
+                maxHits: isGuileDoubleSweep ? 2 : 1,
                 lift: -290,
                 isLow: true,
                 box: new Hitbox(-16, 0, 228 + reachBonus, 105),
                 type: 'SWEEP'
             };
         } else if (type === 'DRAGON_UPPERCUT') {
-            // → ↓ ↘ + L or ↑ + S: Rising Shoryuken Dragon Uppercut (invulnerable anti-air launcher!)
-            const isDragon = (styleId === 'LIGHT_DRAGON');
+            // → ↓ ↘ + L or ↑ + S or ↓ ↑ + K: Rising Shoryuken OR Guile's 360° Backflip SOMERSAULT FLASH KICK!
+            const isGuileFlash = (sigArch === 'GUILE_FLASH_KICK' || styleId === 'SONIC_STRIKER');
+            const isDragon = (styleId === 'LIGHT_DRAGON' || isGuileFlash);
+            if (isGuileFlash) {
+                this.pendingStyleCallout = '🌙 SOMERSAULT FLASH KICK!';
+            }
             this.hitImmunity = Math.max(this.hitImmunity, isDragon ? 0.28 : 0.22);
             this.isGrounded = false;
             this.vy = isDragon ? -1080 : -960;
@@ -1062,7 +1077,7 @@ export default class Fighter {
             } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
                 this.pendingStyleCallout = '🚀 TITAN TORPEDO HEADBUTT!';
             } else {
-                this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
+                this.pendingStyleCallout = charId === 'Dom' ? '🥊 MATRIX KICKBOX RUSH!' : '☀️ SOLAR DRAGON RUSH!';
             }
 
             const isFourHitBird = (sigArch === 'CHUNLI_BIRD_KICK');
@@ -1095,7 +1110,7 @@ export default class Fighter {
             } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
                 this.pendingStyleCallout = '🚀 HUNDRED HAND TORPEDO!';
             } else {
-                this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
+                this.pendingStyleCallout = charId === 'Dom' ? '🟢 CYBER BOXING COMBINATION!' : '☀️ SOLAR DRAGON RUSH!';
             }
             this.currentAttack = {
                 startup: 0.04, active: 0.48, recovery: 0.24,
@@ -1370,11 +1385,19 @@ export default class Fighter {
                 const atkType = this.currentAttack ? this.currentAttack.type : 'LIGHT';
 
                 if (atkType === 'DRAGON_UPPERCUT') {
-                    // Rising Shoryuken Dragon Uppercut: Windup -> Uppercut -> Skyward Dragon Fist -> Special
-                    if (phase < startup) suffix = '_windup_punch.png';
-                    else if (phase < startup + active * 0.42) suffix = '_uppercut.png';
-                    else if (phase < retractStart) suffix = '_dragon_uppercut.png';
-                    else suffix = '_jump.png';
+                    // Rising Shoryuken Dragon Uppercut OR Guile Somersault Flash Kick!
+                    const sigArch = this._getSignatureArchetype();
+                    if (sigArch === 'GUILE_FLASH_KICK') {
+                        if (phase < startup) suffix = '_crouch.png';
+                        else if (phase < startup + active * 0.52) suffix = '_axe_kick.png';
+                        else if (phase < retractStart) suffix = '_spin_kick.png';
+                        else suffix = '_jump.png';
+                    } else {
+                        if (phase < startup) suffix = '_windup_punch.png';
+                        else if (phase < startup + active * 0.42) suffix = '_uppercut.png';
+                        else if (phase < retractStart) suffix = '_dragon_uppercut.png';
+                        else suffix = '_jump.png';
+                    }
                 } else if (atkType === 'FLYING_TORPEDO') {
                     // Character-Specific Street Fighter Signature Flight Pose!
                     const sigArch = this._getSignatureArchetype();
@@ -1752,7 +1775,7 @@ export default class Fighter {
             // ─── 360° SALTO ON FORWARD/BACKWARD JUMP (ONLY FOR ACROBATIC STYLES!) + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
             let isRolling = false;
             let currentRotation = 0;
-            const isAcrobaticStyle = (drawStyleId === 'LIGHT_DRAGON' || drawStyleId === 'CAPOEIRA_TRICKSTER' || drawStyleId === 'SHADOW_ASSASSIN' || drawStyleId === 'MASTER_STRIKER');
+            const isAcrobaticStyle = (drawStyleId === 'LIGHT_DRAGON' || drawStyleId === 'SONIC_STRIKER' || drawStyleId === 'CAPOEIRA_TRICKSTER' || drawStyleId === 'SHADOW_ASSASSIN' || drawStyleId === 'MASTER_STRIKER');
             if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
                 isRolling = true;
                 const spinSpeed = 25.0;
@@ -1761,7 +1784,7 @@ export default class Fighter {
                 // Blanka Rolling Cannonball: fast 360°-spinning cannonball across the stage!
                 isRolling = true;
                 currentRotation = this.stateTimer * 32.0 * this.facing;
-            } else if (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'FLYING_TORPEDO' || this.currentAttack.type === 'DRAGON_RUSH_COMBO') && sigArch === 'GUILE_FLASH_KICK') {
+            } else if (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'FLYING_TORPEDO' || this.currentAttack.type === 'DRAGON_RUSH_COMBO' || this.currentAttack.type === 'DRAGON_UPPERCUT') && sigArch === 'GUILE_FLASH_KICK') {
                 // Guile Somersault Flash Kick: high backflip somersault!
                 isRolling = true;
                 currentRotation = -this.stateTimer * 18.0 * this.facing;
@@ -1994,23 +2017,42 @@ export default class Fighter {
             ctx.ellipse(cx + 4, cy, rx * 0.96, ry * 0.94, isSweep ? 0.08 : -0.15, startAng + 0.1, endAng);
             ctx.stroke();
         } else if (type === 'DRAGON_UPPERCUT') {
-            // Vertical fiery Shoryuken dragon pillar arc!
-            const cx = drawW * 0.26;
-            const cy = -drawH * 0.62;
-            ctx.strokeStyle = '#ff3300';
-            ctx.shadowColor = '#ffaa00';
-            ctx.shadowBlur = 28;
-            ctx.lineWidth = 22 * (1 - progress * 0.25);
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, 92, 165, -0.18, -1.45, 0.75);
-            ctx.stroke();
+            if (sigArch === 'GUILE_FLASH_KICK') {
+                // Guile Somersault Flash Kick: giant 180px emerald/gold crescent sonic blade wave!
+                const cy = -drawH * 0.56;
+                ctx.strokeStyle = charId === 'Dom' ? '#00ff88' : '#ffd700';
+                ctx.shadowColor = charId === 'Dom' ? '#00ffff' : '#ff5500';
+                ctx.shadowBlur = 32;
+                ctx.lineWidth = 24 * (1 - progress * 0.25);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.arc(drawW * 0.20, cy, 180, -Math.PI * 0.68, Math.PI * 0.38);
+                ctx.stroke();
 
-            ctx.strokeStyle = '#ffee55';
-            ctx.lineWidth = 10 * (1 - progress * 0.25);
-            ctx.beginPath();
-            ctx.ellipse(cx + 6, cy, 85, 155, -0.18, -1.35, 0.65);
-            ctx.stroke();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 9;
+                ctx.beginPath();
+                ctx.arc(drawW * 0.24, cy, 168, -Math.PI * 0.62, Math.PI * 0.32);
+                ctx.stroke();
+            } else {
+                // Vertical fiery Shoryuken dragon pillar arc!
+                const cx = drawW * 0.26;
+                const cy = -drawH * 0.62;
+                ctx.strokeStyle = '#ff3300';
+                ctx.shadowColor = '#ffaa00';
+                ctx.shadowBlur = 28;
+                ctx.lineWidth = 22 * (1 - progress * 0.25);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 92, 165, -0.18, -1.45, 0.75);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#ffee55';
+                ctx.lineWidth = 10 * (1 - progress * 0.25);
+                ctx.beginPath();
+                ctx.ellipse(cx + 6, cy, 85, 155, -0.18, -1.35, 0.65);
+                ctx.stroke();
+            }
         } else if (type === 'FLYING_TORPEDO') {
             // 8 Distinct Street Fighter Signature VFX for FLYING_TORPEDO!
             const cy = -drawH * 0.54;
