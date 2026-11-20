@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.55';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.55';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.55';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.56';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.56';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.56';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -56,7 +56,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.55`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.56`);
                 needsLoad = true;
             }
         }
@@ -338,6 +338,7 @@ export default class CharacterSelectState {
             ? this.selectedStageKeys[this.stageIndex]
             : (p2Char.stageId || 'Japan');
         preloadStageAssets(this.game.assetManager, chosenStageKey);
+        this.game.assetManager.loadAll();
 
         // Stop the select menu music instantly so the fighter's select voice rings out crystal-clear.
         this.game.audioManager.stopBGM();

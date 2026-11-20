@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.55';
-import Projectile from '../entities/Projectile.js?v=2.55';
-import Hitbox from '../entities/Hitbox.js?v=2.55';
-import StageObjectManager from '../entities/StageObjects.js?v=2.55';
-import AIController from '../ai/AIController.js?v=2.55';
-import CombatHUD from '../ui/CombatHUD.js?v=2.55';
+import Fighter from '../entities/Fighter.js?v=2.56';
+import Projectile from '../entities/Projectile.js?v=2.56';
+import Hitbox from '../entities/Hitbox.js?v=2.56';
+import StageObjectManager from '../entities/StageObjects.js?v=2.56';
+import AIController from '../ai/AIController.js?v=2.56';
+import CombatHUD from '../ui/CombatHUD.js?v=2.56';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.55';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.55';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.55';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.55';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.55';
+} from '../core/AssetPreloader.js?v=2.56';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.56';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.56';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.56';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.56';
 
 export default class CombatState {
     constructor(game) {
@@ -2076,6 +2076,7 @@ export default class CombatState {
 
         preloadFighterSprites(this.game.assetManager, opponent);
         preloadStageAssets(this.game.assetManager, stageId);
+        this.game.assetManager.loadAll();
 
         const healedHP = this.survivalMode
             ? Math.min(this.p1.maxHP, Math.max(1, this.p1.hp) + Math.round(this.p1.maxHP * 0.30))

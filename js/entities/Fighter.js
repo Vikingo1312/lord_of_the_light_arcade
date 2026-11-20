@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.55';
-import { getFighterStyle } from '../data.js?v=2.55';
+import Hitbox from './Hitbox.js?v=2.56';
+import { getFighterStyle } from '../data.js?v=2.56';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -1271,12 +1271,6 @@ export default class Fighter {
     _getSprite(suffix) {
         const imgs = this.game.assetManager.images;
         const id = this.data.id;
-        const pfx = this.data.spritePrefix;
-
-        if (pfx && (suffix === '_dive_kick.png' || suffix === '_low_kick.png' || suffix === '_hook_punch.png')) {
-            const customKey = `${id}_${pfx}${suffix.replace('.png', '')}`;
-            if (imgs[customKey]) return imgs[customKey];
-        }
 
         const exactKey = `${id}${suffix}`;
         if (imgs[exactKey]) return imgs[exactKey];
@@ -1616,7 +1610,7 @@ export default class Fighter {
                 spriteImage = this._getSprite('_kick.png') || this._getSprite('_punch.png');
             }
             if (!spriteImage) {
-                spriteImage = this._getSprite('_right.png') || this._getSprite('_front.png');
+                spriteImage = this._getSprite('_right.png');
             }
 
             if (!spriteImage) {
