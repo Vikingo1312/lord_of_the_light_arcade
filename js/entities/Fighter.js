@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.56';
-import { getFighterStyle } from '../data.js?v=2.56';
+import Hitbox from './Hitbox.js?v=2.57';
+import { getFighterStyle } from '../data.js?v=2.57';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {

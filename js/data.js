@@ -248,38 +248,8 @@ export function syncJanBrowserUnlocks() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
     const host = window.location.hostname || '';
     const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
-    const search = window.location.search || '';
-    const hash = window.location.hash || '';
-    const hasJanParam = search.includes('jan=1') || hash.includes('jan');
-    const hasAnnikaParam = search.includes('annika=1') || search.includes('annikina=1') || hash.includes('annika');
-    const hasEmyParam = search.includes('emy=1') || search.includes('emely=1') || hash.includes('emy');
-    const hasDomParam = search.includes('dom=1') || search.includes('dominik=1') || hash.includes('dom');
 
-    if (hasEmyParam) {
-        try {
-            localStorage.removeItem('lotl_vip_jan');
-            localStorage.removeItem('lotl_vip_annikina');
-            localStorage.removeItem('lotl_vip_dom');
-            localStorage.setItem('lotl_vip_emy', 'true');
-            localStorage.setItem('lotl_story_complete', 'true');
-            localStorage.setItem('unlock_Emely', 'true');
-        } catch (e) {}
-        return false;
-    }
-
-    if (hasDomParam) {
-        try {
-            localStorage.removeItem('lotl_vip_jan');
-            localStorage.removeItem('lotl_vip_annikina');
-            localStorage.removeItem('lotl_vip_emy');
-            localStorage.setItem('lotl_vip_dom', 'true');
-            localStorage.setItem('lotl_story_complete', 'true');
-            localStorage.setItem('unlock_Dom', 'true');
-        } catch (e) {}
-        return false;
-    }
-
-    if ((isJanLocal && !localStorage.getItem('lotl_vip_emy') && !localStorage.getItem('lotl_vip_dom') && !localStorage.getItem('lotl_vip_annikina') && !localStorage.getItem('lotl_clean_progression')) || hasJanParam || localStorage.getItem('lotl_vip_jan') === 'true') {
+    if (isJanLocal && !localStorage.getItem('lotl_clean_progression')) {
         try {
             localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
@@ -289,23 +259,19 @@ export function syncJanBrowserUnlocks() {
         } catch (e) {}
         return true;
     }
-    if (hasAnnikaParam || localStorage.getItem('lotl_vip_annikina') === 'true') {
+
+    // Auf dem öffentlichen Vercel-Link: keine kostenlosen URL-Unlocks — jeder muss sich seinen Weg erkämpfen!
+    if (!isJanLocal) {
         try {
-            localStorage.setItem('lotl_vip_annikina', 'true');
-            localStorage.setItem('lotl_story_complete', 'true');
-            localStorage.setItem('unlock_Annikina', 'true');
-        } catch (e) {}
-    }
-    if (localStorage.getItem('lotl_vip_emy') === 'true') {
-        try {
-            localStorage.setItem('lotl_story_complete', 'true');
-            localStorage.setItem('unlock_Emely', 'true');
-        } catch (e) {}
-    }
-    if (localStorage.getItem('lotl_vip_dom') === 'true') {
-        try {
-            localStorage.setItem('lotl_story_complete', 'true');
-            localStorage.setItem('unlock_Dom', 'true');
+            if (localStorage.getItem('lotl_vip_jan') || localStorage.getItem('lotl_vip_emy') || localStorage.getItem('lotl_vip_dom') || localStorage.getItem('lotl_vip_annikina')) {
+                localStorage.removeItem('lotl_vip_jan');
+                localStorage.removeItem('lotl_vip_emy');
+                localStorage.removeItem('lotl_vip_dom');
+                localStorage.removeItem('lotl_vip_annikina');
+                for (const s of SPECIALS) {
+                    localStorage.removeItem(`unlock_${s.id}`);
+                }
+            }
         } catch (e) {}
     }
     return false;

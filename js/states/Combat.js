@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.56';
-import Projectile from '../entities/Projectile.js?v=2.56';
-import Hitbox from '../entities/Hitbox.js?v=2.56';
-import StageObjectManager from '../entities/StageObjects.js?v=2.56';
-import AIController from '../ai/AIController.js?v=2.56';
-import CombatHUD from '../ui/CombatHUD.js?v=2.56';
+import Fighter from '../entities/Fighter.js?v=2.57';
+import Projectile from '../entities/Projectile.js?v=2.57';
+import Hitbox from '../entities/Hitbox.js?v=2.57';
+import StageObjectManager from '../entities/StageObjects.js?v=2.57';
+import AIController from '../ai/AIController.js?v=2.57';
+import CombatHUD from '../ui/CombatHUD.js?v=2.57';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.56';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.56';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.56';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.56';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.56';
+} from '../core/AssetPreloader.js?v=2.57';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.57';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.57';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.57';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.57';
 
 export default class CombatState {
     constructor(game) {
