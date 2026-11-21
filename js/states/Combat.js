@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.57';
-import Projectile from '../entities/Projectile.js?v=2.57';
-import Hitbox from '../entities/Hitbox.js?v=2.57';
-import StageObjectManager from '../entities/StageObjects.js?v=2.57';
-import AIController from '../ai/AIController.js?v=2.57';
-import CombatHUD from '../ui/CombatHUD.js?v=2.57';
+import Fighter from '../entities/Fighter.js?v=2.58';
+import Projectile from '../entities/Projectile.js?v=2.58';
+import Hitbox from '../entities/Hitbox.js?v=2.58';
+import StageObjectManager from '../entities/StageObjects.js?v=2.58';
+import AIController from '../ai/AIController.js?v=2.58';
+import CombatHUD from '../ui/CombatHUD.js?v=2.58';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.57';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.57';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.57';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.57';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.57';
+} from '../core/AssetPreloader.js?v=2.58';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.58';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.58';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.58';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.58';
 
 export default class CombatState {
     constructor(game) {
@@ -86,34 +86,38 @@ export default class CombatState {
             this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
         }
 
-        // Balanced Street Fighter Difficulty & Arena-Progression Scaling for CPU
+        // Balanced Street Fighter II Turbo Difficulty & 14-Arena Progression Curve for CPU
         if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
             const diff = (this.game.settings && this.game.settings.difficulty) || 'NORMAL';
             const isLadderMode = Boolean(this.storyMode || this.arcadeMode || this.survivalMode);
             const stageNum = isLadderMode
                 ? Math.max(1, Math.min(14, this.arcadeIndex || 1))
-                : Math.max(5, Math.min(11, (p2Data.rosterIndex ?? 6) + 1));
+                : Math.max(6, Math.min(11, (p2Data.rosterIndex ?? 6) + 1));
             const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
 
             if (diff === 'EASY') {
-                this.p2.specialEnergy = stageNum >= 4 ? 50 : 20;
-                const hpMul = 0.78 + stageRatio * 0.14; // 78% -> 92% HP
+                this.p2.specialEnergy = stageNum >= 4 ? 55 : 25;
+                const hpMul = 0.82 + stageRatio * 0.16; // 82% -> 98% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.72 + stageRatio * 0.16)); // 72% -> 88% Power
+                this.p2.power = Math.round((p2Data.power || 100) * (0.78 + stageRatio * 0.18)); // 78% -> 96% Power
             } else if (diff === 'NORMAL') {
-                this.p2.specialEnergy = isLadderMode ? (stageNum <= 2 ? 35 : (stageNum <= 6 ? 60 : 85)) : 75;
-                const hpMul = isLadderMode ? (0.86 + stageRatio * 0.22) : 1.0; // 86% HP in Arena 1 -> 108% in Arena 14 (100% in Versus)
+                // Street Fighter II Arcade Ladder Progression:
+                // Arena 1-3: 88%-93% HP, 85%-91% Power (fair warm-up)
+                // Arena 4-9: 95%-105% HP, 93%-103% Power (evenly matched rivalry)
+                // Arena 10-14: 107%-116% HP, 105%-114% Power (true championship / boss challenge!)
+                this.p2.specialEnergy = isLadderMode ? Math.round(35 + stageRatio * 65) : 80;
+                const hpMul = isLadderMode ? (0.88 + stageRatio * 0.28) : 1.0;
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                const pwrScale = isLadderMode ? (0.80 + stageRatio * 0.24) : 0.96; // 80% Power in Arena 1 -> 104% in Arena 14
+                const pwrScale = isLadderMode ? (0.85 + stageRatio * 0.29) : 1.0;
                 this.p2.power = Math.round((p2Data.power || 100) * pwrScale);
             } else if (diff === 'HARD') {
                 this.p2.specialEnergy = 100;
-                const hpMul = 1.00 + stageRatio * 0.18;
+                const hpMul = 1.02 + stageRatio * 0.24; // 102% -> 126% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.96 + stageRatio * 0.16));
+                this.p2.power = Math.round((p2Data.power || 100) * (0.98 + stageRatio * 0.22)); // 98% -> 120% Power
             }
         }
 
@@ -1566,8 +1570,8 @@ export default class CombatState {
         }
         this.projectiles.push(proj);
 
-        // Evolved Second-Variant Twin / Barrage Projectile Mechanics!
-        if (hasFullSuper && (charId === 'Dom' || charId === 'Annikina' || charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
+        // Evolved Second-Variant Twin / Barrage Projectile Mechanics! (Dom fires a single classic Guile Sonic Boom)
+        if (hasFullSuper && (charId === 'Annikina' || charId === 'HyperEmely' || charId === 'CayleMinogue' || charId === 'HyperKeano' || charId === 'SupremeKeano' || charId === 'GargamelHoodie' || charId === 'JayX')) {
             if (charId === 'JayX' && !isAirCast) {
                 // Jay X lunges forward with a phantom slash while firing his Void Wave!
                 fighter.vx = fighter.facing * 680;

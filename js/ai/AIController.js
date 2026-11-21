@@ -39,14 +39,14 @@ export default class AIController {
         const rosterIdx = Math.max(1, Math.min(14, rawStage));
         const stageProgress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 arenas
 
-        // Balanced Street Fighter progression:
-        // - EASY: 0.10 -> 0.34 (approachable, readable, but still active & varied)
-        // - NORMAL: 0.24 (Arena 1) -> 0.52 (Arena 7) -> 0.80 (Arena 14) — lively, balanced fights!
-        // - HARD: 0.58 -> 0.96
+        // Balanced Street Fighter II Turbo progression:
+        // - EASY: 0.12 -> 0.42 (approachable, readable, active & varied)
+        // - NORMAL: 0.25 (Arena 1) -> 0.58 (Arena 7) -> 0.90 (Arena 14) — true ascending arcade ladder challenge!
+        // - HARD: 0.62 -> 0.98
         let progress = stageProgress;
-        if (difficultySetting === 'EASY') progress = 0.10 + stageProgress * 0.24;
-        else if (difficultySetting === 'NORMAL') progress = 0.24 + stageProgress * 0.56;
-        else if (difficultySetting === 'HARD') progress = 0.58 + stageProgress * 0.38;
+        if (difficultySetting === 'EASY') progress = 0.12 + stageProgress * 0.30;
+        else if (difficultySetting === 'NORMAL') progress = 0.25 + stageProgress * 0.65;
+        else if (difficultySetting === 'HARD') progress = 0.62 + stageProgress * 0.36;
 
         // Initialize AI state trackers on p2
         if (typeof p2.aiWaitTimer === 'undefined') p2.aiWaitTimer = 0;
@@ -255,10 +255,10 @@ export default class AIController {
             const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
 
             if (isNewP1Swing) {
-                // EASY: 10% - 18%; NORMAL: 14% (Arena 1) -> 38% (Arena 14)
+                // EASY: 12% - 24%; NORMAL: 16% (Arena 1) -> 48% (Arena 14)
                 const blockProb = difficultySetting === 'EASY'
-                    ? (0.10 + progress * 0.22)
-                    : (0.14 + progress * 0.32);
+                    ? (0.12 + progress * 0.24)
+                    : (0.16 + progress * 0.36);
                 const roll = Math.random();
 
                 if (roll < blockProb) {
@@ -417,8 +417,8 @@ export default class AIController {
 
             // 3. Fire projectile / Super from range when Super Energy is full!
             if (p2.specialEnergy >= 100 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                const zoningRatePerSec = (styleId === 'LIGHT_DRAGON' || styleId === 'MASTER_STRIKER')
-                    ? (0.55 + progress * 0.75)
+                const zoningRatePerSec = (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'MASTER_STRIKER')
+                    ? (0.58 + progress * 0.78)
                     : (0.35 + progress * 0.55);
                 if (Math.random() < zoningRatePerSec * dt) {
                     return triggerChosenMove('SUPER_SPECIAL');
@@ -449,9 +449,9 @@ export default class AIController {
                 const candidates = [
                     { tag: 'LIGHT', weight: 22 },
                     { tag: 'HEAVY', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'VALHALLA_BERSERKER' ? 22 : 18 },
-                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SHADOW_ASSASSIN' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
-                    { tag: 'AXE_KICK', weight: styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
-                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 12 },
+                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' || styleId === 'SHADOW_ASSASSIN' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
+                    { tag: 'AXE_KICK', weight: styleId === 'VALHALLA_BERSERKER' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
+                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'SONIC_STRIKER' ? 18 : 12 },
                     { tag: 'CROUCH_LIGHT', weight: 9 }
                 ];
 
@@ -464,7 +464,7 @@ export default class AIController {
                 if (canPhysSpecial) {
                     candidates.push({
                         tag: 'DRAGON_UPPERCUT',
-                        weight: styleId === 'LIGHT_DRAGON' ? (12 + progress * 10) : (8 + progress * 8)
+                        weight: (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER') ? (13 + progress * 11) : (8 + progress * 8)
                     });
                     candidates.push({
                         tag: 'HURRICANE_KICK',

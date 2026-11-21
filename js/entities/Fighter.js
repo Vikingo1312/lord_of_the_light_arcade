@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.57';
-import { getFighterStyle } from '../data.js?v=2.57';
+import Hitbox from './Hitbox.js?v=2.58';
+import { getFighterStyle } from '../data.js?v=2.58';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -890,22 +890,23 @@ export default class Fighter {
         const charId = (this.data && this.data.id) || 'Keano';
         const isSecondVariant = Boolean(this.data && this.data.special);
 
-        // Valhalla Berserker Rage Passive (+22% damage below 45% HP) & Second Variant Power Boost (+8%)
-        const berserkerRage = (styleId === 'VALHALLA_BERSERKER' && this.hp < this.maxHP * 0.45) ? 1.22 : 1.0;
-        const variantMul = isSecondVariant ? 1.08 : 1.0;
+        // Valhalla Berserker Rage Passive (+16% damage below 40% HP) & Second Variant Power Boost (+4%)
+        const berserkerRage = (styleId === 'VALHALLA_BERSERKER' && this.hp < this.maxHP * 0.40) ? 1.16 : 1.0;
+        const variantMul = isSecondVariant ? 1.04 : 1.0;
         const pwrMul = (this.power / 100) * berserkerRage * variantMul;
 
         const isAerial = !this.isGrounded;
-        // Distinct Style Frame Speed & Hitbox Reach Modifiers (+75px Dhalsim Stretch-Limb reach for Raheel, Marley, Gargamel!)
-        const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.80
-            : (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 0.84
+        // Distinct Style Frame Speed & Hitbox Reach Modifiers (+65px Dhalsim Stretch-Limb reach for Raheel, Marley, Gargamel!)
+        const spdMul = styleId === 'SHADOW_ASSASSIN' ? 0.82
+            : (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 0.86
             : (styleId === 'CAPOEIRA_TRICKSTER' ? 0.86
             : (styleId === 'MASTER_STRIKER' ? 0.88 : 1.0)));
-        const dhalsimStretchBonus = sigArch === 'DHALSIM_DRILL' ? 75 : 0;
-        const reachBonus = (styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' ? 38
-            : (styleId === 'KNEIPEN_TERRORIST' ? 26
+        const dhalsimStretchBonus = sigArch === 'DHALSIM_DRILL' ? 65 : 0;
+        const reachBonus = (styleId === 'MASTER_STRIKER' ? 32
+            : (styleId === 'SONIC_STRIKER' ? 20
+            : (styleId === 'KNEIPEN_TERRORIST' ? 24
             : (styleId === 'VALHALLA_BERSERKER' ? 22
-            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0)))) + dhalsimStretchBonus;
+            : (styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 0))))) + dhalsimStretchBonus;
 
         // Play authentic martial-arts swing whoosh SFX
         const isHeavySwing = (type !== 'LIGHT' && type !== 'CROUCH_LIGHT');

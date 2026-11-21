@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.57';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.57';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.57';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.58';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.58';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.58';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -46,7 +46,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.57`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.58`);
                 needsLoad = true;
             }
         }
@@ -127,9 +127,14 @@ export default class CharacterSelectState {
         const remainingRoster = shuffle(ROSTER.filter(r => r.id !== p1Char.id && r.id !== finalBoss.id));
 
         // Pick 6 secret/special challengers + 7 main roster challengers = 13 + 1 Final Boss = 14 stages!
+        // Sort the 13 challengers by ascending combat strength (power + hp) with slight tier jitter so the Arcade Ladder always ramps up progressively like Street Fighter II!
         const pickedSpecials = remainingSpecials.slice(0, 6);
         const pickedRoster = remainingRoster.slice(0, 13 - pickedSpecials.length);
-        const midPool = shuffle([...pickedSpecials, ...pickedRoster]);
+        const midPool = shuffle([...pickedSpecials, ...pickedRoster]).sort((a, b) => {
+            const scoreA = (a.power || 100) * 1.6 + (a.hp || 300) * 0.35 + (Math.random() * 8 - 4);
+            const scoreB = (b.power || 100) * 1.6 + (b.hp || 300) * 0.35 + (Math.random() * 8 - 4);
+            return scoreA - scoreB;
+        });
         const fullList = [...midPool, finalBoss];
 
         return fullList.map((f, idx) => {
