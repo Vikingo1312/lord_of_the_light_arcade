@@ -82,18 +82,17 @@
                         .catch(function () {});
                 }
 
-                // 2) Server-side IP check: ONLY Jan's Mac IP (185.165.255.30) gets all 28 fighters unlocked automatically!
+                // 2) Master Unlock or Server-side IP check for Jan's PC / Mac:
                 if (!showAliOnly && !claimToken) {
-                    if (params.get('reset_jan') === '1') {
+                    if (params.get('reset_jan') === '1' || macKey === 'vikingo40-mac-master-1312') {
                         localStorage.removeItem('lotl_clean_progression');
+                        unlockAllForJanMac();
                     }
                     fetch('/api/lotl/access' + (macKey ? ('?mac_key=' + encodeURIComponent(macKey)) : ''), { cache: 'no-store' })
                         .then(function (r) { return r.json(); })
                         .then(function (d) {
                             if (d && d.isJanMac && !localStorage.getItem('lotl_clean_progression')) {
                                 unlockAllForJanMac();
-                            } else if (d && !d.isJanMac && !isLocal) {
-                                localStorage.removeItem('lotl_jan_ip_verified');
                             }
                         })
                         .catch(function () {});
