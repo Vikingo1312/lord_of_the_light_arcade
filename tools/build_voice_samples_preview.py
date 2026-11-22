@@ -268,21 +268,21 @@ FOREIGN_FIGHTERS = [
         "prefix": "ali_abi",
         "aliases": ["ali_express"],
         "copy_root": False,
-        "name": "🫲 ALI ABI 🫱 (E. Honda des Bazars · Pool-Oase)",
+        "name": "🫲 ALI ABI 🫱 (Der Coolste Abi · E. Honda des Bazars)",
         "folder": "21.Ali_Abi",
-        "voice_desc": "tr-TR-AhmetNeural (Heavy Sumo-Abi Bass) · Echter türkischer Abi-Akzent im Deutschen + Selamün Aleyküm / Oğlum / Vallah / amına koyayım!",
+        "voice_desc": "tr-TR-AhmetNeural (Arroganter Big-Brother Abi mit goldenem Herz) · Alle müssen sich vor dem Abi verneigen, aber danach lädt er dich mit liebem Herzen zum Çay an den Pool ein!",
         "voice": "tr-TR-AhmetNeural",
         "rate": "+3%",
-        "pitch": "-7Hz",
-        "filter": make_filter(0.92, 1.04, 4.4, 2.7),
-        "display_text": "Selamün Aleyküm, Lan! Ich bin Ali Abi! Ein Bauchklatscher und meine tausend Ohrfeigen schicken dich direkt mit Express-Versand ins Krankenhaus, Oğlum, amına koyayım!",
+        "pitch": "-5Hz",
+        "filter": make_filter(0.94, 1.03, 4.2, 2.7),
+        "display_text": "Selamün Aleyküm! Ich bin Ali Abi, der Coolste überhaupt! Verneigt euch erstmal vor dem Abi und küsst meine Hand — gleich gibt es tausend Ohrfeigen, aber keine Sorge, mein Herz ist aus Gold und danach trinken wir Çay am Pool!",
         "clips": {
-            "intro": "Selamün Aleyküm, Lan! İh bin Ali Abi! Ayn Bauh-klatscher und mayne tausend Ohr-faygen schiken dih direkt mit Ekspress-Ferzand ins Kranken-haus, Oğlum, amına koyayım!",
-            "win": "Haha, Vallah, Ekspress-Lieferung direkt auf dayne Fresse, Oğlum! Niemand überlebt Ali Abis Sumo-Arschbombe am Pool, amına koyayım!",
-            "select": "Ali Abi ist am Pool, Lan! Tausend Ohr-faygen mit Ekspress-Ferzand, Oğlum!",
-            "taunt": "Komm her, Oğlum! Mayn Bauh ist härter als Schtahl, gelijk kriegst du tausend Schellen, amına koyayım!",
-            "special": "HUNDRED HAND SLAP!",
-            "super": "SUMO HEADBUTT TORPEDO!",
+            "intro": "Selamün Aleyküm! İh bin Ali Abi, der Coolste überhaupt! Fernaygt oyh erstmal for dem Abi und küsst mayne Hand! Glayh gibt es tausend Ohr-faygen, aber kayne Zorge, mayn Herts ist aus Gold und danah trinken vir Çay am Pool!",
+            "win": "Haha, siehst du, Aslanım? Gegen Ali Abi hat kayner ayne Schanse, fernayg dih for dem Meister! Und yetst schteh auf, komm her, Ali Abi hat ayn gutes Herts — ih lad dih zum Essen am Pool ayn!",
+            "select": "Ali Abi ist im Haus! Alle fernaygen sih for dem Coolsten — aber mit gutem Hertsen!",
+            "taunt": "Ey, mehr Respekt for Ali Abi, Oğlum! Fernayg dih lieber, bevor mayn Bauh-klatscher kommt — ih tu dir nur aus Liebe veh!",
+            "special": "TAUSEND ABI-SCHELLEN!",
+            "super": "ALI ABI TORPEDO!",
         },
     },
 ]
@@ -501,7 +501,7 @@ def build_html():
             <div class="quote">„{c['display_text']}“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('{cid}')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=263" preload="none"></audio>
+                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=264" preload="none"></audio>
             </div>
         </div>
         """)
