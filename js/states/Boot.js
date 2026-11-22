@@ -26,18 +26,18 @@ export default class BootState {
         this.game.assetManager.queueImage('menuBg', 'assets/UI/UX_Cosmic_Shimmer.png');
 
         // Premium Intro Logo
-        this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png?v=2.59');
+        this.game.assetManager.queueImage('caesar_logo', 'assets/UI/caesar_logo.png?v=2.60');
 
         // Dynamically load ALL fighter portraits AND standing combat stance (_right.png)
-        const { ALL_FIGHTERS, STAGES } = await import('../data.js?v=2.59');
+        const { ALL_FIGHTERS, STAGES } = await import('../data.js?v=2.60');
         for (const char of ALL_FIGHTERS) {
             this.game.assetManager.queueImage(
                 `${char.id}_front.png`,
-                `assets/CHARACTERS/${char.folder}/_front.png?v=2.59`
+                `assets/CHARACTERS/${char.folder}/_front.png?v=2.60`
             );
             this.game.assetManager.queueImage(
                 `${char.id}_right.png`,
-                `assets/CHARACTERS/${char.folder}/_right.png?v=2.59`
+                `assets/CHARACTERS/${char.folder}/_right.png?v=2.60`
             );
         }
 
@@ -45,7 +45,7 @@ export default class BootState {
         for (const [stageId, stage] of Object.entries(STAGES)) {
             this.game.assetManager.queueImage(
                 `Stage_${stageId}`,
-                `assets/STAGES/${stage.file}?v=2.59`
+                `assets/STAGES/${stage.file}?v=2.60`
             );
         }
 

@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.59';
-import { getFighterStyle } from '../data.js?v=2.59';
+import Hitbox from './Hitbox.js?v=2.60';
+import { getFighterStyle } from '../data.js?v=2.60';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -425,7 +425,12 @@ export default class Fighter {
                         break;
                     }
                 }
-                // Allow aerial attacks & airborne/early-jump special moves (Hurricane Kick, Dragon Uppercut, Torpedo, Dragon Rush)!
+                // Allow aerial steering in the first 120ms if player pressed Up slightly before Left/Right, plus aerial attacks & special moves!
+                if (Math.abs(this.vx) < 25 && this.stateTimer < 0.14 && (inputQueue.left || inputQueue.right)) {
+                    const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
+                    const airMul = styleId === 'SHADOW_ASSASSIN' ? 1.28 : (styleId === 'CAPOEIRA_TRICKSTER' ? 1.24 : 1.15);
+                    this.vx = inputQueue.left ? -this.speed * airMul : this.speed * airMul;
+                }
                 if (bufferedCmd && bufferedCmd !== 'THROW') {
                     if (this.executeAttack(bufferedCmd)) consumeBuffer();
                 } else if (hasL) {
@@ -1842,10 +1847,9 @@ export default class Fighter {
                 }
             }
 
-            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP (ONLY FOR ACROBATIC STYLES!) + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
+            // ─── 360° SALTO ON FORWARD/BACKWARD JUMP (FOR ALL FIGHTERS!) + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
             let isRolling = false;
             let currentRotation = 0;
-            const isAcrobaticStyle = (drawStyleId === 'LIGHT_DRAGON' || drawStyleId === 'SONIC_STRIKER' || drawStyleId === 'CAPOEIRA_TRICKSTER' || drawStyleId === 'SHADOW_ASSASSIN' || drawStyleId === 'MASTER_STRIKER');
             if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
                 isRolling = true;
                 const spinSpeed = 25.0;
@@ -1858,12 +1862,12 @@ export default class Fighter {
                 // Guile Somersault Flash Kick: high backflip somersault!
                 isRolling = true;
                 currentRotation = -this.stateTimer * 18.0 * this.facing;
-            } else if (isAcrobaticStyle && !this.isGrounded && Math.abs(this.vx) >= 25 && (this.state === 'JUMP' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
-                // Acrobatic styles perform a 360° Salto on diagonal jumps; Heavyweights/Berserkers jump upright with power!
+            } else if (!this.isGrounded && (Math.abs(this.vx) >= 25 || (this.state === 'DASH' && this.vy < -150)) && (this.state === 'JUMP' || this.state === 'DASH' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
+                // Every fighter performs a crisp 360° Forward/Backward Salto on diagonal jumps & back-flip dashes!
                 isRolling = true;
                 const saltoDir = (this.vx * this.facing >= 0) ? 1 : -1;
-                const saltoSpeed = (this.state === 'ATTACK') ? 14.5 : 10.8;
-                currentRotation = (this.jumpTime || 0) * saltoSpeed * saltoDir;
+                const saltoSpeed = (this.state === 'ATTACK') ? 14.5 : (this.state === 'DASH' ? 16.0 : 11.2);
+                currentRotation = (this.jumpTime || this.stateTimer || 0) * saltoSpeed * saltoDir;
             }
 
             ctx.save();
