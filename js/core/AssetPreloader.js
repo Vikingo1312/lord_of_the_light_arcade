@@ -28,6 +28,7 @@ const AUDIO_MAP = {
     'CayleMinogue': 'cayle_minogue',
     'Annikina': 'annikina',
     'Dom': 'dom',
+    'AliAbi': 'ali_abi',
 };
 
 /**

@@ -141,6 +141,23 @@ export const FIGHT_STYLES = {
         sig2Badges: ['→+P', '➔', '→+K', '➔', 'S'],
         sig2Dmg: '108 DMG · SPINNING BACKFIST + SONIC BOOM',
         sig2Desc: 'Guiles gedrehte Spinning-Backfist in den Reverse-Kick, abgeschlossen mit einer doppelten Sonic-Matrix-Boom-Sichel!'
+    },
+    HONDA_SUMO_BRAWLER: {
+        id: 'HONDA_SUMO_BRAWLER',
+        name: 'E. HONDA SUMO & 1000 OHRFEIGEN',
+        badge: '🫲 E. HONDA SUMO BOSS',
+        color: '#ffaa00',
+        passive: 'E. Honda Style: 1000-Ohrfeigen-Schelle (→+P), Sumo-Kopfstoß-Torpedo (←→+P), Arschbombe & Super-Armor Bauchpanzer!',
+        sig1Name: 'HUNDRED HAND SLAP (1000 OHRFEIGEN)',
+        sig1Input: '→+P  oder  ↓↘→+K',
+        sig1Badges: ['→', '+', 'P'],
+        sig1Dmg: '98 DMG · HYAKURETSU HARITE SCHELLEN-HAGEL',
+        sig1Desc: 'E. Hondas legendärer 1000-Hände-Ohrfeigen-Sturm mit offener Handkante und unaufhaltsamem Vorwärtsdruck!',
+        sig2Name: 'SUMO HEADBUTT TORPEDO & BUTT SPLASH',
+        sig2Input: '←→+P  oder  ↓↑+K',
+        sig2Badges: ['←', '→', '+', 'P'],
+        sig2Dmg: '110 DMG · SUPER ZUTSUKI & ARSCHBOMBE',
+        sig2Desc: 'Ali Abi schießt waagerecht wie eine Rakete quer über den Bildschirm (Sumo Torpedo) oder kracht mit der Sumo-Arschbombe von oben ein!'
     }
 };
 
@@ -176,6 +193,7 @@ export const SPECIALS = [
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'France', unlockedBy: 'Cayle', heightScale: 0.83, hp: 320, speed: 565, power: 107, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
     { id: 'Annikina', folder: '19.Annikina', name: '🔥 Annikina 🔥', nickname: 'Guardian of the Flame', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', unlockedByAny: ['SupremeKeano', 'HyperEmely', 'CayleMinogue', 'HyperKeano', 'Emely'], heightScale: 0.87, hp: 335, speed: 555, power: 110, styleId: 'KNEIPEN_TERRORIST', specialName: 'HELLFIRE METEOR', superName: 'IRON FLAME RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
     { id: 'Dom', folder: '20.Dom', name: '🥊 DOM 🥊', nickname: 'Sonic Matrix Striker', country: 'Cyber Matrix', special: true, stageId: 'Cyber_Matrix', unlockedBy: 'Emely', unlockedByAny: ['Emely', 'HyperEmely', 'Keano', 'JJDark', 'Lee'], heightScale: 0.94, hp: 315, speed: 540, power: 102, styleId: 'SONIC_STRIKER', specialName: 'SONIC MATRIX BOOM', superName: 'SOMERSAULT FLASH KICK', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'dom', cutinFile: 'proj_dom.png' },
+    { id: 'AliAbi', folder: '21.Ali_Abi', name: '🫲 ALI ABI 🫱', nickname: 'E. Honda des Bazars', country: 'Pool-Oase', special: true, stageId: 'Ali_Abi_Bazar', unlockedBy: 'Kowalski', unlockedByAny: ['Kowalski', 'Paco', 'Gargamel', 'GargamelHoodie', 'Vikingo', 'Keano'], heightScale: 1.07, hp: 335, speed: 495, power: 107, styleId: 'HONDA_SUMO_BRAWLER', specialName: 'HUNDRED HAND SLAP', superName: 'SUMO HEADBUTT TORPEDO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'ali_abi', cutinFile: 'proj_ali_abi.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];
@@ -193,6 +211,7 @@ export const UNLOCK_CHAIN_GUIDE = [
     { playId: 'HyperEmely', unlockId: 'Annikina', desc: 'Mit Kinder-Weiterentwicklungen (Hyper-Emy / Supreme Keano) siegen!' },
     { playId: 'Gargamel', unlockId: 'GargamelHoodie', desc: 'Story / Arcade mit C. Gargamel durchspielen' },
     { playId: 'Emely', unlockId: 'Dom', desc: 'Story / Arcade mit 🌸 Emy 🌸 (seiner Freundin), Keano oder Jayden durchspielen' },
+    { playId: 'Kowalski', unlockId: 'AliAbi', desc: 'Story / Arcade mit Kowalski, Paco oder Gargamel durchspielen' },
 ];
 
 export function getFighterStyle(fighterOrId) {
@@ -203,11 +222,12 @@ export function getFighterStyle(fighterOrId) {
     return FIGHT_STYLES[styleKey] || FIGHT_STYLES.LIGHT_DRAGON;
 }
 /**
- * STORY/ARCADE & VERSUS STAGES — all 22 Arenas keyed by stageId
+ * STORY/ARCADE & VERSUS STAGES — all 23 Arenas keyed by stageId
  */
 export const STAGES = {
     'Annikina_Pub': { file: '19_Annikina_Arena.png', music: '19_Annikina.mp3', name: 'Kneipenterroristen Grill' },
     'Cyber_Matrix': { file: '20_Dom_Cyber_Matrix.png', music: '11_Japan_Night.mp3', name: 'Cyber Matrix Core' },
+    'Ali_Abi_Bazar': { file: '21_Ali_Abi_Bazar.png', music: '2_India.mp3', name: "Ali Abi's Pool-Oase" },
     'Japan': { file: '1_Hattori_Japan.png', music: '1_Japan.mp3', name: 'Tokyo Temple' },
     'India': { file: '2_Raheel_India.png', music: '2_India.mp3', name: 'Ganges Palace' },
     'Brazil': { file: '3_Pablo_Brazil.png', music: '3_Brazil.mp3', name: 'Rio Favela' },
@@ -235,6 +255,7 @@ export const STAGES = {
 export const EXTRA_STAGES = [
     { file: '19_Annikina_Arena.png', name: 'Kneipenterroristen Grill' },
     { file: '20_Dom_Cyber_Matrix.png', name: 'Cyber Matrix Core' },
+    { file: '21_Ali_Abi_Bazar.png', name: "Ali Abi's Pool-Oase" },
     { file: 'Extra_Canada.png', name: 'Canada Arena' },
     { file: 'Extra_Colosseum.png', name: 'Gladiator Colosseum' },
     { file: 'Extra_France.png', name: 'Paris Rooftops' },

@@ -263,6 +263,28 @@ FOREIGN_FIGHTERS = [
             "super": "SOLAR MANDALA!",
         },
     },
+    {
+        "id": "AliAbi",
+        "prefix": "ali_abi",
+        "aliases": ["ali_express"],
+        "copy_root": False,
+        "name": "🫲 ALI ABI 🫱 (E. Honda des Bazars · Pool-Oase)",
+        "folder": "21.Ali_Abi",
+        "voice_desc": "tr-TR-AhmetNeural (Heavy Sumo-Abi Bass) · Echter türkischer Abi-Akzent im Deutschen + Selamün Aleyküm / Oğlum / Vallah / amına koyayım!",
+        "voice": "tr-TR-AhmetNeural",
+        "rate": "+3%",
+        "pitch": "-7Hz",
+        "filter": make_filter(0.92, 1.04, 4.4, 2.7),
+        "display_text": "Selamün Aleyküm, Lan! Ich bin Ali Abi! Ein Bauchklatscher und meine tausend Ohrfeigen schicken dich direkt mit Express-Versand ins Krankenhaus, Oğlum, amına koyayım!",
+        "clips": {
+            "intro": "Selamün Aleyküm, Lan! İh bin Ali Abi! Ayn Bauh-klatscher und mayne tausend Ohr-faygen schiken dih direkt mit Ekspress-Ferzand ins Kranken-haus, Oğlum, amına koyayım!",
+            "win": "Haha, Vallah, Ekspress-Lieferung direkt auf dayne Fresse, Oğlum! Niemand überlebt Ali Abis Sumo-Arschbombe am Pool, amına koyayım!",
+            "select": "Ali Abi ist am Pool, Lan! Tausend Ohr-faygen mit Ekspress-Ferzand, Oğlum!",
+            "taunt": "Komm her, Oğlum! Mayn Bauh ist härter als Schtahl, gelijk kriegst du tausend Schellen, amına koyayım!",
+            "special": "HUNDRED HAND SLAP!",
+            "super": "SUMO HEADBUTT TORPEDO!",
+        },
+    },
 ]
 
 # 14 Family & Sibling Fighters (Restored to 100% genuine OpenAI gpt-audio-1.5 Studio voices!)
@@ -318,10 +340,10 @@ FAMILY_CARDS = [
     },
     {
         "id": "Dom",
-        "name": "🥊 DOM (17 J. · Emys Freund · Echte OpenAI Studio-Stimme)",
+        "name": "🥊 DOM (16 J. · Emys Freund · Echte OpenAI 16-Jährige Teen-Stimme!)",
         "folder": "20.Dom",
-        "voice_desc": "OpenAI gpt-audio-1.5 (ash Boxer-Flow) · Sportlicher, natürlicher 17-jähriger deutscher Boxer!",
-        "display_text": "In dieser Cyber-Matrix ist alles nur ein Code — außer unserem Licht! Zieh deine Handschuhe an, Bruder, jetzt wird geboxt!",
+        "voice_desc": "OpenAI gpt-audio-1.5 (16 J. Teen Street-Fighter) · Echte, junge 16-jährige Stimme (nicht tief, null Roboter!)",
+        "display_text": "Digga, im Schatten macht mir keiner was vor! Komm ran, wenn du dich traust, Bruder!",
     },
     {
         "id": "Emely",
@@ -379,6 +401,9 @@ async def build_foreign_voices():
     for item in FOREIGN_FIGHTERS:
         cid = item["id"]
         prefix = item["prefix"]
+        if cid != "AliAbi" and os.path.exists(os.path.join(SAMPLE_DIR, f"sample_{cid}.mp3")):
+            print(f"Already built {cid}")
+            continue
         for clip_kind, tts_text in item["clips"].items():
             out_v = os.path.join(VOICE_DIR, f"{prefix}_{clip_kind}.mp3")
             tmp_raw = out_v + ".raw.mp3"
@@ -430,6 +455,9 @@ async def build_foreign_voices():
             if clip_kind == "intro":
                 shutil.copy2(out_v, os.path.join(SAMPLE_DIR, f"sample_{cid}.mp3"))
 
+        if os.path.exists(os.path.join(VOICE_DIR, "kowalski_hit.mp3")):
+            shutil.copy2(os.path.join(VOICE_DIR, "kowalski_hit.mp3"), os.path.join(VOICE_DIR, f"{prefix}_hit.mp3"))
+            shutil.copy2(os.path.join(VOICE_DIR, "kowalski_ko.mp3"), os.path.join(VOICE_DIR, f"{prefix}_ko.mp3"))
         print(f"Installed all 6 combat/intro clips for {cid} ({item['voice']})")
 
 
@@ -473,7 +501,7 @@ def build_html():
             <div class="quote">„{c['display_text']}“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('{cid}')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=262" preload="none"></audio>
+                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=263" preload="none"></audio>
             </div>
         </div>
         """)

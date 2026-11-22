@@ -8,7 +8,7 @@ export default class CharacterSelectState {
         this.mainRoster = ROSTER;
         this.specials = SPECIALS;
         this.allFighters = ALL_FIGHTERS;
-        this.columns = 9; // 9 columns x 3 rows fits all 25 fighters cleanly while leaving the right card open
+        this.columns = 10; // 10 columns x 3 rows fits all 28 fighters cleanly while leaving the right card open
 
         // P1 cursor
         this.p1Index = 0;
@@ -99,6 +99,7 @@ export default class CharacterSelectState {
         const customStageMap = {
             Annikina: 'Annikina_Pub',
             Dom: 'Cyber_Matrix',
+            AliAbi: 'Ali_Abi_Bazar',
             CayleMinogue: 'France',
             Vikingo: 'Canada',
             SupremeKeano: 'Supreme_Keano',
@@ -176,17 +177,17 @@ export default class CharacterSelectState {
             }
 
             // Versus Mode Interactive Arena Selector Pill (x: 55..1387, y: 655..725)
-            if (!this.arcadeMode && tx >= 55 && tx <= 1387 && ty >= 655 && ty <= 725) {
-                const midPillX = 55 + (this.columns * 148) / 2;
+            const cellW = 133;
+            const cellH = 175;
+            if (!this.arcadeMode && tx >= 55 && tx <= 55 + this.columns * cellW && ty >= 655 && ty <= 725) {
+                const midPillX = 55 + (this.columns * cellW) / 2;
                 this._cycleVersusStage(tx < midPillX ? -1 : 1);
                 return;
             }
 
-            // Fighter Grid cells (startX=55, startY=115, cellW=148, cellH=175, columns=9)
+            // Fighter Grid cells (startX=55, startY=115, cellW=133, cellH=175, columns=10)
             const startX = 55;
             const startY = 115;
-            const cellW = 148;
-            const cellH = 175;
             if (tx >= startX && tx <= startX + this.columns * cellW && ty >= startY && ty < startY + 3 * cellH) {
                 const col = Math.floor((tx - startX) / cellW);
                 const row = Math.floor((ty - startY) / cellH);
@@ -449,7 +450,7 @@ export default class CharacterSelectState {
         ctx.shadowBlur = 0;
 
         // ─── UNIFIED FIGHTER GRID ───
-        const cellW = 148;
+        const cellW = 133;
         const cellH = 175;
         const mainGridW = this.columns * cellW;
         const startX = 55; // Push to the left edge to leave room on the right
@@ -568,7 +569,7 @@ export default class CharacterSelectState {
             ctx.textAlign = 'center';
             ctx.font = 'bold 15px "Press Start 2P"';
             ctx.fillStyle = '#ffcc00';
-            ctx.fillText('🎲 ARCADE SHUFFLE-LADDER: ALLE 26 KÄMPFER (INKL. SECRET-BOSSES) & 21 ARENEN!', pillX + pillW / 2, pillY + 35);
+            ctx.fillText('🎲 ARCADE SHUFFLE-LADDER: ALLE 28 KÄMPFER (INKL. SECRET-BOSSES) & 23 ARENEN!', pillX + pillW / 2, pillY + 35);
         }
         ctx.restore();
 

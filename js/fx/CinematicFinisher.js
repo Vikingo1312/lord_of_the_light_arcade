@@ -221,6 +221,14 @@ export const FINISHER_MOVES = {
         color2: '#00ffff',
         bgTint: '#001a08',
         style: 'DRAGON_RUSH'
+    },
+    AliAbi: {
+        title: '1000 OHRFEIGEN & SUMO EXPRESS',
+        subtitle: 'ALI ABIS BAZAR-TORPEDO & ARSCHBOMBE',
+        color1: '#ffaa00',
+        color2: '#00e5ff',
+        bgTint: '#1f1000',
+        style: 'THUNDER_HAMMER'
     }
 };
 

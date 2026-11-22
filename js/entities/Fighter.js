@@ -880,7 +880,7 @@ export default class Fighter {
         if (id === 'JJDark' || id === 'JayX' || id === 'Hattori') return 'BISON_PSYCHO_CRUSHER';
         if (id === 'Dom' || id === 'Lee' || id === 'Juan' || id === 'Tzubaza') return 'GUILE_FLASH_KICK';
         if (id === 'Vikingo' || id === 'VikingoRaw' || id === 'DarkVikingo' || id === 'Annikina') return 'ZANGIEF_LARIAT';
-        if (id === 'Kowalski' || id === 'Putin' || id === 'AlCapone') return 'HONDA_SUMO_TORPEDO';
+        if (id === 'Kowalski' || id === 'Putin' || id === 'AlCapone' || id === 'AliAbi') return 'HONDA_SUMO_TORPEDO';
         return 'RYU_DRAGON_RUSH';
     }
 
@@ -971,18 +971,21 @@ export default class Fighter {
                 type: 'LIGHT'
             };
         } else if (type === 'COMMAND_PUNCH') {
-            // → + L: Guile Spinning Backfist / Phantom Blitz / Master Double-Strike / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
-            const isMasterDouble = (styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER');
+            // → + L: Guile Spinning Backfist / E. Honda Hundred Hand Slap / Phantom Blitz / Master Double-Strike / Armor Hammer / Bratpfannen-Schwinger (breaks crouching block!)
+            const isHondaSlap = (styleId === 'HONDA_SUMO_BRAWLER');
+            const isMasterDouble = (styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' || isHondaSlap);
             if (styleId === 'SONIC_STRIKER') {
                 this.pendingStyleCallout = '🥊 GUILE SPINNING BACKFIST!';
+            } else if (isHondaSlap) {
+                this.pendingStyleCallout = '🫲 HUNDRED HAND SLAP!';
             }
             if (this.isGrounded) this.vx = this.facing * (styleId === 'SHADOW_ASSASSIN' ? 540 : (isMasterDouble ? 420 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 360 : 300)));
             this.currentAttack = {
-                startup: 0.068 * spdMul, active: isMasterDouble ? 0.21 : 0.15, recovery: 0.22 * spdMul,
-                damage: Math.round((isMasterDouble ? 16 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 32 : 27)) * pwrMul), pushback: 265, hitstop: isMasterDouble ? 0.08 : 0.11,
-                maxHits: isMasterDouble ? 2 : 1,
+                startup: 0.068 * spdMul, active: isHondaSlap ? 0.28 : (isMasterDouble ? 0.21 : 0.15), recovery: 0.22 * spdMul,
+                damage: Math.round((isHondaSlap ? 11 : (isMasterDouble ? 16 : (styleId === 'VALHALLA_BERSERKER' || styleId === 'KNEIPEN_TERRORIST' ? 32 : 27))) * pwrMul), pushback: 265, hitstop: isMasterDouble ? 0.07 : 0.11,
+                maxHits: isHondaSlap ? 3 : (isMasterDouble ? 2 : 1),
                 isOverhead: true,
-                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST'),
+                hasSuperArmor: (styleId === 'VALHALLA_BERSERKER' || styleId === 'TITAN_GRAPPLER' || styleId === 'KNEIPEN_TERRORIST' || isHondaSlap),
                 box: new Hitbox(-16, 65, 212 + reachBonus, 165),
                 type: 'COMMAND_PUNCH'
             };
@@ -1070,16 +1073,19 @@ export default class Fighter {
                 type: 'SWEEP'
             };
         } else if (type === 'DRAGON_UPPERCUT') {
-            // → ↓ ↘ + L or ↑ + S or ↓ ↑ + K: Rising Shoryuken OR Guile's 360° Backflip SOMERSAULT FLASH KICK!
+            // → ↓ ↘ + L or ↑ + S or ↓ ↑ + K: Rising Shoryuken OR Guile's 360° Backflip SOMERSAULT FLASH KICK OR E. Honda's SUMO BUTT SPLASH!
             const isGuileFlash = (sigArch === 'GUILE_FLASH_KICK' || styleId === 'SONIC_STRIKER');
-            const isDragon = (styleId === 'LIGHT_DRAGON' || isGuileFlash);
+            const isHondaSplash = (styleId === 'HONDA_SUMO_BRAWLER');
+            const isDragon = (styleId === 'LIGHT_DRAGON' || isGuileFlash || isHondaSplash);
             if (isGuileFlash) {
                 this.pendingStyleCallout = '🌙 SOMERSAULT FLASH KICK!';
+            } else if (isHondaSplash) {
+                this.pendingStyleCallout = '💥 SUMO ARSCHBOMBE SPLASH!';
             }
             this.hitImmunity = Math.max(this.hitImmunity, isDragon ? 0.28 : 0.22);
             this.isGrounded = false;
             this.vy = isDragon ? -1080 : -960;
-            this.vx = this.facing * (isDragon ? 350 : 300);
+            this.vx = this.facing * (isHondaSplash ? 420 : (isDragon ? 350 : 300));
             this.currentAttack = {
                 startup: 0.04, active: 0.25, recovery: 0.30,
                 damage: Math.round((isDragon ? 28 : 46) * pwrMul), pushback: 360, hitstop: 0.14,
@@ -1125,7 +1131,7 @@ export default class Fighter {
             } else if (sigArch === 'ZANGIEF_LARIAT') {
                 this.pendingStyleCallout = charId === 'Annikina' ? '🌪️ IRON FLAME LARIAT!' : '⚡ MJÖLNIR TORNADO LARIAT!';
             } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
-                this.pendingStyleCallout = '🚀 TITAN TORPEDO HEADBUTT!';
+                this.pendingStyleCallout = charId === 'AliAbi' ? '🚀 SUMO HEADBUTT TORPEDO!' : '🚀 TITAN TORPEDO HEADBUTT!';
             } else {
                 this.pendingStyleCallout = charId === 'Dom' ? '🥊 MATRIX KICKBOX RUSH!' : '☀️ SOLAR DRAGON RUSH!';
             }
@@ -1158,7 +1164,7 @@ export default class Fighter {
             } else if (sigArch === 'ZANGIEF_LARIAT') {
                 this.pendingStyleCallout = charId === 'Annikina' ? '🌪️ IRON FLAME LARIAT!' : '⚡ MJÖLNIR TORNADO LARIAT!';
             } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
-                this.pendingStyleCallout = '🚀 HUNDRED HAND TORPEDO!';
+                this.pendingStyleCallout = charId === 'AliAbi' ? '🫲 1000-OHRFEIGEN-SCHELLEN-STURM!' : '🚀 HUNDRED HAND TORPEDO!';
             } else {
                 this.pendingStyleCallout = charId === 'Dom' ? '🟢 CYBER BOXING COMBINATION!' : '☀️ SOLAR DRAGON RUSH!';
             }

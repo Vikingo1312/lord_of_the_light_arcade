@@ -9,7 +9,7 @@
             try {
                 var host = window.location.hostname || '';
                 var isLocal = (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.endsWith('.local'));
-                var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'Dom'];
+                var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'Dom', 'AliAbi'];
                 if (isLocal && !localStorage.getItem('lotl_clean_progression')) {
                     // NUR lokal auf Jans Mac sind alle Kämpfer direkt freigeschaltet!
                     localStorage.setItem('lotl_vip_jan', 'true');
@@ -340,14 +340,14 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.62').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.63').catch(() => {});
                 });
             }
         })();
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.62"></script>
+    <script type="module" src="js/main.js?v=2.63"></script>
 </body>
 
 </html>
