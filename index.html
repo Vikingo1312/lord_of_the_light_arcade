@@ -40,37 +40,39 @@
                 }
 
                 // 0) Direct Ali Abi Showcase Link (?ali=1 or ?show=ali):
-                // Locks ALL other secret characters so everything must be unlocked via Story/Arcade, EXCEPT AliAbi is unlocked!
+                // Locks ALL other secret characters so everything must be unlocked via Story/Arcade, EXCEPT AliAbi AND Arcade Mode are unlocked!
                 var showAliOnly = (params.get('ali') === '1' || params.get('show') === 'ali');
                 if (showAliOnly) {
                     localStorage.setItem('lotl_clean_progression', 'true');
                     localStorage.removeItem('lotl_jan_ip_verified');
                     localStorage.removeItem('lotl_vip_jan');
-                    localStorage.removeItem('lotl_story_complete');
                     for (var m = 0; m < allSpecials.length; m++) {
                         localStorage.removeItem('unlock_' + allSpecials[m]);
                         localStorage.removeItem('lotl_single_claim_' + allSpecials[m]);
                     }
+                    localStorage.setItem('lotl_story_complete', 'true');
                     localStorage.setItem('unlock_AliAbi', 'true');
                     localStorage.setItem('lotl_single_claim_AliAbi', 'true');
                 }
 
-                // 1) One-Time Single-Use Invite Link (e.g. ?claim=ali-abi-vip-7788 -> unlocks ONLY AliAbi once!)
+                // 1) One-Time Single-Use Invite Link (e.g. ?claim=ali-abi-vip-7788 -> unlocks ONLY AliAbi + Arcade Mode once!)
                 if (claimToken) {
                     for (var c = 0; c < allSpecials.length; c++) {
                         if (allSpecials[c] !== 'AliAbi') {
                             localStorage.removeItem('unlock_' + allSpecials[c]);
                         }
                     }
+                    localStorage.setItem('lotl_story_complete', 'true');
                     localStorage.setItem('unlock_AliAbi', 'true');
                     localStorage.setItem('lotl_single_claim_AliAbi', 'true');
                     fetch('/api/lotl/claim?token=' + encodeURIComponent(claimToken), { cache: 'no-store' })
                         .then(function (r) { return r.json(); })
                         .then(function (d) {
                             if (d && d.ok && d.unlockId) {
+                                localStorage.setItem('lotl_story_complete', 'true');
                                 localStorage.setItem('unlock_' + d.unlockId, 'true');
                                 localStorage.setItem('lotl_single_claim_' + d.unlockId, 'true');
-                                alert('🫲 ALI ABI 🫱 WURDE FÜR DICH FREIGESCHALTET!\n\nDieser Einmal-Link wurde jetzt eingelöst und ist ab sofort für weitere Klicks gesperrt. Viel Spaß im Döner-Palast!');
+                                alert('🫲 ALI ABI 🫱 & DER ARCADE-MODUS WURDEN FÜR DICH FREIGESCHALTET!\n\nAlle anderen Geheimkämpfer kannst du dir jetzt mit Ali Abi im Arcade-Modus erspielen! Viel Spaß im Döner-Palast!');
                             } else if (d && d.reason === 'already_used') {
                                 localStorage.removeItem('unlock_AliAbi');
                                 localStorage.removeItem('lotl_single_claim_AliAbi');
@@ -119,13 +121,13 @@
     <meta property="og:image" content="https://lordofthelight.eu/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://lordofthelight.eu/og-image.png">
-    <link rel="manifest" href="manifest.json?v=2.68">
-    <link rel="shortcut icon" href="/favicon.ico?v=2.68">
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png?v=2.68">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2.68">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=2.68">
-    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=2.68">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2.68">
+    <link rel="manifest" href="manifest.json?v=2.69">
+    <link rel="shortcut icon" href="/favicon.ico?v=2.69">
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48x48.png?v=2.69">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2.69">
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=2.69">
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=2.69">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2.69">
     <link
         href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Outfit:wght@300;400;600;700&family=Press+Start+2P&display=swap"
         rel="stylesheet">
@@ -331,7 +333,13 @@
 
     <script>
         (function () {
-            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+            const isMobileUA = /iPhone|iPod|iPad|Android.*Mobile|Windows Phone|webOS|BlackBerry/i.test(ua)
+                || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && window.screen && Math.min(window.screen.width, window.screen.height) <= 1024);
+            const isCoarsePrimary = (typeof window !== 'undefined' && window.matchMedia)
+                ? (window.matchMedia('(pointer: coarse) and (hover: none)').matches && Math.min(window.screen.width, window.screen.height) <= 950)
+                : false;
+            const isTouchDevice = Boolean(isMobileUA || isCoarsePrimary);
             const container = document.getElementById('game-container');
 
             function updateOrientationLayout() {
@@ -419,12 +427,12 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.68').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.69').catch(() => {});
                 });
             }
 
             // Live Auto-Update Checker: Polls version.json from the server and prompts the player when a new update is live!
-            window.LOTL_CURRENT_VERSION = '2.68';
+            window.LOTL_CURRENT_VERSION = '2.69';
             async function checkLiveGameUpdate() {
                 try {
                     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
@@ -447,7 +455,7 @@
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.68"></script>
+    <script type="module" src="js/main.js?v=2.69"></script>
 </body>
 
 </html>

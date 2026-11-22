@@ -347,6 +347,14 @@ export function unlockFighter(id) {
             }
         }
     }
+    // When playing as AliAbi, beating Arcade/Story unlocks the next still-locked Secret Fighter step by step!
+    if (id === 'AliAbi') {
+        const nextSpecial = SPECIALS.find(s => !isFighterUnlocked(s.id));
+        if (nextSpecial) {
+            localStorage.setItem(`unlock_${nextSpecial.id}`, 'true');
+            return nextSpecial;
+        }
+    }
     // Primary match first (exact unlockedBy === id), then fallback to unlockedByAny
     let specialToUnlock = SPECIALS.find(s => !isFighterUnlocked(s.id) && s.unlockedBy === id);
     if (!specialToUnlock) {

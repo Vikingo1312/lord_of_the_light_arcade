@@ -43,11 +43,25 @@ export default class TouchPad {
         this.btnRadius = 70;
         this.btnPositions = [];
 
-        // Detect touch device (or mobile viewport)
-        this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        // Detect genuine mobile phone / tablet ONLY (never show on Windows/Linux/ChromeOS/Android laptops or desktop PCs with touchscreens!)
+        const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
+        const isMobileUA = /iPhone|iPod|iPad|Android.*Mobile|Windows Phone|webOS|BlackBerry/i.test(ua)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && window.screen && Math.min(window.screen.width, window.screen.height) <= 1024);
+        const isCoarsePrimary = (typeof window !== 'undefined' && window.matchMedia)
+            ? (window.matchMedia('(pointer: coarse) and (hover: none)').matches && Math.min(window.screen.width, window.screen.height) <= 950)
+            : false;
+        this.isTouchDevice = Boolean(isMobileUA || isCoarsePrimary);
         if (this.isTouchDevice) {
             this.active = true;
             this.setupTouchListeners();
+        }
+        // Automatically hide virtual stick immediately if the player presses any physical keyboard key!
+        if (typeof window !== 'undefined') {
+            window.addEventListener('keydown', (e) => {
+                if (this.active && !e.metaKey && !e.ctrlKey && !e.altKey) {
+                    this.active = false;
+                }
+            }, { passive: true });
         }
 
         this.resize();
