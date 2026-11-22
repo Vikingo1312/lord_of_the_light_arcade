@@ -268,19 +268,19 @@ FOREIGN_FIGHTERS = [
         "prefix": "ali_abi",
         "aliases": ["ali_express"],
         "copy_root": False,
-        "name": "🫲 ALI ABI 🫱 (Der Coolste Abi · E. Honda des Bazars)",
+        "name": "🫲 ALI ABI 🫱 (Der Coolste Abi · König vom Döner-Palast)",
         "folder": "21.Ali_Abi",
-        "voice_desc": "tr-TR-AhmetNeural (Arroganter Big-Brother Abi mit goldenem Herz) · Alle müssen sich vor dem Abi verneigen, aber danach lädt er dich mit liebem Herzen zum Çay an den Pool ein!",
+        "voice_desc": "tr-TR-AhmetNeural (Arroganter Big-Brother Abi mit goldenem Herz) · Alle müssen sich vor dem Abi verneigen, aber danach lädt er dich auf Döner mit allem & Çay ein!",
         "voice": "tr-TR-AhmetNeural",
         "rate": "+3%",
         "pitch": "-5Hz",
         "filter": make_filter(0.94, 1.03, 4.2, 2.7),
-        "display_text": "Selamün Aleyküm! Ich bin Ali Abi, der Coolste überhaupt! Verneigt euch erstmal vor dem Abi und küsst meine Hand — gleich gibt es tausend Ohrfeigen, aber keine Sorge, mein Herz ist aus Gold und danach trinken wir Çay am Pool!",
+        "display_text": "Selamün Aleyküm! Ich bin Ali Abi, der Coolste überhaupt! Verneigt euch erstmal vor dem Abi und küsst meine Hand — gleich gibt es tausend Ohrfeigen, aber keine Sorge, mein Herz ist aus Gold und danach gibt es Döner mit allem und Çay auf meinen Nacken!",
         "clips": {
-            "intro": "Selamün Aleyküm! İh bin Ali Abi, der Coolste überhaupt! Fernaygt oyh erstmal for dem Abi und küsst mayne Hand! Glayh gibt es tausend Ohr-faygen, aber kayne Zorge, mayn Herts ist aus Gold und danah trinken vir Çay am Pool!",
-            "win": "Haha, siehst du, Aslanım? Gegen Ali Abi hat kayner ayne Schanse, fernayg dih for dem Meister! Und yetst schteh auf, komm her, Ali Abi hat ayn gutes Herts — ih lad dih zum Essen am Pool ayn!",
-            "select": "Ali Abi ist im Haus! Alle fernaygen sih for dem Coolsten — aber mit gutem Hertsen!",
-            "taunt": "Ey, mehr Respekt for Ali Abi, Oğlum! Fernayg dih lieber, bevor mayn Bauh-klatscher kommt — ih tu dir nur aus Liebe veh!",
+            "intro": "Selamün Aleyküm! İh bin Ali Abi, der Coolste überhaupt! Fernaygt oyh erstmal for dem Abi und küsst mayne Hand! Glayh gibt es tausend Ohr-faygen, aber kayne Zorge, mayn Herts ist aus Gold und danah gibt es Döner mit allem und Çay auf maynen Naken!",
+            "win": "Haha, siehst du, Aslanım? Gegen Ali Abi hat kayner ayne Schanse, fernayg dih for dem Meister! Und yetst schteh auf, komm her, Ali Abi hat ayn gutes Herts — ih mah dir aynen grosen Döner mit allem und Çay aufs Haus!",
+            "select": "Ali Abi ist vor saynem Döner-Palast! Alle fernaygen sih for dem Coolsten — aber mit gutem Hertsen!",
+            "taunt": "Ey, mehr Respekt for Ali Abi, Oğlum! Fernayg dih lieber, bevor mayn Bauh-klatscher kommt — danah gibt es Döner mit Scharf!",
             "special": "TAUSEND ABI-SCHELLEN!",
             "super": "ALI ABI TORPEDO!",
         },
@@ -501,7 +501,7 @@ def build_html():
             <div class="quote">„{c['display_text']}“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('{cid}')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=264" preload="none"></audio>
+                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=265" preload="none"></audio>
             </div>
         </div>
         """)
