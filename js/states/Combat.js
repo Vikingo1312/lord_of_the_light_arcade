@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.69';
-import Projectile from '../entities/Projectile.js?v=2.69';
-import Hitbox from '../entities/Hitbox.js?v=2.69';
-import StageObjectManager from '../entities/StageObjects.js?v=2.69';
-import AIController from '../ai/AIController.js?v=2.69';
-import CombatHUD from '../ui/CombatHUD.js?v=2.69';
+import Fighter from '../entities/Fighter.js?v=2.70';
+import Projectile from '../entities/Projectile.js?v=2.70';
+import Hitbox from '../entities/Hitbox.js?v=2.70';
+import StageObjectManager from '../entities/StageObjects.js?v=2.70';
+import AIController from '../ai/AIController.js?v=2.70';
+import CombatHUD from '../ui/CombatHUD.js?v=2.70';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.69';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.69';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.69';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.69';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.69';
+} from '../core/AssetPreloader.js?v=2.70';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.70';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.70';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.70';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.70';
 
 export default class CombatState {
     constructor(game) {
@@ -1591,6 +1591,46 @@ export default class CombatState {
         const charId = fighter.data.id;
         const isSecondVariant = Boolean(fighter.data.special);
 
+        // Authentic E. Honda / Döner-Spieß Torpedo Special Weapon for Ali Abi:
+        // Pressing S launches Ali Abi himself horizontally across the screen like E. Honda's Flying Headbutt Torpedo!
+        if (charId === 'AliAbi' || fighter.data.styleId === 'HONDA_SUMO_BRAWLER') {
+            if (hasFullSuper && !isAirCast) {
+                if (!fighter.executeAttack('SPECIAL_DASH')) return false;
+                fighter.specialEnergy = 25; // Second-variant Super Meter refund
+                const img = this.game.assetManager.images[`${charId}_Cutin`];
+                if (img) {
+                    const spitWave = new Projectile(fighter.x + fighter.facing * 75, fighter.y - 140, fighter.facing, ownerKey, img, this.game);
+                    spitWave.charId = charId;
+                    spitWave.speed = 1150;
+                    spitWave.damage = 28;
+                    this.projectiles.push(spitWave);
+                }
+                this.superFreezeTimer = 0.26;
+                this.superFreezeFighter = fighter;
+                this.cameraZoom = 1.045;
+                this.cameraFocusX = fighter.x;
+                this.cameraFocusY = fighter.y - 160;
+                this.triggerCallout('🥙🔥 SUPER E. HONDA DÖNER-TORPEDO!', '#ffd700', ownerKey);
+                this.spawnSparks(fighter.x + fighter.facing * 60, fighter.y - 140, '#ffd700', '#ff5500', 16, 'heavy');
+                playCombatSound(this.game.audioManager, 'super', fighter.data.id);
+                this.triggerShake(5, 0.5);
+                this._emitNetEvent({ combatSound: { type: 'super', charId: fighter.data.id }, shake: { i: 5, d: 0.5 } });
+                return true;
+            } else {
+                if (!fighter.executeAttack('FLYING_TORPEDO')) return false;
+                fighter.specialEnergy = Math.min(fighter.maxSpecialEnergy, fighter.specialEnergy + 15);
+                this.cameraZoom = 1.022;
+                this.cameraFocusX = fighter.x;
+                this.cameraFocusY = fighter.y - 150;
+                this.triggerCallout('🚀 E. HONDA DÖNER-SPIESS TORPEDO!', '#ff9900', ownerKey);
+                this.spawnSparks(fighter.x + fighter.facing * 50, fighter.y - 135, '#ffd700', '#ff6600', 12, 'heavy');
+                playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+                this.triggerShake(3.0, 0.16);
+                this._emitNetEvent({ combatSound: { type: 'special', charId: fighter.data.id }, shake: { i: 3.0, d: 0.16 } });
+                return true;
+            }
+        }
+
         if (fighter.data.specialType === 'SPECIAL_DASH' && !isAirCast && hasFullSuper) {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
             if (isSecondVariant) {
@@ -2136,9 +2176,9 @@ export default class CombatState {
         }
 
         // Story Mode Midpoint Check (Active for Story Mode at Fight 7!)
-        if (nextIdx === 7 && this.storyMode && !this.arcadeLadder) {
+        if (nextIdx === 7 && this.storyMode) {
             this._transitioning = true;
-            const nextOpponent = ROSTER[7];
+            const nextOpponent = (this.arcadeLadder && this.arcadeLadder[6]) ? this.arcadeLadder[6] : ROSTER[7];
             preloadFighterSprites(this.game.assetManager, nextOpponent);
             preloadStageAssets(this.game.assetManager, nextOpponent.stageId);
             const reflexionPayload = {
@@ -2151,6 +2191,7 @@ export default class CombatState {
                     stageId: nextOpponent.stageId,
                     arcadeMode: true,
                     storyMode: true,
+                    arcadeLadder: this.arcadeLadder,
                     coopMode: this.coopMode,
                     onlineMode: this.onlineMode,
                     arcadeIndex: 7,

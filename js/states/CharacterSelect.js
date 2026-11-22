@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.69';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.69';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.69';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.70';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.70';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.70';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -37,6 +37,10 @@ export default class CharacterSelectState {
         this.stageIndex = 0;
         this._customStagePicked = false;
         this.p1Index = 0;
+        if (typeof localStorage !== 'undefined' && localStorage.getItem('lotl_single_claim_AliAbi') === 'true') {
+            const aliIdx = this.allFighters.findIndex(f => f.id === 'AliAbi');
+            if (aliIdx >= 0) this.p1Index = aliIdx;
+        }
         this.p2Index = this.mainRoster.length - 1;
         this.p1Locked = false;
         this.p2Locked = false;
@@ -46,7 +50,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.69`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.70`);
                 needsLoad = true;
             }
         }
@@ -127,9 +131,12 @@ export default class CharacterSelectState {
         const remainingSpecials = shuffle(SPECIALS.filter(s => s.id !== p1Char.id && s.id !== finalBoss.id));
         const remainingRoster = shuffle(ROSTER.filter(r => r.id !== p1Char.id && r.id !== finalBoss.id));
 
-        // Pick 6 secret/special challengers + 7 main roster challengers = 13 + 1 Final Boss = 14 stages!
-        // Sort the 13 challengers by ascending combat strength (power + hp) with slight tier jitter so the Arcade Ladder always ramps up progressively like Street Fighter II!
-        const pickedSpecials = remainingSpecials.slice(0, 6);
+        // Always ensure Ali Abi (in his Döner-Palast stage!) is part of the 14-stage Arcade Shuffle Ladder!
+        const aliObj = SPECIALS.find(s => s.id === 'AliAbi');
+        let pickedSpecials = remainingSpecials.slice(0, 6);
+        if (aliObj && p1Char.id !== 'AliAbi' && finalBoss.id !== 'AliAbi' && !pickedSpecials.some(s => s.id === 'AliAbi')) {
+            pickedSpecials = [aliObj, ...remainingSpecials.filter(s => s.id !== 'AliAbi').slice(0, 5)];
+        }
         const pickedRoster = remainingRoster.slice(0, 13 - pickedSpecials.length);
         const midPool = shuffle([...pickedSpecials, ...pickedRoster]).sort((a, b) => {
             const scoreA = (a.power || 100) * 1.6 + (a.hp || 300) * 0.35 + (Math.random() * 8 - 4);
@@ -146,6 +153,24 @@ export default class CharacterSelectState {
                 rosterIndex: idx + 1
             };
         });
+    }
+
+    /**
+     * Builds the 14-Stage Story Mode Ladder including Ali Abi in his Döner-Palast Arena
+     * while preserving the 14-stage Story journey (ending with JJ Dark, Putin, and Dark Vikingo).
+     */
+    _buildStoryLadder(p1Char) {
+        const baseStory = ROSTER.slice(1).map(f => ({ ...f })); // 14 stages (ROSTER[1]..ROSTER[14])
+        const aliObj = SPECIALS.find(s => s.id === 'AliAbi');
+        if (aliObj && p1Char.id !== 'AliAbi') {
+            // Place Ali Abi at Stage 7 (right after the Story Midpoint Reflexion!) so total Story length remains 14 stages!
+            baseStory[6] = { ...aliObj, stageId: 'Ali_Abi_Bazar' };
+        }
+        return baseStory.map((f, idx) => ({
+            ...f,
+            stageId: f.stageId || 'Japan',
+            rosterIndex: idx + 1
+        }));
     }
 
     _setupSelectTap() {
@@ -320,11 +345,13 @@ export default class CharacterSelectState {
         let arcadeLadder = null;
 
         if (this.arcadeMode && !this.storyMode) {
-            // Pure ARCADE Shuffle Challenger Mode: all 27 fighters & their Arenas in a shuffled 14-stage ladder!
+            // Pure ARCADE Shuffle Challenger Mode: 14-stage shuffled ladder including Ali Abi!
             arcadeLadder = this._buildArcadeShuffleLadder(p1Char);
             p2Char = arcadeLadder[0];
         } else if (this.arcadeMode) {
-            p2Char = ROSTER[1];
+            // 14-Stage Story Mode Ladder (includes Ali Abi in his Döner-Palast Arena at Stage 7!)
+            arcadeLadder = this._buildStoryLadder(p1Char);
+            p2Char = arcadeLadder[0];
         }
 
         preloadFighterSprites(this.game.assetManager, p1Char);
@@ -367,13 +394,14 @@ export default class CharacterSelectState {
                 };
                 this.game.stateManager.switchState('VersusIntro', combatData);
             } else if (this.arcadeMode) {
-                const opponent = ROSTER[1];
+                const opponent = (arcadeLadder && arcadeLadder[0]) ? arcadeLadder[0] : ROSTER[1];
                 const combatData = {
                     p1: p1Char,
                     p2: { ...opponent, rosterIndex: 1 },
                     stageId: opponent.stageId,
                     arcadeMode: true,
                     storyMode: true,
+                    arcadeLadder: arcadeLadder,
                     arcadeIndex: 1,
                     arcadeWins: 0,
                 };

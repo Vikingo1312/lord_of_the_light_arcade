@@ -144,20 +144,20 @@ export const FIGHT_STYLES = {
     },
     HONDA_SUMO_BRAWLER: {
         id: 'HONDA_SUMO_BRAWLER',
-        name: 'E. HONDA SUMO & 1000 OHRFEIGEN',
+        name: 'E. HONDA SUMO & DÖNER-TORPEDO',
         badge: '🫲 E. HONDA SUMO BOSS',
         color: '#ffaa00',
-        passive: 'E. Honda Style: 1000-Ohrfeigen-Schelle (→+P), Sumo-Kopfstoß-Torpedo (←→+P), Arschbombe & Super-Armor Bauchpanzer!',
+        passive: 'E. Honda Moveset: Döner-Spieß Headbutt-Torpedo (S / →+S), 1000-Ohrfeigen-Schelle (P-P-P / →+P / ←+S) & Sumo-Arschbombe (↑+S / ↓+S)!',
         sig1Name: 'HUNDRED HAND SLAP (1000 OHRFEIGEN)',
-        sig1Input: '→+P  oder  ↓↘→+K',
-        sig1Badges: ['→', '+', 'P'],
-        sig1Dmg: '98 DMG · HYAKURETSU HARITE SCHELLEN-HAGEL',
-        sig1Desc: 'E. Hondas legendärer 1000-Hände-Ohrfeigen-Sturm mit offener Handkante und unaufhaltsamem Vorwärtsdruck!',
-        sig2Name: 'SUMO HEADBUTT TORPEDO & BUTT SPLASH',
-        sig2Input: '←→+P  oder  ↓↑+K',
-        sig2Badges: ['←', '→', '+', 'P'],
-        sig2Dmg: '110 DMG · SUPER ZUTSUKI & ARSCHBOMBE',
-        sig2Desc: 'Ali Abi schießt waagerecht wie eine Rakete quer über den Bildschirm (Sumo Torpedo) oder kracht mit der Sumo-Arschbombe von oben ein!'
+        sig1Input: 'P ➔ P ➔ P  oder  →+P / ←+S',
+        sig1Badges: ['P', '➔', 'P', '➔', 'P'],
+        sig1Dmg: '98 DMG · E. HONDA HYAKURETSU HARITE',
+        sig1Desc: 'E. Hondas legendärer 1000-Hände-Ohrfeigen-Sturm mit beiden offenen Handflächen und unaufhaltsamem Vorwärtsdruck!',
+        sig2Name: 'E. HONDA DÖNER-SPIESS TORPEDO & SPLASH',
+        sig2Input: 'S  oder  →+S / ↑+S',
+        sig2Badges: ['S', '➔', '↑+S'],
+        sig2Dmg: '110 DMG · SUPER ZUTSUKI & SUMO ARSCHBOMBE',
+        sig2Desc: 'Drücke S und Ali Abi fliegt selbst waagerecht wie E. Honda und ein brennender Döner-Spieß quer über den Bildschirm!'
     }
 };
 
@@ -193,7 +193,7 @@ export const SPECIALS = [
     { id: 'CayleMinogue', folder: '18.1.Cayle_Minogue', name: '❄️ Cayle Minogue ❄️', nickname: 'Diamond Frost Queen', country: 'France', special: true, stageId: 'France', unlockedBy: 'Cayle', heightScale: 0.83, hp: 320, speed: 565, power: 107, styleId: 'SHADOW_ASSASSIN', specialName: 'DIAMOND FROST LANCE', superName: 'PARISIAN AURORA BOREALIS', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'cayle_minogue', cutinFile: 'proj_cayle_minogue.png' },
     { id: 'Annikina', folder: '19.Annikina', name: '🔥 Annikina 🔥', nickname: 'Guardian of the Flame', country: 'Germany', special: true, stageId: 'Annikina_Pub', unlockedBy: 'HyperEmely', unlockedByAny: ['SupremeKeano', 'HyperEmely', 'CayleMinogue', 'HyperKeano', 'Emely'], heightScale: 0.87, hp: 335, speed: 555, power: 110, styleId: 'KNEIPEN_TERRORIST', specialName: 'HELLFIRE METEOR', superName: 'IRON FLAME RECKONING', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'annikina', cutinFile: 'proj_annikina.png' },
     { id: 'Dom', folder: '20.Dom', name: '🥊 DOM 🥊', nickname: 'Sonic Matrix Striker', country: 'Cyber Matrix', special: true, stageId: 'Cyber_Matrix', unlockedBy: 'Emely', unlockedByAny: ['Emely', 'HyperEmely', 'Keano', 'JJDark', 'Lee'], heightScale: 0.94, hp: 315, speed: 540, power: 102, styleId: 'SONIC_STRIKER', specialName: 'SONIC MATRIX BOOM', superName: 'SOMERSAULT FLASH KICK', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'dom', cutinFile: 'proj_dom.png' },
-    { id: 'AliAbi', folder: '21.Ali_Abi', name: '🫲 ALI ABI 🫱', nickname: 'Der König vom Döner-Palast', country: 'Döner-Palast', special: true, stageId: 'Ali_Abi_Bazar', unlockedBy: 'Kowalski', unlockedByAny: ['Kowalski', 'Paco', 'Gargamel', 'GargamelHoodie', 'Vikingo', 'Keano'], heightScale: 1.07, hp: 335, speed: 495, power: 107, styleId: 'HONDA_SUMO_BRAWLER', specialName: 'HUNDRED HAND SLAP', superName: 'SUMO HEADBUTT TORPEDO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'ali_abi', cutinFile: 'proj_ali_abi.png' },
+    { id: 'AliAbi', folder: '21.Ali_Abi', name: '🫲 ALI ABI 🫱', nickname: 'Der König vom Döner-Palast', country: 'Döner-Palast', special: true, stageId: 'Ali_Abi_Bazar', unlockedBy: 'Kowalski', unlockedByAny: ['Kowalski', 'Paco', 'Gargamel', 'GargamelHoodie', 'Vikingo', 'Keano'], heightScale: 1.07, hp: 335, speed: 495, power: 107, styleId: 'HONDA_SUMO_BRAWLER', specialType: 'SPECIAL_DASH', specialName: 'DÖNER-SPIESS TORPEDO', superName: 'SUPER E. HONDA TORPEDO', multiFrameAnim: true, hasWalkSprite: true, spritePrefix: 'ali_abi', cutinFile: 'proj_ali_abi.png' },
 ];
 // Combined for easy iteration
 export const ALL_FIGHTERS = [...ROSTER, ...SPECIALS];

@@ -1,12 +1,12 @@
-import Game from './core/Game.js?v=2.69';
-import BootState from './states/Boot.js?v=2.69';
-import CaesarSplash from './states/CaesarSplash.js?v=2.69';
-import MenuState from './states/Menu.js?v=2.69';
-import CharacterSelectState from './states/CharacterSelect.js?v=2.69';
-import CombatState from './states/Combat.js?v=2.69';
-import StorySequence from './states/StorySequence.js?v=2.69';
-import VersusIntro from './states/VersusIntro.js?v=2.69';
-import OnlineLobbyState from './states/OnlineLobby.js?v=2.69';
+import Game from './core/Game.js?v=2.70';
+import BootState from './states/Boot.js?v=2.70';
+import CaesarSplash from './states/CaesarSplash.js?v=2.70';
+import MenuState from './states/Menu.js?v=2.70';
+import CharacterSelectState from './states/CharacterSelect.js?v=2.70';
+import CombatState from './states/Combat.js?v=2.70';
+import StorySequence from './states/StorySequence.js?v=2.70';
+import VersusIntro from './states/VersusIntro.js?v=2.70';
+import OnlineLobbyState from './states/OnlineLobby.js?v=2.70';
 
 // V2.0 Entry Point
 window.onload = () => {

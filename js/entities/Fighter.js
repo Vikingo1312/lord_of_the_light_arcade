@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.69';
-import { getFighterStyle } from '../data.js?v=2.69';
+import Hitbox from './Hitbox.js?v=2.70';
+import { getFighterStyle } from '../data.js?v=2.70';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -1096,27 +1096,32 @@ export default class Fighter {
                 type: 'DRAGON_UPPERCUT'
             };
         } else if (type === 'HURRICANE_KICK') {
-            // ↓ ↙ ← + H or ↓ + S: Tatsumaki Spinning Cyclone Kick (3-hit or 4-hit airborne spin!)
+            // ↓ ↙ ← + H or ↓ + S: Tatsumaki Spinning Cyclone Kick OR E. Honda Sumo Butt Splash (Hyakkan Otoshi)!
             const isCapoeira = (styleId === 'CAPOEIRA_TRICKSTER');
+            const isHondaSplash = (styleId === 'HONDA_SUMO_BRAWLER');
+            if (isHondaSplash) {
+                this.pendingStyleCallout = '💥 SUMO ARSCHBOMBE SPLASH!';
+            }
             this.isGrounded = false;
-            this.vy = -260;
-            this.vx = this.facing * (isCapoeira ? 740 : 640);
+            this.vy = isHondaSplash ? -840 : -260;
+            this.vx = this.facing * (isCapoeira ? 740 : (isHondaSplash ? 560 : 640));
             this.currentAttack = {
                 startup: 0.055, active: isCapoeira ? 0.44 : 0.38, recovery: 0.26,
-                damage: Math.round(18 * pwrMul), pushback: 240, hitstop: 0.08,
-                lift: -195,
-                maxHits: isCapoeira ? 4 : 3,
+                damage: Math.round((isHondaSplash ? 24 : 18) * pwrMul), pushback: 280, hitstop: 0.10,
+                lift: isHondaSplash ? -420 : -195,
+                maxHits: isCapoeira ? 4 : (isHondaSplash ? 2 : 3),
+                hasSuperArmor: isHondaSplash,
                 isSpecialMove: true,
-                box: new Hitbox(-35, 50, 240 + reachBonus, 155),
+                box: new Hitbox(-35, 50, 240 + reachBonus, 175),
                 type: 'HURRICANE_KICK'
             };
         } else if (type === 'FLYING_TORPEDO') {
-            // ← → + P or → + S: Character-Specific Full-Screen Signature Flight (8 Street Fighter Archetypes!)
+            // ← → + P or → + S (or S for Ali Abi): Character-Specific Full-Screen Signature Flight (8 Street Fighter Archetypes!)
             this.isGrounded = false;
             this.y -= 35;
             this.vy = sigArch === 'GUILE_FLASH_KICK' ? -580 : 0;
-            this.vx = this.facing * 1420;
-            this.hitImmunity = Math.max(this.hitImmunity, sigArch === 'BISON_PSYCHO_CRUSHER' || sigArch === 'ZANGIEF_LARIAT' ? 0.36 : 0.24);
+            this.vx = this.facing * (charId === 'AliAbi' ? 1480 : 1420);
+            this.hitImmunity = Math.max(this.hitImmunity, sigArch === 'BISON_PSYCHO_CRUSHER' || sigArch === 'ZANGIEF_LARIAT' || charId === 'AliAbi' ? 0.36 : 0.24);
 
             if (sigArch === 'DHALSIM_DRILL') {
                 this.pendingStyleCallout = (charId === 'Gargamel' || charId === 'GargamelHoodie') ? '🧪 ALCHEMY SCREW DRILL!' : '🌀 YOGA CORKSCREW DRILL!';
@@ -1131,7 +1136,7 @@ export default class Fighter {
             } else if (sigArch === 'ZANGIEF_LARIAT') {
                 this.pendingStyleCallout = charId === 'Annikina' ? '🌪️ IRON FLAME LARIAT!' : '⚡ MJÖLNIR TORNADO LARIAT!';
             } else if (sigArch === 'HONDA_SUMO_TORPEDO') {
-                this.pendingStyleCallout = charId === 'AliAbi' ? '🚀 SUMO HEADBUTT TORPEDO!' : '🚀 TITAN TORPEDO HEADBUTT!';
+                this.pendingStyleCallout = charId === 'AliAbi' ? '🚀 SUMO DÖNER-SPIESS TORPEDO!' : '🚀 TITAN TORPEDO HEADBUTT!';
             } else {
                 this.pendingStyleCallout = charId === 'Dom' ? '🥊 MATRIX KICKBOX RUSH!' : '☀️ SOLAR DRAGON RUSH!';
             }
@@ -1461,9 +1466,12 @@ export default class Fighter {
                 const atkType = this.currentAttack ? this.currentAttack.type : 'LIGHT';
 
                 if (atkType === 'DRAGON_UPPERCUT') {
-                    // Rising Shoryuken Dragon Uppercut OR Guile Somersault Flash Kick!
+                    // Rising Shoryuken Dragon Uppercut OR Guile Somersault Flash Kick OR E. Honda Sumo Butt Splash!
                     const sigArch = this._getSignatureArchetype();
-                    if (sigArch === 'GUILE_FLASH_KICK') {
+                    if (drawStyleId === 'HONDA_SUMO_BRAWLER') {
+                        if (phase < startup) suffix = '_crouch.png';
+                        else suffix = '_dragon_uppercut.png';
+                    } else if (sigArch === 'GUILE_FLASH_KICK') {
                         if (phase < startup) suffix = '_crouch.png';
                         else if (phase < startup + active * 0.52) suffix = '_axe_kick.png';
                         else if (phase < retractStart) suffix = '_spin_kick.png';
@@ -1477,7 +1485,10 @@ export default class Fighter {
                 } else if (atkType === 'FLYING_TORPEDO') {
                     // Character-Specific Street Fighter Signature Flight Pose!
                     const sigArch = this._getSignatureArchetype();
-                    if (sigArch === 'CHUNLI_BIRD_KICK') {
+                    if (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi') {
+                        // Authentic E. Honda Horizontal Flying Headbutt Torpedo (Super Zutsuki)!
+                        suffix = '_hurricane_kick.png';
+                    } else if (sigArch === 'CHUNLI_BIRD_KICK') {
                         suffix = (Math.floor(phase * 22) % 2 === 0) ? '_spin_kick.png' : '_hurricane_kick.png';
                     } else if (sigArch === 'ZANGIEF_LARIAT') {
                         suffix = (Math.floor(phase * 20) % 2 === 0) ? '_hook_punch.png' : '_backfist.png';
@@ -1493,27 +1504,44 @@ export default class Fighter {
                         suffix = '_jump.png';
                     }
                 } else if (atkType === 'DRAGON_RUSH_COMBO') {
-                    // Full-screen 4-pose Street Fighter Rush: _hurricane_kick -> _punch -> _hook_punch -> _dragon_uppercut!
-                    const activeProgress = Math.max(0, Math.min(0.999, (phase - startup) / Math.max(0.01, active)));
-                    const rushStep = Math.floor(activeProgress * 4);
-                    if (phase < startup) suffix = '_windup_kick.png';
-                    else if (rushStep === 0) suffix = '_hurricane_kick.png';
-                    else if (rushStep === 1) suffix = '_punch.png';
-                    else if (rushStep === 2) suffix = '_hook_punch.png';
-                    else suffix = '_dragon_uppercut.png';
+                    if (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi') {
+                        // E. Honda Hundred Hand Slap Rush (Hyakuretsu Harite): ultra-fast alternating open-palm slaps!
+                        const slapFrame = Math.floor(phase * 26) % 3;
+                        suffix = slapFrame === 0 ? '_special.png' : (slapFrame === 1 ? '_punch.png' : '_hook_punch.png');
+                    } else {
+                        // Full-screen 4-pose Street Fighter Rush: _hurricane_kick -> _punch -> _hook_punch -> _dragon_uppercut!
+                        const activeProgress = Math.max(0, Math.min(0.999, (phase - startup) / Math.max(0.01, active)));
+                        const rushStep = Math.floor(activeProgress * 4);
+                        if (phase < startup) suffix = '_windup_kick.png';
+                        else if (rushStep === 0) suffix = '_hurricane_kick.png';
+                        else if (rushStep === 1) suffix = '_punch.png';
+                        else if (rushStep === 2) suffix = '_hook_punch.png';
+                        else suffix = '_dragon_uppercut.png';
+                    }
                 } else if (atkType === 'HURRICANE_KICK') {
-                    // Spinning Tatsumaki Cyclone Kick: alternates _hurricane_kick, _spin_kick, and _dive_kick rapidly!
-                    const spinStep = Math.floor(phase * 18) % 3;
-                    if (phase < startup) suffix = '_jump.png';
-                    else if (spinStep === 0) suffix = '_hurricane_kick.png';
-                    else if (spinStep === 1) suffix = '_spin_kick.png';
-                    else suffix = '_dive_kick.png';
+                    if (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi') {
+                        // E. Honda Sumo Butt Splash (Hyakkan Otoshi)!
+                        suffix = '_dragon_uppercut.png';
+                    } else {
+                        // Spinning Tatsumaki Cyclone Kick: alternates _hurricane_kick, _spin_kick, and _dive_kick rapidly!
+                        const spinStep = Math.floor(phase * 18) % 3;
+                        if (phase < startup) suffix = '_jump.png';
+                        else if (spinStep === 0) suffix = '_hurricane_kick.png';
+                        else if (spinStep === 1) suffix = '_spin_kick.png';
+                        else suffix = '_dive_kick.png';
+                    }
                 } else if (atkType === 'COMMAND_PUNCH') {
-                    // → + L Overhead Backfist: Windup -> Backfist -> Hook Follow-through
-                    if (phase < startup) suffix = '_windup_punch.png';
-                    else if (phase < startup + active * 0.72) suffix = '_backfist.png';
-                    else if (phase < retractStart) suffix = '_hook_punch.png';
-                    else suffix = '_mid_punch.png';
+                    if (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi') {
+                        // E. Honda Hundred Hand Slap (Hyakuretsu Harite)!
+                        const slapFrame = Math.floor(phase * 26) % 3;
+                        suffix = slapFrame === 0 ? '_special.png' : (slapFrame === 1 ? '_punch.png' : '_hook_punch.png');
+                    } else {
+                        // → + L Overhead Backfist: Windup -> Backfist -> Hook Follow-through
+                        if (phase < startup) suffix = '_windup_punch.png';
+                        else if (phase < startup + active * 0.72) suffix = '_backfist.png';
+                        else if (phase < retractStart) suffix = '_hook_punch.png';
+                        else suffix = '_mid_punch.png';
+                    }
                 } else if (atkType === 'AXE_KICK') {
                     // → + H Step Axe Kick: Windup Kick -> High Axe Kick -> Downward Kick Chop
                     if (phase < startup) suffix = '_windup_kick.png';
@@ -1533,7 +1561,12 @@ export default class Fighter {
                     else suffix = '_jump.png';
                 } else if (atkType === 'LIGHT') {
                     const stId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
-                    if (stId === 'CAPOEIRA_TRICKSTER') {
+                    if (stId === 'HONDA_SUMO_BRAWLER') {
+                        // E. Honda Open-Palm Sumo Harite Slap!
+                        if (phase < startup) suffix = '_windup_punch.png';
+                        else if (phase < retractStart) suffix = '_punch.png';
+                        else suffix = '_special.png';
+                    } else if (stId === 'CAPOEIRA_TRICKSTER') {
                         // Capoeira Trickster: Handstand Spin Kick on Light!
                         if (phase < startup) suffix = '_windup_kick.png';
                         else if (phase < retractStart) suffix = '_spin_kick.png';
@@ -1561,7 +1594,11 @@ export default class Fighter {
                     }
                 } else if (atkType === 'COMBO_KICK') {
                     const stId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
-                    if (stId === 'CAPOEIRA_TRICKSTER') {
+                    if (stId === 'HONDA_SUMO_BRAWLER') {
+                        // E. Honda 2nd Hit: Rapid Double Palm Slap!
+                        const slapIdx = Math.floor(phase * 24) % 2;
+                        suffix = slapIdx === 0 ? '_special.png' : '_punch.png';
+                    } else if (stId === 'CAPOEIRA_TRICKSTER') {
                         // Capoeira 2nd Hit: Low Cartwheel Sweep -> Axe Kick!
                         if (phase < startup) suffix = '_crouch.png';
                         else if (phase < midPoint) suffix = '_low_kick.png';
@@ -1596,7 +1633,11 @@ export default class Fighter {
                     }
                 } else if (atkType === 'COMBO_FINISHER') {
                     const stId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
-                    if (stId === 'CAPOEIRA_TRICKSTER') {
+                    if (stId === 'HONDA_SUMO_BRAWLER') {
+                        // E. Honda 3rd Hit Finisher: Hundred Hand Slap Barrage!
+                        const slapFrame = Math.floor(phase * 26) % 3;
+                        suffix = slapFrame === 0 ? '_special.png' : (slapFrame === 1 ? '_punch.png' : '_hook_punch.png');
+                    } else if (stId === 'CAPOEIRA_TRICKSTER') {
                         if (phase < startup) suffix = '_spin_kick.png';
                         else if (phase < retractStart) suffix = '_hurricane_kick.png';
                         else suffix = '_axe_kick.png';
@@ -1664,7 +1705,7 @@ export default class Fighter {
                     if (phase < startup * 0.75) suffix = '_windup_punch.png';
                     else suffix = '_special.png';
                 } else if (atkType === 'SPECIAL_DASH') {
-                    suffix = '_dive_kick.png';
+                    suffix = (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi') ? '_hurricane_kick.png' : '_dive_kick.png';
                 } else {
                     suffix = '_punch.png';
                 }
@@ -1766,7 +1807,7 @@ export default class Fighter {
                     ctx.save();
                     ctx.translate(g.x, g.y);
                     ctx.scale(g.facing, 1);
-                    if (!g.isDashGhost) {
+                    if (!g.isDashGhost && this.data?.id !== 'AliAbi' && this.data?.styleId !== 'HONDA_SUMO_BRAWLER') {
                         ctx.translate(0, -drawH / 2);
                         ctx.rotate(g.timer * 25.0 * g.facing);
                         ctx.translate(0, drawH / 2);
@@ -1854,9 +1895,10 @@ export default class Fighter {
             }
 
             // ─── 360° SALTO ON FORWARD/BACKWARD JUMP (FOR ALL FIGHTERS!) + SPECIAL DASH + BLANKA CANNONBALL / GUILE SOMERSAULT ───
+            const isHondaBrawler = (drawStyleId === 'HONDA_SUMO_BRAWLER' || this.data?.id === 'AliAbi');
             let isRolling = false;
             let currentRotation = 0;
-            if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH') {
+            if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'SPECIAL_DASH' && !isHondaBrawler) {
                 isRolling = true;
                 const spinSpeed = 25.0;
                 currentRotation = this.stateTimer * spinSpeed * this.facing;
@@ -1868,7 +1910,7 @@ export default class Fighter {
                 // Guile Somersault Flash Kick: high backflip somersault!
                 isRolling = true;
                 currentRotation = -this.stateTimer * 18.0 * this.facing;
-            } else if (!this.isGrounded && (Math.abs(this.vx) >= 25 || (this.state === 'DASH' && this.vy < -150)) && (this.state === 'JUMP' || this.state === 'DASH' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
+            } else if (!this.isGrounded && (Math.abs(this.vx) >= 25 || (this.state === 'DASH' && this.vy < -150)) && (this.state === 'JUMP' || this.state === 'DASH' || (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type !== 'SPECIAL' && this.currentAttack.type !== 'SPECIAL_DASH' && this.currentAttack.type !== 'DRAGON_UPPERCUT' && this.currentAttack.type !== 'HURRICANE_KICK' && this.currentAttack.type !== 'FLYING_TORPEDO' && this.currentAttack.type !== 'DRAGON_RUSH_COMBO'))) {
                 // Every fighter performs a crisp 360° Forward/Backward Salto on diagonal jumps & back-flip dashes!
                 isRolling = true;
                 const saltoDir = (this.vx * this.facing >= 0) ? 1 : -1;
@@ -1887,8 +1929,15 @@ export default class Fighter {
                 ctx.translate(0, -drawH * 0.52);
                 ctx.rotate(currentRotation);
                 ctx.translate(0, drawH * 0.52);
-            } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'FLYING_TORPEDO') {
-                if (sigArch === 'CHUNLI_BIRD_KICK') {
+            } else if (this.state === 'ATTACK' && this.currentAttack && (this.currentAttack.type === 'FLYING_TORPEDO' || (this.currentAttack.type === 'SPECIAL_DASH' && isHondaBrawler))) {
+                if (isHondaBrawler) {
+                    // Authentic E. Honda Flying Headbutt / Döner-Spieß Horizontal Torpedo:
+                    // _hurricane_kick.png is already drawn horizontally flying head-first! Add horizontal spit-rotation pulse!
+                    const spitScaleY = 0.94 + Math.sin(this.stateTimer * 38) * 0.08;
+                    ctx.translate(0, -drawH * 0.52);
+                    ctx.scale(1.04, spitScaleY);
+                    ctx.translate(0, drawH * 0.52);
+                } else if (sigArch === 'CHUNLI_BIRD_KICK') {
                     // Chun-Li Upside-Down Spinning Bird Kick helicopter spin!
                     const spinFlip = Math.cos(this.stateTimer * 36) >= 0 ? 1 : -1;
                     ctx.translate(0, -drawH * 0.52);
@@ -1913,7 +1962,7 @@ export default class Fighter {
                     ctx.rotate(this.facing * 0.22);
                     ctx.translate(0, drawH * 0.52);
                 }
-            } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'HURRICANE_KICK') {
+            } else if (this.state === 'ATTACK' && this.currentAttack && this.currentAttack.type === 'HURRICANE_KICK' && !isHondaBrawler) {
                 // Horizontal cyclone spin wobble for Tatsumaki Hurricane Kick!
                 const spinFlip = Math.cos(this.stateTimer * 32) >= 0 ? 1 : -1;
                 ctx.scale(spinFlip, 1);
@@ -2065,14 +2114,29 @@ export default class Fighter {
         } else if (type === 'COMMAND_PUNCH' || type === 'THROW') {
             const cx = drawW * 0.28;
             const cy = -drawH * 0.62;
-            ctx.strokeStyle = styleColor;
-            ctx.shadowColor = styleColor;
-            ctx.shadowBlur = 20;
-            ctx.lineWidth = 15 * (1 - progress * 0.3);
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            ctx.ellipse(cx, cy, 118, 65, 0.18, -1.1 + progress * 0.3, 0.65 + progress * 0.35);
-            ctx.stroke();
+            if (charId === 'AliAbi' && type === 'COMMAND_PUNCH') {
+                // E. Honda Hundred Hand Slap: 5 rapid-fire open-palm slap arcs fanning forward!
+                for (let h = 0; h < 5; h++) {
+                    const hy = cy - 44 + h * 22 + Math.sin(this.stateTimer * 40 + h) * 8;
+                    const hx = cx + 10 + ((h % 2) * 24);
+                    ctx.strokeStyle = h % 2 === 0 ? '#ffd700' : '#ffffff';
+                    ctx.shadowColor = '#ff6600';
+                    ctx.shadowBlur = 18;
+                    ctx.lineWidth = 10;
+                    ctx.beginPath();
+                    ctx.ellipse(hx, hy, 78, 22, (h - 2) * 0.12, -0.9, 0.9);
+                    ctx.stroke();
+                }
+            } else {
+                ctx.strokeStyle = styleColor;
+                ctx.shadowColor = styleColor;
+                ctx.shadowBlur = 20;
+                ctx.lineWidth = 15 * (1 - progress * 0.3);
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 118, 65, 0.18, -1.1 + progress * 0.3, 0.65 + progress * 0.35);
+                ctx.stroke();
+            }
         } else if (type === 'COMBO_KICK' || type === 'SWEEP') {
             const isSweep = type === 'SWEEP';
             const cx = drawW * 0.18;
@@ -2238,45 +2302,77 @@ export default class Fighter {
                     ctx.stroke();
                 }
             } else {
-                // E. Honda Sumo Torpedo / Solar Dragon Torpedo shockwave nose-cone!
-                const noseX = drawW * 0.52;
-                const grad = ctx.createLinearGradient(-drawW * 0.55, cy, noseX, cy);
-                grad.addColorStop(0, 'rgba(0, 229, 255, 0)');
-                grad.addColorStop(0.55, styleColor);
-                grad.addColorStop(1, '#ffffff');
+                // E. Honda Sumo Torpedo / Döner-Spieß Rotating Flame Torpedo shockwave nose-cone!
+                const isAli = (charId === 'AliAbi');
+                const noseX = drawW * (isAli ? 0.56 : 0.52);
+                const grad = ctx.createLinearGradient(-drawW * 0.58, cy, noseX, cy);
+                grad.addColorStop(0, 'rgba(255, 120, 0, 0)');
+                grad.addColorStop(0.55, isAli ? '#ff7700' : styleColor);
+                grad.addColorStop(1, isAli ? '#ffd700' : '#ffffff');
                 ctx.fillStyle = grad;
                 ctx.beginPath();
-                ctx.moveTo(noseX + 26, cy);
-                ctx.lineTo(-drawW * 0.52, cy - 95);
+                ctx.moveTo(noseX + 28, cy);
+                ctx.lineTo(-drawW * 0.54, cy - 98);
                 ctx.lineTo(-drawW * 0.32, cy);
-                ctx.lineTo(-drawW * 0.52, cy + 95);
+                ctx.lineTo(-drawW * 0.54, cy + 98);
                 ctx.closePath();
                 ctx.fill();
 
-                ctx.strokeStyle = '#ffd700';
-                ctx.shadowColor = styleColor;
-                ctx.shadowBlur = 26;
-                ctx.lineWidth = 10;
-                ctx.beginPath();
-                ctx.ellipse(drawW * 0.22, cy, 38, 86, 0, -Math.PI * 0.65, Math.PI * 0.65);
-                ctx.stroke();
+                if (isAli) {
+                    // 4 Rotating Golden Döner-Spieß Fire Rings wrapping around Ali Abi's horizontal E. Honda torpedo body!
+                    for (let r = 0; r < 4; r++) {
+                        const rx = -drawW * 0.28 + r * (drawW * 0.22);
+                        const radY = 86 - r * 12;
+                        const rot = this.stateTimer * 36 + r * 1.5;
+                        ctx.strokeStyle = r % 2 === 0 ? '#ffd700' : '#ff4400';
+                        ctx.shadowColor = '#ff6600';
+                        ctx.shadowBlur = 24;
+                        ctx.lineWidth = 10 - r;
+                        ctx.beginPath();
+                        ctx.ellipse(rx, cy, 28, radY, 0, rot, rot + Math.PI * 1.45);
+                        ctx.stroke();
+                    }
+                } else {
+                    ctx.strokeStyle = '#ffd700';
+                    ctx.shadowColor = styleColor;
+                    ctx.shadowBlur = 26;
+                    ctx.lineWidth = 10;
+                    ctx.beginPath();
+                    ctx.ellipse(drawW * 0.22, cy, 38, 86, 0, -Math.PI * 0.65, Math.PI * 0.65);
+                    ctx.stroke();
+                }
             }
         } else if (type === 'DRAGON_RUSH_COMBO') {
-            // Blazing 4-hit Full-Screen Rush Combo aura + rising dragon uppercut / flash kick finisher pillar!
             const cy = -drawH * 0.54;
             const cx = drawW * 0.28;
-            ctx.strokeStyle = progress > 0.72 ? '#ff3300' : styleColor;
-            ctx.shadowColor = '#ffd700';
-            ctx.shadowBlur = 26;
-            ctx.lineWidth = 18;
-            ctx.beginPath();
-            if (progress > 0.72) {
-                ctx.ellipse(cx, -drawH * 0.62, 96, 170, -0.18, -1.45, 0.75);
+            if (charId === 'AliAbi') {
+                // E. Honda Hundred Hand Slap Rush: 6 blazing open-palm slap shockwaves!
+                for (let h = 0; h < 6; h++) {
+                    const hy = cy - 55 + h * 22 + Math.sin(this.stateTimer * 44 + h) * 10;
+                    const hx = cx + 15 + ((h % 2) * 28);
+                    ctx.strokeStyle = h % 2 === 0 ? '#ffd700' : '#ff5500';
+                    ctx.shadowColor = '#ffaa00';
+                    ctx.shadowBlur = 20;
+                    ctx.lineWidth = 11;
+                    ctx.beginPath();
+                    ctx.ellipse(hx, hy, 88, 24, (h - 2.5) * 0.12, -1.0, 1.0);
+                    ctx.stroke();
+                }
             } else {
-                const rot = this.stateTimer * 28;
-                ctx.ellipse(cx, cy, 138, 64, 0, rot, rot + Math.PI * 1.35);
+                // Blazing 4-hit Full-Screen Rush Combo aura + rising dragon uppercut / flash kick finisher pillar!
+                ctx.strokeStyle = progress > 0.72 ? '#ff3300' : styleColor;
+                ctx.shadowColor = '#ffd700';
+                ctx.shadowBlur = 26;
+                ctx.lineWidth = 18;
+                ctx.beginPath();
+                if (progress > 0.72) {
+                    ctx.ellipse(cx, -drawH * 0.62, 96, 170, -0.18, -1.45, 0.75);
+                } else {
+                    const rot = this.stateTimer * 28;
+                    ctx.ellipse(cx, cy, 138, 64, 0, rot, rot + Math.PI * 1.35);
+                }
+                ctx.stroke();
             }
-            ctx.stroke();
         } else if (type === 'HURRICANE_KICK') {
             // Dual horizontal cyclone vortex rings around spinning legs!
             for (let ring = 0; ring < 2; ring++) {
@@ -2322,16 +2418,32 @@ export default class Fighter {
         } else if (type === 'SPECIAL_DASH') {
             const cx = 0;
             const cy = -drawH * 0.54;
-            const r = 42 + progress * 36;
-            const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
-            grad.addColorStop(0, '#ffffff');
-            grad.addColorStop(0.4, '#00e5ff');
-            grad.addColorStop(0.8, 'rgba(0, 140, 255, 0.45)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(cx, cy, r, 0, Math.PI * 2);
-            ctx.fill();
+            if (charId === 'AliAbi') {
+                // Super E. Honda / Döner-Spieß Torpedo Vortex!
+                for (let r = 0; r < 5; r++) {
+                    const rx = -drawW * 0.32 + r * (drawW * 0.20);
+                    const radY = 95 - r * 11;
+                    const rot = this.stateTimer * 42 + r * 1.4;
+                    ctx.strokeStyle = r % 2 === 0 ? '#ffd700' : '#ff3300';
+                    ctx.shadowColor = '#ff8800';
+                    ctx.shadowBlur = 28;
+                    ctx.lineWidth = 12 - r;
+                    ctx.beginPath();
+                    ctx.ellipse(rx, cy, 32, radY, 0, rot, rot + Math.PI * 1.5);
+                    ctx.stroke();
+                }
+            } else {
+                const r = 42 + progress * 36;
+                const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, r);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.4, '#00e5ff');
+                grad.addColorStop(0.8, 'rgba(0, 140, 255, 0.45)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
         }
 
         ctx.restore();

@@ -1,7 +1,7 @@
-import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.69';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.69';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.69';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.69';
+import { ROSTER, ALL_FIGHTERS, STAGES, UNLOCK_CHAIN_GUIDE, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.70';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.70';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.70';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.70';
 
 export default class MenuState {
     constructor(game) {
@@ -177,7 +177,7 @@ export default class MenuState {
             for (const f of ALL_FIGHTERS) {
                 const key = `${f.id}_front.png`;
                 if (!this.game.assetManager.images[key]) {
-                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.69`);
+                    this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.70`);
                 }
             }
             this.game.assetManager.loadAll();
@@ -693,12 +693,12 @@ export default class MenuState {
             if (this.credits <= 0) return;
 
             if (this.selectedIndex === 0) {
-                // STORY MODE — if story completed or special fighters unlocked, let player pick their fighter (e.g. Annikina!) for the Story run
+                // STORY MODE — if story completed or special fighters (Annikina / AliAbi) unlocked, let player pick their fighter for the Story run
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
                 this.isTransitioning = true;
-                if (this.storyCompleted || isFighterUnlocked('Annikina')) {
+                if (this.storyCompleted || isFighterUnlocked('Annikina') || isFighterUnlocked('AliAbi')) {
                     this.game.audioManager.stopBGM();
                     setTimeout(() => {
                         this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: true });
@@ -707,8 +707,7 @@ export default class MenuState {
                     this.startStoryMode();
                 }
             } else if (this.selectedIndex === 1) {
-                // ARCADE MODE (Shuffle Challenger Mode with all 26 fighters & their Arenas!) — locked until story complete
-                if (!this.storyCompleted) return;
+                // ARCADE MODE (Shuffle Challenger Mode with all 28 fighters & their Arenas!) — always open so players can play Arcade & unlock characters!
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
@@ -718,8 +717,7 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: true, storyMode: false });
                 }, 500);
             } else if (this.selectedIndex === 2) {
-                // VERSUS MODE — locked until story complete
-                if (!this.storyCompleted) return;
+                // VERSUS MODE — always open for unlocked fighters
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
@@ -738,8 +736,7 @@ export default class MenuState {
                     this.game.stateManager.switchState('CharSelect', { arcadeMode: false, trainingMode: true });
                 }, 350);
             } else if (this.selectedIndex === 4) {
-                // SURVIVAL MODE — locked until story complete!
-                if (!this.storyCompleted) return;
+                // SURVIVAL MODE — always open for unlocked fighters!
                 this.playConfirm();
                 this.inputCooldown = 60;
                 this.credits--;
@@ -1200,7 +1197,7 @@ export default class MenuState {
         const menuStartY = this.game.height * 0.56;
         for (let i = 0; i < this.options.length; i++) {
             const y = menuStartY + (i * 46);
-            const isLocked = (i === 1 || i === 2 || i === 4) && !this.storyCompleted;
+            const isLocked = false; // Story, Arcade, Versus, Training, Survival & Online are always selectable!
             const isOnline = (i === 5);
             const isTraining = (i === 3);
             const isSel = (i === this.selectedIndex);
