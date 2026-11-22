@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Builds 25 newly cast & mastered Street Fighter voice samples (preserving Marley & Pablo untouched)
+Builds 25 authentic Native-Dialect + RVC Human Voice samples (preserving Marley & Pablo untouched)
 into assets/audio/voice_samples/ and generates an interactive HTML Soundboard (voice_preview.html)
-so Jan can audition every single fighter's new voice, accent, pitch, and provocative street lines!
+so Jan can audition every single fighter's authentic accent, native swear word pronunciation,
+and his own real RVC human voice (`vikingo040.pth`)!
 """
 import asyncio
 import os
@@ -15,10 +16,17 @@ SAMPLE_DIR = os.path.join(ROOT, "assets", "audio", "voice_samples")
 VOICE_DIR = os.path.join(ROOT, "assets", "audio", "voice")
 os.makedirs(SAMPLE_DIR, exist_ok=True)
 
+RVC_BASE = "/Users/vikingo40/.gemini/antigravity-ide/scratch/voice-swap"
+RVC_PYTHON = os.path.join(RVC_BASE, "python310", "python", "bin", "python3.10")
+RVC_SITE = os.path.join(RVC_BASE, "venv", "lib", "python3.10", "site-packages")
+RVC_SCRIPT = os.path.join(RVC_BASE, "core", "rvc_infer.py")
+RVC_MODEL = os.path.join(RVC_BASE, "models", "vikingo040.pth")
+RVC_INDEX = os.path.join(RVC_BASE, "models", "vikingo040.index")
+
 
 def make_filter(asetrate_mul=1.0, atempo_mul=1.0, bass_db=2.8, pres_db=2.4):
     return (
-        "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-42dB:stop_periods=-1:stop_duration=0.22:stop_threshold=-44dB,"
+        "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-42dB:stop_periods=-1:stop_duration=0.24:stop_threshold=-44dB,"
         f"asetrate=24000*{asetrate_mul:.3f},aresample=44100,atempo={atempo_mul:.3f},"
         f"equalizer=f=125:t=q:w=1.0:g={bass_db:.1f},"
         f"equalizer=f=3400:t=q:w=1.2:g={pres_db:.1f},"
@@ -27,284 +35,382 @@ def make_filter(asetrate_mul=1.0, atempo_mul=1.0, bass_db=2.8, pres_db=2.4):
     )
 
 
-# 27 Fighters Voice Casting Table (19 distinct neural models + custom per-character studio mastering!)
+def make_rvc_post_filter(bass_db=3.6, pres_db=2.6):
+    return (
+        "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-42dB:stop_periods=-1:stop_duration=0.25:stop_threshold=-44dB,"
+        f"equalizer=f=120:t=q:w=1.0:g={bass_db:.1f},"
+        f"equalizer=f=3200:t=q:w=1.2:g={pres_db:.1f},"
+        "acompressor=threshold=-16dB:ratio=3.2:makeup=3.5dB,"
+        "alimiter=limit=0.95,apad=pad_dur=0.15"
+    )
+
+
+# 27 Fighters Voice Casting Table:
+# - Real Human RVC Voice Cloning (`vikingo040.pth`) for Vikingo, Dark Vikingo & Family Male Roster
+# - True Native Country Speakers (`es-ES`, `es-MX`, `pl-PL`, `uk-UA`, `tr-TR`, `it-IT`, `ja-JP`, `zh-CN`, `en-IN`)
+#   speaking German with authentic foreign dialects + 100% native mother-tongue swear words!
 CAST = [
     {
+        "id": "Vikingo",
+        "name": "👑 Vikingo (VIKINGO40 · Deine ECHTE RVC-Stimme!)",
+        "folder": "14.vikingo_coat",
+        "voice_desc": "ECHTES RVC-VOICE-CLONING (vikingo040.pth) · Deine eigene echte Stimme vom Laptop!",
+        "voice": "de-DE-ConradNeural",
+        "rate": "+4%",
+        "pitch": "-3Hz",
+        "use_rvc": True,
+        "rvc_pitch": -1,
+        "rvc_index_rate": 0.72,
+        "filter": make_rvc_post_filter(3.8, 2.8),
+        "display_text": "Hier spricht das Oberhaupt der Familie! Auf der Elbe habe ich schon ganz andere Stürme überlebt. Zeig mir Respekt im Ring, oder ich beende dich mit einem Schlag!",
+        "tts_text": "Hier spricht das Oberhaupt der Familie! Auf der Elbe habe ich schon ganz andere Stürme überlebt. Zeig mir Respekt im Ring, oder ich beende dich mit einem Schlag!",
+    },
+    {
+        "id": "VikingoRaw",
+        "name": "⚡ Dark Vikingo (Kriegsgott · Deine ECHTE RVC-Stimme!)",
+        "folder": "14.1.vikingo_shirtless",
+        "voice_desc": "ECHTES RVC-VOICE-CLONING (vikingo040.pth · Dark Endboss Bass) · Deine echte Stimme im Berserker-Modus!",
+        "voice": "de-DE-ConradNeural",
+        "rate": "+3%",
+        "pitch": "-5Hz",
+        "use_rvc": True,
+        "rvc_pitch": -3,
+        "rvc_index_rate": 0.75,
+        "filter": make_rvc_post_filter(4.6, 2.6),
+        "display_text": "Ich bin der verdammte Boss von Walhalla! Zeigt mir, ob ihr Eier aus Stahl habt, oder ich zerschmettere euch im Staub!",
+        "tts_text": "Ich bin der verdammte Boss von Walhalla! Zeigt mir, ob ihr Eier aus Stahl habt, oder ich zerschmettere euch im Staub!",
+    },
+    {
+        "id": "Juan",
+        "name": "🇪🇸 Juan (Spanien · Echter Spanier mit Dialekt)",
+        "folder": "10.Juan",
+        "voice_desc": "es-ES-AlvaroNeural (ECHTER Spanier aus Madrid) · Spricht Deutsch mit echtem spanischem Akzent + Gilipollas / Maricón / Pendejo!",
+        "voice": "es-ES-AlvaroNeural",
+        "rate": "+4%",
+        "pitch": "-2Hz",
+        "filter": make_filter(1.00, 1.00, 3.2, 2.8),
+        "display_text": "¡Vamos, Gilipollas! In meiner spanischen Arena gibt es keine Gnade für Heulsusen, Maricón! Knie nieder vor meiner Klinge, Pendejo!",
+        "tts_text": "¡Vamos, Gilipollas! In mayner schpanischen Arena gibt es kayne Gnade für Hoylsusen, Maricón! Knie nieder for mayner Klinge, Pendejo!",
+    },
+    {
+        "id": "Paco",
+        "name": "🇲🇽 Paco el Taco (Mexiko · Echter Mexikaner mit Dialekt)",
+        "folder": "9.Paco_el_Taco",
+        "voice_desc": "es-MX-JorgeNeural (ECHTER Mexikaner) · Spricht Deutsch mit echtem mexikanischem Barrio-Akzent + Hijo de puta / Pendejo / Cabrón!",
+        "voice": "es-MX-JorgeNeural",
+        "rate": "+6%",
+        "pitch": "-3Hz",
+        "filter": make_filter(0.98, 1.02, 3.6, 2.8),
+        "display_text": "¡Qué pasa, Hijo de puta! Auf meiner Pyramide wird nicht geweint, ich schlag dich grün und blau, du verdammter Pendejo, Cabrón!",
+        "tts_text": "¡Qué pasa, Hijo de puta! Auf mayner Piramide vird niht gevaynt, ih schlag dih grün und blau, du ferdammter Pendejo, Cabrón!",
+    },
+    {
+        "id": "Kowalski",
+        "name": "🇵🇱 Kowalski (Polen · Echter Pole mit Dialekt)",
+        "folder": "8.Kowalski_Poland",
+        "voice_desc": "pl-PL-MarekNeural (ECHTER Pole aus Warschau) · Spricht Deutsch mit hartem polnischem Akzent + Kurwa mać / Bracie / Ja pierdolę!",
+        "voice": "pl-PL-MarekNeural",
+        "rate": "+4%",
+        "pitch": "-5Hz",
+        "filter": make_filter(0.94, 1.04, 4.4, 2.6),
+        "display_text": "Kurwa mać! Polnischer Stahl bricht niemals, Bracie! Komm her, ich reiß dir den Kopf ab, ja pierdolę!",
+        "tts_text": "Kurwa mać! Polnischer Schtahl briht niemals, Bracie! Komm her, ih rays dir den Kopf ab, ja pierdolę!",
+    },
+    {
+        "id": "Putin",
+        "name": "🇷🇺 Putin (Sibirien · Echter Slawisch-Russischer Dialekt)",
+        "folder": "13.Putin",
+        "voice_desc": "uk-UA-OstapNeural (Echter Ost-Slawischer Muttersprachler) · Spricht Deutsch mit hartem russischem Akzent + Сука Блять / иди нахуй!",
+        "voice": "uk-UA-OstapNeural",
+        "rate": "+2%",
+        "pitch": "-6Hz",
+        "filter": make_filter(0.92, 1.05, 4.6, 2.5),
+        "display_text": "Im ewigen Eis von Sibirien gefriert dein Blut zu Stein, Сука Блять! Ich breche dich entzwei, иди нахуй!",
+        "tts_text": "Им эвиген Айс фон Сибириен гефрирт дайн Блут цу Штайн, Сука Блять! Их брехе дих энтцвай, иди нахуй!",
+    },
+    {
+        "id": "Gargamel",
+        "name": "🇩🇪🇹🇷 C. Gargamel (Kreuzberg · Echter Türkischer Dialekt)",
+        "folder": "6.C_Gargamel",
+        "voice_desc": "tr-TR-AhmetNeural (ECHTER Türke) · Spricht Deutsch mit echtem türkischem Straßen-Akzent + Lan / sikecem amına koyayım!",
+        "voice": "tr-TR-AhmetNeural",
+        "rate": "+6%",
+        "pitch": "-3Hz",
+        "filter": make_filter(0.97, 1.03, 3.6, 2.8),
+        "display_text": "Was suchst du Hund in meiner Straße, Lan?! Ich schwör, meine Alchemie fickt dein ganzes Leben, sikecem amına koyayım!",
+        "tts_text": "Vas zuhst du Hund in mayner Schtrase, Lan?! İh schvör, mayne Alhemi fikt dayn gantses Leben, sikecem amına koyayım!",
+    },
+    {
+        "id": "GargamelHoodie",
+        "name": "🇩🇪🇹🇷 Gargamel Hoodie (Untergrund · Echter Türkischer Dialekt)",
+        "folder": "6.1.C_Gargamel_Hoodie",
+        "voice_desc": "tr-TR-AhmetNeural (Dark Underground Pitch) · Tiefer türkisch-deutscher Untergrund-Akzent + Lan / Vallah / amına koyayım!",
+        "voice": "tr-TR-AhmetNeural",
+        "rate": "+4%",
+        "pitch": "-6Hz",
+        "filter": make_filter(0.93, 1.05, 4.2, 2.7),
+        "display_text": "Kapuze tief, Fäuste hart, Lan! Vallah, hier unten im Berliner Untergrund holt dich kein Krankenwagen mehr ab, amına koyayım!",
+        "tts_text": "Kaputse tief, Foyste hart, Lan! Vallah, hier unten im Berliner Untergrund holt dih kayn Kranken-vagen mehr ab, amına koyayım!",
+    },
+    {
+        "id": "AlCapone",
+        "name": "🇮🇹 Al Capone (Rom · Echter Italiener mit Mafia-Dialekt)",
+        "folder": "5.Al_Capone",
+        "voice_desc": "it-IT-DiegoNeural (ECHTER Italiener aus Rom) · Spricht Deutsch mit echtem Mafia-Padrino-Akzent + Cazzo / Vaffanculo / Stronzo!",
+        "voice": "it-IT-DiegoNeural",
+        "rate": "+4%",
+        "pitch": "-5Hz",
+        "filter": make_filter(0.95, 1.04, 3.9, 2.6),
+        "display_text": "Hör gut zu, Cazzo! In Rom regiert La Famiglia! Machst du Stress in meinem Kolosseum, schick ich dich im Betonsarg nach Hause, Vaffanculo, Stronzo!",
+        "tts_text": "Hör gut tsu, Cazzo! In Rom redschiert La Famiglia! Mahst du Schtress in maynem Kolosseum, schik ih dih im Betonsarg nah Hause, Vaffanculo, Stronzo!",
+    },
+    {
+        "id": "Hattori",
+        "name": "🇯🇵 Hattori (Tokyo · Echter Japaner mit Samurai-Dialekt)",
+        "folder": "1.Hattori_Japan",
+        "voice_desc": "ja-JP-KeitaNeural (ECHTER Japaner aus Tokyo) · Spricht Deutsch mit echtem japanischem Samurai-Akzent + 馬鹿野郎 (Bakayaro) / くそ (Kuso)!",
+        "voice": "ja-JP-KeitaNeural",
+        "rate": "+4%",
+        "pitch": "-5Hz",
+        "filter": make_filter(0.95, 1.04, 3.8, 2.6),
+        "display_text": "Du entehrst meinen Tempel in Tokyo, Bakayaro! Zieh deine Waffe oder stirb durch mein Katana, Kuso!",
+        "tts_text": "ドゥ エントエアスト マイネン テンペル イン 東京、馬鹿野郎！ ツィー ダイネ ヴァッフェ オーダー シュティルプ ドゥルヒ マイン カタナ、くそ！",
+    },
+    {
+        "id": "Lee",
+        "name": "🇯🇵 Lee (Cyber-Tokyo · Echter Japaner Speed-Fighter)",
+        "folder": "11.Lee",
+        "voice_desc": "ja-JP-KeitaNeural (Fast Yakuza Pitch) · Echter japanischer Street-Fighter-Akzent + てめえ (Temee) / 馬鹿野郎 (Bakayaro)!",
+        "voice": "ja-JP-KeitaNeural",
+        "rate": "+11%",
+        "pitch": "+1Hz",
+        "filter": make_filter(1.02, 1.02, 3.0, 2.8),
+        "display_text": "Temee! In den Neon-Straßen von Tokyo überlebt kein langsamer Bastard, mein Blitz schlägt dir die Zähne ein, Bakayaro!",
+        "tts_text": "てめえ！ イン デン ネオン・シュトラーセン フォン 東京 ユーバーレープト カイン ラングザマー バスタルト、マイン ブリッツ シュレークト ディア ディー ツェーネ アイン、馬鹿野郎！",
+    },
+    {
+        "id": "Tzubaza",
+        "name": "🇨🇳 Tzubaza (China · Echter Chinese mit Kung-Fu-Dialekt)",
+        "folder": "4.Tzubaza",
+        "voice_desc": "zh-CN-YunjianNeural (ECHTER Chinese · Martial-Arts-Sprecher) · Spricht Deutsch mit echtem chinesischem Kung-Fu-Akzent + 他妈的 (Tamade)!",
+        "voice": "zh-CN-YunjianNeural",
+        "rate": "+4%",
+        "pitch": "-4Hz",
+        "filter": make_filter(0.95, 1.04, 3.8, 2.6),
+        "display_text": "他妈的 (Tamade)! Auf der Chinesischen Mauer zerschmettert mein Drachen-Kung-Fu deine Knochen, du Witzfigur!",
+        "tts_text": "他妈的! Auf der Chinesischen Mauer zerschmettert mein Drachen-Kung-Fu deine Knochen, du Witzfigur, 笨蛋!",
+    },
+    {
+        "id": "Raheel",
+        "name": "🇮🇳 Raheel (Indien · Echter Inder mit Dialekt)",
+        "folder": "2.Raheel",
+        "voice_desc": "en-IN-PrabhatNeural (ECHTER Inder aus Mumbai) · Spricht Deutsch mit echtem indischem Akzent + Bhenchod!",
+        "voice": "en-IN-PrabhatNeural",
+        "rate": "+4%",
+        "pitch": "-4Hz",
+        "filter": make_filter(0.95, 1.04, 3.6, 2.6),
+        "display_text": "Du glaubst, du kannst mein heiliges Feuer am Ganges stehlen, Bhenchod?! Meine Flammen fressen deine Seele bei lebendigem Leib!",
+        "tts_text": "Du glaubst, du kannst mayn hayliges Foyer am Ganges schtehlen, Bhenchod?! Mayne Flammen fressen dayne Seele bay lebendigem Layb!",
+    },
+    {
         "id": "Keano",
-        "name": "🔥 Keano Romeo (14 J.)",
+        "name": "🔥 Keano Romeo (14 J. · ECHTES RVC-Voice-Model + Teen-Pitch)",
         "folder": "0.Keano",
-        "voice_desc": "de-DE-KillianNeural · Junger 14-jähriger Ghetto-Street-Flow (heller, frech, direkt)",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth +3 Semitones Jugend-Pitch) · Echte menschliche Familien-Stimmfarbe für den 14-jährigen Sohn!",
         "voice": "de-DE-KillianNeural",
-        "rate": "+9%",
+        "rate": "+8%",
         "pitch": "+2Hz",
-        "filter": make_filter(1.03, 1.00, 2.6, 2.6),
-        "text": "Was guckst du so, Bruder? Wer unser Licht anfasst, geht heute auf den Brettern schlafen, komm ran, Digga!",
+        "use_rvc": True,
+        "rvc_pitch": 2,
+        "rvc_index_rate": 0.48,
+        "filter": make_rvc_post_filter(2.6, 3.0),
+        "display_text": "Was guckst du so, Bruder? Wer unser Licht anfasst, geht heute auf den Brettern schlafen, komm ran, Digga!",
+        "tts_text": "Was guckst du so, Bruder? Wer unser Licht anfasst, geht heute auf den Brettern schlafen, komm ran, Digga!",
     },
     {
         "id": "HyperKeano",
-        "name": "⚡ Hyper Keano",
+        "name": "⚡ Hyper Keano (ECHTES RVC-Voice-Model · Aufgeladen)",
         "folder": "0.2.Hyper_Keano",
-        "voice_desc": "de-DE-KillianNeural · Aufgeladen, aggressiver & schneller",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth +2 Semitones Hyper-Flow) · Menschliche Textur, aggressiv & direkt!",
         "voice": "de-DE-KillianNeural",
-        "rate": "+12%",
+        "rate": "+10%",
         "pitch": "+1Hz",
-        "filter": make_filter(1.02, 1.02, 3.0, 2.8),
-        "text": "Keine Halbgas-Runden mehr, Digga! Du wolltest Stress? Jetzt kriegst du mein volles Hyper-Licht direkt in deine Fresse, Bruder!",
+        "use_rvc": True,
+        "rvc_pitch": 1,
+        "rvc_index_rate": 0.52,
+        "filter": make_rvc_post_filter(3.0, 3.0),
+        "display_text": "Keine Halbgas-Runden mehr, Digga! Du wolltest Stress? Jetzt kriegst du mein volles Hyper-Licht direkt in deine Fresse, Bruder!",
+        "tts_text": "Keine Halbgas-Runden mehr, Digga! Du wolltest Stress? Jetzt kriegst du mein volles Hyper-Licht direkt in deine Fresse, Bruder!",
     },
     {
         "id": "SupremeKeano",
-        "name": "👑 Supreme Keano",
+        "name": "👑 Supreme Keano (ECHTES RVC-Voice-Model · God-Tier)",
         "folder": "0.1.Supreme_Keano",
-        "voice_desc": "de-DE-KillianNeural · Tieferes Gottes-Level-Mastering mit Boss-Resonanz",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth · Supreme Resonance) · Echte menschliche Stimmgewalt!",
         "voice": "de-DE-KillianNeural",
-        "rate": "+7%",
+        "rate": "+6%",
         "pitch": "-1Hz",
-        "filter": make_filter(0.99, 1.02, 3.6, 2.6),
-        "text": "Höchste Stufe erreicht, Digga. Licht und Schatten gehören mir, knie nieder oder geh unter!",
+        "use_rvc": True,
+        "rvc_pitch": 0,
+        "rvc_index_rate": 0.58,
+        "filter": make_rvc_post_filter(3.5, 2.8),
+        "display_text": "Höchste Stufe erreicht, Digga. Licht und Schatten gehören mir, knie nieder oder geh unter!",
+        "tts_text": "Höchste Stufe erreicht, Digga. Licht und Schatten gehören mir, knie nieder oder geh unter!",
     },
     {
         "id": "JJDark",
-        "name": "🌑 JJ Dark / Jayden (15 J.)",
+        "name": "🌑 JJ Dark / Jayden (15 J. · ECHTES RVC-Voice-Model)",
         "folder": "12.JJ_Dark",
-        "voice_desc": "de-DE-FlorianMultilingualNeural · Eiskalter 15-jähriger älterer Bruder (dunkler & rauer als Keano)",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth +1 Semitone) · Echte, dunkle menschliche Stimme für den 15-jährigen älteren Bruder!",
         "voice": "de-DE-FlorianMultilingualNeural",
-        "rate": "+8%",
-        "pitch": "-2Hz",
-        "filter": make_filter(0.98, 1.03, 3.4, 2.5),
-        "text": "Du stehst vor dem falschen Gegner, du Hund. Mein Schattenfeuer brennt dich bis auf die Knochen nieder!",
+        "rate": "+7%",
+        "pitch": "-1Hz",
+        "use_rvc": True,
+        "rvc_pitch": 0,
+        "rvc_index_rate": 0.55,
+        "filter": make_rvc_post_filter(3.4, 2.8),
+        "display_text": "Du stehst vor dem falschen Gegner, du Hund. Mein Schattenfeuer brennt dich bis auf die Knochen nieder!",
+        "tts_text": "Du stehst vor dem falschen Gegner, du Hund. Mein Schattenfeuer brennt dich bis auf die Knochen nieder!",
     },
     {
         "id": "JayX",
-        "name": "🟣 Jay X",
+        "name": "🟣 Jay X (ECHTES RVC-Voice-Model · Phantom Drip)",
         "folder": "12.1.Jay_X",
-        "voice_desc": "de-DE-FlorianMultilingualNeural · Schneller, arroganter Street-Drip",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth +1 Semitone Fast Flow) · Echte menschliche Street-Attitüde!",
         "voice": "de-DE-FlorianMultilingualNeural",
-        "rate": "+11%",
-        "pitch": "-1Hz",
-        "filter": make_filter(0.99, 1.04, 3.2, 2.8),
-        "text": "Bevor du dein Maul aufmachst, hat dich mein Phantom-Puls schon zerfetzt, komm ran, du Opfer!",
+        "rate": "+9%",
+        "pitch": "+0Hz",
+        "use_rvc": True,
+        "rvc_pitch": 1,
+        "rvc_index_rate": 0.50,
+        "filter": make_rvc_post_filter(3.2, 2.9),
+        "display_text": "Bevor du dein Maul aufmachst, hat dich mein Phantom-Puls schon zerfetzt, komm ran, du Opfer!",
+        "tts_text": "Bevor du dein Maul aufmachst, hat dich mein Phantom-Puls schon zerfetzt, komm ran, du Opfer!",
     },
     {
         "id": "Dom",
-        "name": "🥊 DOM (17 J. · Emys Freund)",
+        "name": "🥊 DOM (17 J. · Emys Freund · ECHTES RVC-Voice-Model)",
         "folder": "20.Dom",
-        "voice_desc": "en-US-BrianMultilingualNeural · 17-jähriger Guile-Boxer/Kickboxer (trockener Street-Punch)",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth · 17 J. Boxer-Timbre) · Trockene, echte menschliche Kämpfer-Stimme!",
         "voice": "en-US-BrianMultilingualNeural",
-        "rate": "+10%",
-        "pitch": "-2Hz",
-        "filter": make_filter(1.02, 1.02, 3.4, 2.6),
-        "text": "Fass mein Mädchen Emy oder die Familie an und ich brech dir jeden Knochen, Digga! Handschuhe sind zu, Sonic Boom und Licht aus!",
+        "rate": "+8%",
+        "pitch": "-1Hz",
+        "use_rvc": True,
+        "rvc_pitch": 0,
+        "rvc_index_rate": 0.45,
+        "filter": make_rvc_post_filter(3.4, 2.8),
+        "display_text": "Fass mein Mädchen Emy oder die Familie an und ich brech dir jeden Knochen, Digga! Handschuhe sind zu, Sonic Boom und Licht aus!",
+        "tts_text": "Fass mein Mädchen Emy oder die Familie an und ich brech dir jeden Knochen, Digga! Handschuhe sind zu, Sonic Boom und Licht aus!",
+    },
+    {
+        "id": "Simba",
+        "name": "🦁 Simba (König der Savanne · ECHTES RVC-Sub-Bass-Beast)",
+        "folder": "16.Simba",
+        "voice_desc": "ECHTES RVC-VOICE-MODEL (vikingo040.pth -5 Semitones Monster-Bass) · Brutales, echtes Löwen-Wächter-Grollen!",
+        "voice": "de-DE-ChristophNeural",
+        "rate": "+2%",
+        "pitch": "-6Hz",
+        "use_rvc": True,
+        "rvc_pitch": -5,
+        "rvc_index_rate": 0.65,
+        "filter": make_rvc_post_filter(5.2, 2.4),
+        "display_text": "Ich bin der Wächter des Hauses und der König der Savanne. Ein Biss und dein Kampf ist vorbei!",
+        "tts_text": "Ich bin der Wächter des Hauses und der König der Savanne. Ein Biss und dein Kampf ist vorbei!",
     },
     {
         "id": "Emely",
-        "name": "🌸 Emy (16 J.)",
+        "name": "🌸 Emy (16 J. · It-Girl · Natürlich & Frech)",
         "folder": "17.Emely",
-        "voice_desc": "de-DE-SeraphinaMultilingualNeural · 16-jähriges It-Girl (stylisch, arrogant, scharfzüngig)",
+        "voice_desc": "de-DE-SeraphinaMultilingualNeural (Natural Warm Formant) · Lockeres, arrogantes 16-jähriges It-Girl ohne Roboter-Hall",
         "voice": "de-DE-SeraphinaMultilingualNeural",
-        "rate": "+8%",
-        "pitch": "+3Hz",
-        "filter": make_filter(1.03, 1.00, 2.0, 2.8),
-        "text": "Mach Platz, Bitch! Guck mich nicht so billig an, Schatz, Dom steht hinter mir und mein Blütensturm fegt dich weg!",
+        "rate": "+6%",
+        "pitch": "+2Hz",
+        "filter": make_filter(1.01, 1.00, 2.4, 2.6),
+        "display_text": "Mach Platz, Bitch! Guck mich nicht so billig an, Schatz, Dom steht hinter mir und mein Blütensturm fegt dich weg!",
+        "tts_text": "Mach Platz, Bitch! Guck mich nicht so billig an, Schatz... Dom steht hinter mir, und mein Blütensturm fegt dich weg!",
     },
     {
         "id": "HyperEmely",
-        "name": "🌸 Hyper-Emy",
+        "name": "🌸 Hyper-Emy (Sakura-Queen · Natürlich & Dominant)",
         "folder": "17.1.Hyper_Emely",
-        "voice_desc": "en-US-AvaMultilingualNeural · Sakura-Queen (noch dominanterer It-Girl-Vibe)",
+        "voice_desc": "en-US-AvaMultilingualNeural (Natural Studio Mastering) · Lässige, überlegene Queen-Stimme",
         "voice": "en-US-AvaMultilingualNeural",
-        "rate": "+9%",
-        "pitch": "+2Hz",
-        "filter": make_filter(1.02, 1.01, 2.4, 2.8),
-        "text": "Hyper-Emy ist da, Bitches! Du dachtest echt, du hast eine Chance gegen die Queen? Mit Dom an meiner Seite zerlege ich deine ganze Arena!",
+        "rate": "+7%",
+        "pitch": "+1Hz",
+        "filter": make_filter(1.01, 1.00, 2.6, 2.6),
+        "display_text": "Hyper-Emy ist da, Bitches! Du dachtest echt, du hast eine Chance gegen die Queen? Mit Dom an meiner Seite zerlege ich deine ganze Arena!",
+        "tts_text": "Hyper-Emy ist da, Bitches! Du dachtest echt, du hast eine Chance gegen die Queen? Mit Dom an meiner Seite zerlege ich deine ganze Arena!",
     },
     {
         "id": "Cayle",
-        "name": "❄️ Cayle (12 J. · Deutsch)",
+        "name": "❄️ Cayle (12 J. · 100% Deutsch · Rotzfrech)",
         "folder": "18.Cayle",
-        "voice_desc": "de-CH-LeniNeural (Hochdeutsch) · Helle, rotzfreche 12-jährige deutsche Mädchenstimme",
-        "voice": "de-CH-LeniNeural",
-        "rate": "+10%",
-        "pitch": "+8Hz",
-        "filter": make_filter(1.08, 0.96, 1.6, 2.8),
-        "text": "Unterschätz mich noch einmal, weil ich die Jüngste bin, und ich frier dein großes Maul direkt zu, du Opfer!",
+        "voice_desc": "de-DE-AmalaNeural (Natural Young German Voice) · Echte junge deutsche Mädchenstimme (ohne unnatürlichen Chipmunk-Filter!)",
+        "voice": "de-DE-AmalaNeural",
+        "rate": "+8%",
+        "pitch": "+4Hz",
+        "filter": make_filter(1.03, 0.99, 2.0, 2.7),
+        "display_text": "Unterschätz mich noch einmal, weil ich die Jüngste bin, und ich frier dein großes Maul direkt zu, du Opfer!",
+        "tts_text": "Unterschätz mich noch einmal, weil ich die Jüngste bin, und ich frier dein großes Maul direkt zu, du Opfer!",
     },
     {
         "id": "CayleMinogue",
-        "name": "💎 Cayle Minogue (Deutsch · Diamond Queen)",
+        "name": "💎 Cayle Minogue (100% Deutsch · Diamond Queen)",
         "folder": "18.1.Cayle_Minogue",
-        "voice_desc": "de-DE-AmalaNeural · 100% Deutsch! Coole, frech-überlegene deutsche Diamant-Queen",
+        "voice_desc": "de-DE-AmalaNeural (Natural Warm Mastering) · 100% Deutsch, lässig, eiskalt und arrogant",
         "voice": "de-DE-AmalaNeural",
-        "rate": "+9%",
-        "pitch": "+5Hz",
-        "filter": make_filter(1.05, 0.98, 2.0, 2.8),
-        "text": "Als Cayle Minogue glitzert mein Eis wie echte Diamanten! Mach Platz, du Verlierer, mein Diamant-Frost schneidet dich in tausend Stücke!",
+        "rate": "+6%",
+        "pitch": "+1Hz",
+        "filter": make_filter(1.00, 1.00, 2.4, 2.6),
+        "display_text": "Als Cayle Minogue glitzert mein Eis wie echte Diamanten! Mach Platz, du Verlierer, mein Diamant-Frost schneidet dich in tausend Stücke!",
+        "tts_text": "Als Cayle Minogue glitzert mein Eis wie echte Diamanten! Mach Platz, du Verlierer... mein Diamant-Frost schneidet dich in tausend Stücke!",
     },
     {
         "id": "Annikina",
         "name": "🔥 Annikina (Mama · Kneipenterroristen)",
         "folder": "19.Annikina",
-        "voice_desc": "de-DE-KatjaNeural · Knallharte, erwachsene deutsche Straßen-Löwin mit gusseiserner Pfanne",
+        "voice_desc": "de-DE-KatjaNeural (Natural Heavy Chest Tone) · Knallharte deutsche Mama-Löwin mit gusseiserner Bratpfanne",
         "voice": "de-DE-KatjaNeural",
-        "rate": "+8%",
-        "pitch": "-3Hz",
-        "filter": make_filter(0.97, 1.04, 3.2, 2.8),
-        "text": "Du wagst es, meine Kinder anzufassen, du Dreckssack?! Jetzt gibt es die heiße gusseiserne Bratpfanne quer durch die Fresse!",
-    },
-    {
-        "id": "VikingoRaw",
-        "name": "⚡ Dark Vikingo (Kriegsgott von Walhalla)",
-        "folder": "14.1.vikingo_shirtless",
-        "voice_desc": "de-DE-ConradNeural (Dark Bass) · Brachialer, grollender Endboss-Bass",
-        "voice": "de-DE-ConradNeural",
-        "rate": "+4%",
-        "pitch": "-8Hz",
-        "filter": make_filter(0.90, 1.08, 4.8, 2.4),
-        "text": "Ich bin der verdammte Boss von Walhalla! Zeigt mir, ob ihr Eier aus Stahl habt, oder ich zerschmettere euch im Staub!",
-    },
-    {
-        "id": "Vikingo",
-        "name": "👑 Vikingo (VIKINGO40 · Der Big Boss)",
-        "folder": "14.vikingo_coat",
-        "voice_desc": "de-DE-ConradNeural (Paten-Mastering) · Souveränes, tiefes Familien-Oberhaupt",
-        "voice": "de-DE-ConradNeural",
-        "rate": "+5%",
-        "pitch": "-5Hz",
-        "filter": make_filter(0.93, 1.06, 4.4, 2.5),
-        "text": "Hier spricht das Oberhaupt der Familie. Ich habe diese Welt gebaut und unser Blut trägt das Feuer. Zeigt mir Respekt im Ring, oder ich beende euch mit einem Schlag!",
-    },
-    {
-        "id": "Simba",
-        "name": "🦁 Simba (König der Savanne)",
-        "folder": "16.Simba",
-        "voice_desc": "de-DE-ChristophNeural (Sub-Bass Beast) · Tiefes, animalisch-donnerndes Wächter-Organ",
-        "voice": "de-DE-ChristophNeural",
-        "rate": "+2%",
-        "pitch": "-10Hz",
-        "filter": make_filter(0.87, 1.10, 5.2, 2.2),
-        "text": "Ich bin der Wächter des Hauses und der König der Savanne. Ein Biss und dein Kampf ist vorbei!",
-    },
-    {
-        "id": "Hattori",
-        "name": "🇯🇵 Hattori (Tokyo Samurai)",
-        "folder": "1.Hattori_Japan",
-        "voice_desc": "ko-KR-HyunsuMultilingualNeural · Echter asiatischer Samurai-Akzent im Deutschen + Bakayaro/Kuso",
-        "voice": "ko-KR-HyunsuMultilingualNeural",
-        "rate": "+5%",
-        "pitch": "-4Hz",
-        "filter": make_filter(0.95, 1.05, 3.6, 2.5),
-        "text": "Du entehrst meinen Tempel in Tokyo, Bakayaro! Zieh deine Waffe oder stirb durch mein Katana, Kuso!",
-    },
-    {
-        "id": "Lee",
-        "name": "🇯🇵 Lee (Cyber-Tokyo Speed-Fighter)",
-        "folder": "11.Lee",
-        "voice_desc": "ko-KR-HyunsuMultilingualNeural (Fast Pitch) · Blitzschneller junger Yakuza-Fighter aus Tokyo",
-        "voice": "ko-KR-HyunsuMultilingualNeural",
-        "rate": "+14%",
-        "pitch": "+2Hz",
-        "filter": make_filter(1.03, 1.02, 2.8, 2.8),
-        "text": "Temee! In den Neon-Straßen von Tokyo überlebt kein langsamer Bastard, mein Blitz schlägt dir die Zähne ein, Bakayaro!",
-    },
-    {
-        "id": "Tzubaza",
-        "name": "🇨🇳 Tzubaza (China Kung-Fu Meister)",
-        "folder": "4.Tzubaza",
-        "voice_desc": "ko-KR-HyunsuMultilingualNeural (Deep Master) · Strenger, arroganter Kung-Fu-Großmeister",
-        "voice": "ko-KR-HyunsuMultilingualNeural",
-        "rate": "+3%",
-        "pitch": "-6Hz",
-        "filter": make_filter(0.92, 1.06, 3.8, 2.4),
-        "text": "Tamadé! Du wagst es, mit deinem billigen Straßenkampf in meine Festung zu kommen?! Mein Drachen-Kung-Fu bricht dir sämtliche Knochen!",
-    },
-    {
-        "id": "Raheel",
-        "name": "🇮🇳 Raheel (Indien · Dhalsim-Feuermeister)",
-        "folder": "2.Raheel",
-        "voice_desc": "en-AU-WilliamMultilingualNeural · Exotischer Dhalsim-Mystiker-Akzent mit tiefer Resonanz",
-        "voice": "en-AU-WilliamMultilingualNeural",
         "rate": "+6%",
-        "pitch": "-3Hz",
-        "filter": make_filter(0.96, 1.04, 3.4, 2.5),
-        "text": "Du glaubst, du kannst mein heiliges Feuer am Ganges stehlen, du Narr? Meine Flammen fressen deine Seele bei lebendigem Leib!",
-    },
-    {
-        "id": "AlCapone",
-        "name": "🇮🇹 Al Capone (Rom · Mafia Padrino)",
-        "folder": "5.Al_Capone",
-        "voice_desc": "it-IT-GiuseppeMultilingualNeural · ECHTER italienischer Muttersprachler spricht Deutsch + Vaffanculo/Cazzo!",
-        "voice": "it-IT-GiuseppeMultilingualNeural",
-        "rate": "+6%",
-        "pitch": "-4Hz",
-        "filter": make_filter(0.95, 1.04, 3.8, 2.5),
-        "text": "Hör gut zu, Cazzo: In Rom regiert La Famiglia! Machst du Stress in meinem Kolosseum, schick ich dich im Betonsarg nach Hause, Vaffanculo, Stronzo!",
-    },
-    {
-        "id": "Gargamel",
-        "name": "🇩🇪🇹🇷 C. Gargamel (Berlin-Kreuzberg)",
-        "folder": "6.C_Gargamel",
-        "voice_desc": "de-AT-JonasNeural (Kreuzberg Street Filter) · Aggressiver Berliner Untergrund-Boss + Lan / sikedim amk",
-        "voice": "de-AT-JonasNeural",
-        "rate": "+10%",
-        "pitch": "-3Hz",
-        "filter": make_filter(0.97, 1.04, 3.6, 2.8),
-        "text": "Was suchst du Hund in meiner Straße, Lan?! Ich schwör, meine Alchemie fickt dein ganzes Leben, sikedim amk!",
-    },
-    {
-        "id": "GargamelHoodie",
-        "name": "🇩🇪🇹🇷 Gargamel Hoodie (Berliner Untergrund)",
-        "folder": "6.1.C_Gargamel_Hoodie",
-        "voice_desc": "de-CH-JanNeural (Dark Underground Filter) · Tiefer, dreckiger Straßen-Alchemist",
-        "voice": "de-CH-JanNeural",
-        "rate": "+9%",
-        "pitch": "-5Hz",
-        "filter": make_filter(0.94, 1.05, 4.0, 2.7),
-        "text": "Kapuze tief, Fäuste hart, Lan! Hier unten im Berliner Untergrund holt dich kein Krankenwagen mehr ab, sikedim amk!",
-    },
-    {
-        "id": "Kowalski",
-        "name": "🇵🇱 Kowalski (Warschau · Iron Bear)",
-        "folder": "8.Kowalski_Poland",
-        "voice_desc": "de-DE-ChristophNeural (Heavy Polish Brawler Bass) · Schwerer Warschauer Hooligan-Tank + Kurwa mać / Ja pierdolę",
-        "voice": "de-DE-ChristophNeural",
-        "rate": "+6%",
-        "pitch": "-6Hz",
-        "filter": make_filter(0.92, 1.06, 4.5, 2.5),
-        "text": "Kurwa mać! Polnischer Stahl bricht niemals, Bracie! Komm her, ich reiß dir den Kopf ab, ja pierdolę!",
-    },
-    {
-        "id": "Paco",
-        "name": "🇲🇽 Paco el Taco (Mexiko · Lucha Brawler)",
-        "folder": "9.Paco_el_Taco",
-        "voice_desc": "fr-FR-RemyMultilingualNeural · Feuriger lateinamerikanischer Akzent im Deutschen + Hijo de puta / Cabrón / Pendejo",
-        "voice": "fr-FR-RemyMultilingualNeural",
-        "rate": "+9%",
         "pitch": "-2Hz",
-        "filter": make_filter(0.98, 1.03, 3.4, 2.7),
-        "text": "¡Qué pasa, Hijo de puta! Auf meiner Pyramide wird nicht geweint, ich schlag dich grün und blau, du verdammter Pendejo, Cabrón!",
-    },
-    {
-        "id": "Juan",
-        "name": "🇪🇸 Juan (Spanien · Matador)",
-        "folder": "10.Juan",
-        "voice_desc": "it-IT-GiuseppeMultilingualNeural (Spanish Torero Pitch) · Arroganter spanischer Arena-Akzent + Maricón / Pendejo",
-        "voice": "it-IT-GiuseppeMultilingualNeural",
-        "rate": "+10%",
-        "pitch": "+1Hz",
-        "filter": make_filter(1.01, 1.02, 3.0, 2.8),
-        "text": "In meiner spanischen Arena gibt es keine Gnade für Heulsusen, Maricón! Knie nieder vor meiner Klinge, Pendejo!",
-    },
-    {
-        "id": "Putin",
-        "name": "🇷🇺 Putin (Sibirien · Cold War Tank)",
-        "folder": "13.Putin",
-        "voice_desc": "en-AU-WilliamMultilingualNeural (Deep Siberian Bass) · Eiskalter russischer Kommandanten-Bass + Suka Blyat / Idi nahui",
-        "voice": "en-AU-WilliamMultilingualNeural",
-        "rate": "+3%",
-        "pitch": "-8Hz",
-        "filter": make_filter(0.89, 1.08, 4.8, 2.4),
-        "text": "Im ewigen Eis von Sibirien gefriert dein Blut zu Stein, Suka Blyat! Ich breche dich entzwei, idi nahui!",
+        "filter": make_filter(0.98, 1.02, 3.2, 2.6),
+        "display_text": "Du wagst es, meine Kinder anzufassen, du Dreckssack?! Jetzt gibt es die heiße gusseiserne Bratpfanne quer durch die Fresse!",
+        "tts_text": "Du wagst es, meine Kinder anzufassen, du Dreckssack?! Jetzt gibt es die heiße gusseiserne Bratpfanne quer durch die Fresse!",
     },
 ]
+
+
+def run_rvc_conversion(input_mp3, output_wav, pitch_shift=0, index_rate=0.60):
+    tmp_in_wav = input_mp3 + ".in.wav"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", input_mp3, "-ar", "44100", tmp_in_wav],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=True,
+    )
+    env = os.environ.copy()
+    env["PYTHONPATH"] = RVC_SITE
+    subprocess.run(
+        [
+            RVC_PYTHON,
+            RVC_SCRIPT,
+            tmp_in_wav,
+            RVC_MODEL,
+            output_wav,
+            "--index",
+            RVC_INDEX,
+            "--index-rate",
+            str(index_rate),
+            "--pitch",
+            str(pitch_shift),
+        ],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=True,
+    )
+    if os.path.exists(tmp_in_wav):
+        os.remove(tmp_in_wav)
 
 
 async def build_samples():
@@ -318,11 +424,14 @@ async def build_samples():
     for item in CAST:
         cid = item["id"]
         out_mp3 = os.path.join(SAMPLE_DIR, f"sample_{cid}.mp3")
+        if os.path.exists(out_mp3) and cid not in ("Cayle", "CayleMinogue", "Annikina"):
+            print(f"Already built sample_{cid}.mp3")
+            continue
         tmp_raw = out_mp3 + ".raw.mp3"
         for attempt in range(3):
             try:
                 comm = edge_tts.Communicate(
-                    item["text"],
+                    item["tts_text"],
                     item["voice"],
                     rate=item["rate"],
                     pitch=item["pitch"],
@@ -334,12 +443,23 @@ async def build_samples():
                     raise e
                 await asyncio.sleep(0.8)
 
+        source_for_master = tmp_raw
+        tmp_rvc_wav = out_mp3 + ".rvc.wav"
+        if item.get("use_rvc") and os.path.exists(RVC_PYTHON) and os.path.exists(RVC_MODEL):
+            run_rvc_conversion(
+                tmp_raw,
+                tmp_rvc_wav,
+                pitch_shift=item.get("rvc_pitch", 0),
+                index_rate=item.get("rvc_index_rate", 0.60),
+            )
+            source_for_master = tmp_rvc_wav
+
         subprocess.run(
             [
                 "ffmpeg",
                 "-y",
                 "-i",
-                tmp_raw,
+                source_for_master,
                 "-af",
                 item["filter"],
                 "-ar",
@@ -354,9 +474,11 @@ async def build_samples():
             stderr=subprocess.DEVNULL,
             check=True,
         )
-        if os.path.exists(tmp_raw):
-            os.remove(tmp_raw)
-        print(f"Built sample_{cid}.mp3 ({item['voice']})")
+        for f in (tmp_raw, tmp_rvc_wav):
+            if os.path.exists(f):
+                os.remove(f)
+        mode_tag = "RVC-HUMAN-VOICE" if item.get("use_rvc") else f"NATIVE-{item['voice']}"
+        print(f"Built sample_{cid}.mp3 [{mode_tag}]")
 
 
 def build_html():
@@ -366,34 +488,35 @@ def build_html():
             "name": "🇧🇷 Pablo (Rio · Unberührt wie gewünscht)",
             "folder": "3.Pablo",
             "voice_desc": "Originaler Pablo-Sound (bleibt 100% erhalten!)",
-            "text": "Unter der Sonne von Rio tanzt der Sturm! Zeig mir deinen Rhythmus im Kampf, Amigo!",
+            "display_text": "Unter der Sonne von Rio tanzt der Sturm! Zeig mir deinen Rhythmus im Kampf, Amigo!",
         },
         {
             "id": "Marley",
             "name": "🇯🇲 Marley (Kingston · Unberührt wie gewünscht)",
             "folder": "7.Marley_Jamaica",
             "voice_desc": "Originaler Marley-Sound (bleibt 100% erhalten!)",
-            "text": "An der Küste von Jamaika schlägt das Herz der Freiheit, Bredren. Zeig mir deine Kraft!",
+            "display_text": "An der Küste von Jamaika schlägt das Herz der Freiheit, Bredren. Zeig mir deine Kraft!",
         },
     ]
 
     cards_html = []
     for idx, c in enumerate(all_cards, 1):
         cid = c["id"]
+        badge = "🎙️ ECHTES RVC-VOICE-CLONING" if c.get("use_rvc") else "🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER"
         cards_html.append(f"""
         <div class="card" id="card-{cid}">
             <div class="card-head">
                 <img src="assets/CHARACTERS/{c['folder']}/_front.png" alt="{c['name']}">
                 <div>
-                    <div class="num">FIGHTER #{idx}</div>
+                    <div class="num">FIGHTER #{idx} · {badge}</div>
                     <h3>{c['name']}</h3>
                     <div class="vdesc">{c['voice_desc']}</div>
                 </div>
             </div>
-            <div class="quote">„{c['text']}“</div>
+            <div class="quote">„{c['display_text']}“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('{cid}')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3" preload="none"></audio>
+                <audio id="aud-{cid}" src="assets/audio/voice_samples/sample_{cid}.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         """)
@@ -403,7 +526,7 @@ def build_html():
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREET FIGHTER VOICE-CASTING & MUSTER (ALLE 27 FIGHTER)</title>
+<title>STREET FIGHTER VOICE-CASTING v2.61 — ECHTE DIALEKTE & ECHTE RVC-STIMME</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
     body {{
@@ -487,7 +610,7 @@ def build_html():
         font-size: 11px;
         color: #00e5ff;
         font-weight: 700;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
     }}
     h3 {{
         margin: 2px 0 4px 0;
@@ -527,8 +650,8 @@ def build_html():
 </style>
 </head>
 <body>
-    <h1>🎙️ STREET FIGHTER VOICE-CASTING — HÖRPROBEN ALLER 27 CHARAKTERE</h1>
-    <div class="sub">Klicke bei jedem Kämpfer auf „▶ STIMME ANHÖREN“ (Cayle & Cayle Minogue sind jetzt 100% Deutsch!)</div>
+    <h1>🎙️ STREET FIGHTER VOICE-CASTING v2.61 — ECHTE DIALEKTE & ECHTE RVC-STIMME</h1>
+    <div class="sub">Echte Muttersprachler (Spanisch, Mexikanisch, Polnisch, Russisch, Türkisch, Italienisch, Japanisch, Chinesisch, Indisch) mit Akzent im Deutschen + Dein eigenes RVC-Stimmmodell (vikingo040.pth)!</div>
     <div class="top-bar">
         <button class="top-btn" onclick="playAllSequential()">▶ ALLE 27 NACHEINANDER ABSPIELEN</button>
         <button class="top-btn" style="background:#333;border-color:#888;" onclick="stopAll()">⏹ STOP</button>

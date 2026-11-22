@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>STREET FIGHTER VOICE-CASTING & MUSTER (ALLE 27 FIGHTER)</title>
+<title>STREET FIGHTER VOICE-CASTING v2.61 — ECHTE DIALEKTE & ECHTE RVC-STIMME</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
     body {
@@ -87,7 +87,7 @@
         font-size: 11px;
         color: #00e5ff;
         font-weight: 700;
-        letter-spacing: 1px;
+        letter-spacing: 0.5px;
     }
     h3 {
         margin: 2px 0 4px 0;
@@ -127,171 +127,395 @@
 </style>
 </head>
 <body>
-    <h1>🎙️ STREET FIGHTER VOICE-CASTING — HÖRPROBEN ALLER 27 CHARAKTERE</h1>
-    <div class="sub">Klicke bei jedem Kämpfer auf „▶ STIMME ANHÖREN“ (Cayle & Cayle Minogue sind jetzt 100% Deutsch!)</div>
+    <h1>🎙️ STREET FIGHTER VOICE-CASTING v2.61 — ECHTE DIALEKTE & ECHTE RVC-STIMME</h1>
+    <div class="sub">Echte Muttersprachler (Spanisch, Mexikanisch, Polnisch, Russisch, Türkisch, Italienisch, Japanisch, Chinesisch, Indisch) mit Akzent im Deutschen + Dein eigenes RVC-Stimmmodell (vikingo040.pth)!</div>
     <div class="top-bar">
         <button class="top-btn" onclick="playAllSequential()">▶ ALLE 27 NACHEINANDER ABSPIELEN</button>
         <button class="top-btn" style="background:#333;border-color:#888;" onclick="stopAll()">⏹ STOP</button>
     </div>
     <div class="grid">
         
+        <div class="card" id="card-Vikingo">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/14.vikingo_coat/_front.png" alt="👑 Vikingo (VIKINGO40 · Deine ECHTE RVC-Stimme!)">
+                <div>
+                    <div class="num">FIGHTER #1 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>👑 Vikingo (VIKINGO40 · Deine ECHTE RVC-Stimme!)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-CLONING (vikingo040.pth) · Deine eigene echte Stimme vom Laptop!</div>
+                </div>
+            </div>
+            <div class="quote">„Hier spricht das Oberhaupt der Familie! Auf der Elbe habe ich schon ganz andere Stürme überlebt. Zeig mir Respekt im Ring, oder ich beende dich mit einem Schlag!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Vikingo')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Vikingo" src="assets/audio/voice_samples/sample_Vikingo.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-VikingoRaw">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/14.1.vikingo_shirtless/_front.png" alt="⚡ Dark Vikingo (Kriegsgott · Deine ECHTE RVC-Stimme!)">
+                <div>
+                    <div class="num">FIGHTER #2 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>⚡ Dark Vikingo (Kriegsgott · Deine ECHTE RVC-Stimme!)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-CLONING (vikingo040.pth · Dark Endboss Bass) · Deine echte Stimme im Berserker-Modus!</div>
+                </div>
+            </div>
+            <div class="quote">„Ich bin der verdammte Boss von Walhalla! Zeigt mir, ob ihr Eier aus Stahl habt, oder ich zerschmettere euch im Staub!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('VikingoRaw')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-VikingoRaw" src="assets/audio/voice_samples/sample_VikingoRaw.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Juan">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/10.Juan/_front.png" alt="🇪🇸 Juan (Spanien · Echter Spanier mit Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #3 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇪🇸 Juan (Spanien · Echter Spanier mit Dialekt)</h3>
+                    <div class="vdesc">es-ES-AlvaroNeural (ECHTER Spanier aus Madrid) · Spricht Deutsch mit echtem spanischem Akzent + Gilipollas / Maricón / Pendejo!</div>
+                </div>
+            </div>
+            <div class="quote">„¡Vamos, Gilipollas! In meiner spanischen Arena gibt es keine Gnade für Heulsusen, Maricón! Knie nieder vor meiner Klinge, Pendejo!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Juan')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Juan" src="assets/audio/voice_samples/sample_Juan.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Paco">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/9.Paco_el_Taco/_front.png" alt="🇲🇽 Paco el Taco (Mexiko · Echter Mexikaner mit Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #4 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇲🇽 Paco el Taco (Mexiko · Echter Mexikaner mit Dialekt)</h3>
+                    <div class="vdesc">es-MX-JorgeNeural (ECHTER Mexikaner) · Spricht Deutsch mit echtem mexikanischem Barrio-Akzent + Hijo de puta / Pendejo / Cabrón!</div>
+                </div>
+            </div>
+            <div class="quote">„¡Qué pasa, Hijo de puta! Auf meiner Pyramide wird nicht geweint, ich schlag dich grün und blau, du verdammter Pendejo, Cabrón!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Paco')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Paco" src="assets/audio/voice_samples/sample_Paco.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Kowalski">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/8.Kowalski_Poland/_front.png" alt="🇵🇱 Kowalski (Polen · Echter Pole mit Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #5 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇵🇱 Kowalski (Polen · Echter Pole mit Dialekt)</h3>
+                    <div class="vdesc">pl-PL-MarekNeural (ECHTER Pole aus Warschau) · Spricht Deutsch mit hartem polnischem Akzent + Kurwa mać / Bracie / Ja pierdolę!</div>
+                </div>
+            </div>
+            <div class="quote">„Kurwa mać! Polnischer Stahl bricht niemals, Bracie! Komm her, ich reiß dir den Kopf ab, ja pierdolę!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Kowalski')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Kowalski" src="assets/audio/voice_samples/sample_Kowalski.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Putin">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/13.Putin/_front.png" alt="🇷🇺 Putin (Sibirien · Echter Slawisch-Russischer Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #6 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇷🇺 Putin (Sibirien · Echter Slawisch-Russischer Dialekt)</h3>
+                    <div class="vdesc">uk-UA-OstapNeural (Echter Ost-Slawischer Muttersprachler) · Spricht Deutsch mit hartem russischem Akzent + Сука Блять / иди нахуй!</div>
+                </div>
+            </div>
+            <div class="quote">„Im ewigen Eis von Sibirien gefriert dein Blut zu Stein, Сука Блять! Ich breche dich entzwei, иди нахуй!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Putin')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Putin" src="assets/audio/voice_samples/sample_Putin.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Gargamel">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/6.C_Gargamel/_front.png" alt="🇩🇪🇹🇷 C. Gargamel (Kreuzberg · Echter Türkischer Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #7 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇩🇪🇹🇷 C. Gargamel (Kreuzberg · Echter Türkischer Dialekt)</h3>
+                    <div class="vdesc">tr-TR-AhmetNeural (ECHTER Türke) · Spricht Deutsch mit echtem türkischem Straßen-Akzent + Lan / sikecem amına koyayım!</div>
+                </div>
+            </div>
+            <div class="quote">„Was suchst du Hund in meiner Straße, Lan?! Ich schwör, meine Alchemie fickt dein ganzes Leben, sikecem amına koyayım!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Gargamel')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Gargamel" src="assets/audio/voice_samples/sample_Gargamel.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-GargamelHoodie">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/6.1.C_Gargamel_Hoodie/_front.png" alt="🇩🇪🇹🇷 Gargamel Hoodie (Untergrund · Echter Türkischer Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #8 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇩🇪🇹🇷 Gargamel Hoodie (Untergrund · Echter Türkischer Dialekt)</h3>
+                    <div class="vdesc">tr-TR-AhmetNeural (Dark Underground Pitch) · Tiefer türkisch-deutscher Untergrund-Akzent + Lan / Vallah / amına koyayım!</div>
+                </div>
+            </div>
+            <div class="quote">„Kapuze tief, Fäuste hart, Lan! Vallah, hier unten im Berliner Untergrund holt dich kein Krankenwagen mehr ab, amına koyayım!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('GargamelHoodie')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-GargamelHoodie" src="assets/audio/voice_samples/sample_GargamelHoodie.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-AlCapone">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/5.Al_Capone/_front.png" alt="🇮🇹 Al Capone (Rom · Echter Italiener mit Mafia-Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #9 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇮🇹 Al Capone (Rom · Echter Italiener mit Mafia-Dialekt)</h3>
+                    <div class="vdesc">it-IT-DiegoNeural (ECHTER Italiener aus Rom) · Spricht Deutsch mit echtem Mafia-Padrino-Akzent + Cazzo / Vaffanculo / Stronzo!</div>
+                </div>
+            </div>
+            <div class="quote">„Hör gut zu, Cazzo! In Rom regiert La Famiglia! Machst du Stress in meinem Kolosseum, schick ich dich im Betonsarg nach Hause, Vaffanculo, Stronzo!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('AlCapone')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-AlCapone" src="assets/audio/voice_samples/sample_AlCapone.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Hattori">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/1.Hattori_Japan/_front.png" alt="🇯🇵 Hattori (Tokyo · Echter Japaner mit Samurai-Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #10 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇯🇵 Hattori (Tokyo · Echter Japaner mit Samurai-Dialekt)</h3>
+                    <div class="vdesc">ja-JP-KeitaNeural (ECHTER Japaner aus Tokyo) · Spricht Deutsch mit echtem japanischem Samurai-Akzent + 馬鹿野郎 (Bakayaro) / くそ (Kuso)!</div>
+                </div>
+            </div>
+            <div class="quote">„Du entehrst meinen Tempel in Tokyo, Bakayaro! Zieh deine Waffe oder stirb durch mein Katana, Kuso!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Hattori')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Hattori" src="assets/audio/voice_samples/sample_Hattori.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Lee">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/11.Lee/_front.png" alt="🇯🇵 Lee (Cyber-Tokyo · Echter Japaner Speed-Fighter)">
+                <div>
+                    <div class="num">FIGHTER #11 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇯🇵 Lee (Cyber-Tokyo · Echter Japaner Speed-Fighter)</h3>
+                    <div class="vdesc">ja-JP-KeitaNeural (Fast Yakuza Pitch) · Echter japanischer Street-Fighter-Akzent + てめえ (Temee) / 馬鹿野郎 (Bakayaro)!</div>
+                </div>
+            </div>
+            <div class="quote">„Temee! In den Neon-Straßen von Tokyo überlebt kein langsamer Bastard, mein Blitz schlägt dir die Zähne ein, Bakayaro!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Lee')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Lee" src="assets/audio/voice_samples/sample_Lee.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Tzubaza">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/4.Tzubaza/_front.png" alt="🇨🇳 Tzubaza (China · Echter Chinese mit Kung-Fu-Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #12 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇨🇳 Tzubaza (China · Echter Chinese mit Kung-Fu-Dialekt)</h3>
+                    <div class="vdesc">zh-CN-YunjianNeural (ECHTER Chinese · Martial-Arts-Sprecher) · Spricht Deutsch mit echtem chinesischem Kung-Fu-Akzent + 他妈的 (Tamade)!</div>
+                </div>
+            </div>
+            <div class="quote">„他妈的 (Tamade)! Auf der Chinesischen Mauer zerschmettert mein Drachen-Kung-Fu deine Knochen, du Witzfigur!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Tzubaza')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Tzubaza" src="assets/audio/voice_samples/sample_Tzubaza.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Raheel">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/2.Raheel/_front.png" alt="🇮🇳 Raheel (Indien · Echter Inder mit Dialekt)">
+                <div>
+                    <div class="num">FIGHTER #13 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🇮🇳 Raheel (Indien · Echter Inder mit Dialekt)</h3>
+                    <div class="vdesc">en-IN-PrabhatNeural (ECHTER Inder aus Mumbai) · Spricht Deutsch mit echtem indischem Akzent + Bhenchod!</div>
+                </div>
+            </div>
+            <div class="quote">„Du glaubst, du kannst mein heiliges Feuer am Ganges stehlen, Bhenchod?! Meine Flammen fressen deine Seele bei lebendigem Leib!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Raheel')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Raheel" src="assets/audio/voice_samples/sample_Raheel.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
         <div class="card" id="card-Keano">
             <div class="card-head">
-                <img src="assets/CHARACTERS/0.Keano/_front.png" alt="🔥 Keano Romeo (14 J.)">
+                <img src="assets/CHARACTERS/0.Keano/_front.png" alt="🔥 Keano Romeo (14 J. · ECHTES RVC-Voice-Model + Teen-Pitch)">
                 <div>
-                    <div class="num">FIGHTER #1</div>
-                    <h3>🔥 Keano Romeo (14 J.)</h3>
-                    <div class="vdesc">de-DE-KillianNeural · Junger 14-jähriger Ghetto-Street-Flow (heller, frech, direkt)</div>
+                    <div class="num">FIGHTER #14 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>🔥 Keano Romeo (14 J. · ECHTES RVC-Voice-Model + Teen-Pitch)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth +3 Semitones Jugend-Pitch) · Echte menschliche Familien-Stimmfarbe für den 14-jährigen Sohn!</div>
                 </div>
             </div>
             <div class="quote">„Was guckst du so, Bruder? Wer unser Licht anfasst, geht heute auf den Brettern schlafen, komm ran, Digga!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Keano')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Keano" src="assets/audio/voice_samples/sample_Keano.mp3" preload="none"></audio>
+                <audio id="aud-Keano" src="assets/audio/voice_samples/sample_Keano.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-HyperKeano">
             <div class="card-head">
-                <img src="assets/CHARACTERS/0.2.Hyper_Keano/_front.png" alt="⚡ Hyper Keano">
+                <img src="assets/CHARACTERS/0.2.Hyper_Keano/_front.png" alt="⚡ Hyper Keano (ECHTES RVC-Voice-Model · Aufgeladen)">
                 <div>
-                    <div class="num">FIGHTER #2</div>
-                    <h3>⚡ Hyper Keano</h3>
-                    <div class="vdesc">de-DE-KillianNeural · Aufgeladen, aggressiver & schneller</div>
+                    <div class="num">FIGHTER #15 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>⚡ Hyper Keano (ECHTES RVC-Voice-Model · Aufgeladen)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth +2 Semitones Hyper-Flow) · Menschliche Textur, aggressiv & direkt!</div>
                 </div>
             </div>
             <div class="quote">„Keine Halbgas-Runden mehr, Digga! Du wolltest Stress? Jetzt kriegst du mein volles Hyper-Licht direkt in deine Fresse, Bruder!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('HyperKeano')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-HyperKeano" src="assets/audio/voice_samples/sample_HyperKeano.mp3" preload="none"></audio>
+                <audio id="aud-HyperKeano" src="assets/audio/voice_samples/sample_HyperKeano.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-SupremeKeano">
             <div class="card-head">
-                <img src="assets/CHARACTERS/0.1.Supreme_Keano/_front.png" alt="👑 Supreme Keano">
+                <img src="assets/CHARACTERS/0.1.Supreme_Keano/_front.png" alt="👑 Supreme Keano (ECHTES RVC-Voice-Model · God-Tier)">
                 <div>
-                    <div class="num">FIGHTER #3</div>
-                    <h3>👑 Supreme Keano</h3>
-                    <div class="vdesc">de-DE-KillianNeural · Tieferes Gottes-Level-Mastering mit Boss-Resonanz</div>
+                    <div class="num">FIGHTER #16 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>👑 Supreme Keano (ECHTES RVC-Voice-Model · God-Tier)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth · Supreme Resonance) · Echte menschliche Stimmgewalt!</div>
                 </div>
             </div>
             <div class="quote">„Höchste Stufe erreicht, Digga. Licht und Schatten gehören mir, knie nieder oder geh unter!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('SupremeKeano')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-SupremeKeano" src="assets/audio/voice_samples/sample_SupremeKeano.mp3" preload="none"></audio>
+                <audio id="aud-SupremeKeano" src="assets/audio/voice_samples/sample_SupremeKeano.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-JJDark">
             <div class="card-head">
-                <img src="assets/CHARACTERS/12.JJ_Dark/_front.png" alt="🌑 JJ Dark / Jayden (15 J.)">
+                <img src="assets/CHARACTERS/12.JJ_Dark/_front.png" alt="🌑 JJ Dark / Jayden (15 J. · ECHTES RVC-Voice-Model)">
                 <div>
-                    <div class="num">FIGHTER #4</div>
-                    <h3>🌑 JJ Dark / Jayden (15 J.)</h3>
-                    <div class="vdesc">de-DE-FlorianMultilingualNeural · Eiskalter 15-jähriger älterer Bruder (dunkler & rauer als Keano)</div>
+                    <div class="num">FIGHTER #17 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>🌑 JJ Dark / Jayden (15 J. · ECHTES RVC-Voice-Model)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth +1 Semitone) · Echte, dunkle menschliche Stimme für den 15-jährigen älteren Bruder!</div>
                 </div>
             </div>
             <div class="quote">„Du stehst vor dem falschen Gegner, du Hund. Mein Schattenfeuer brennt dich bis auf die Knochen nieder!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('JJDark')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-JJDark" src="assets/audio/voice_samples/sample_JJDark.mp3" preload="none"></audio>
+                <audio id="aud-JJDark" src="assets/audio/voice_samples/sample_JJDark.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-JayX">
             <div class="card-head">
-                <img src="assets/CHARACTERS/12.1.Jay_X/_front.png" alt="🟣 Jay X">
+                <img src="assets/CHARACTERS/12.1.Jay_X/_front.png" alt="🟣 Jay X (ECHTES RVC-Voice-Model · Phantom Drip)">
                 <div>
-                    <div class="num">FIGHTER #5</div>
-                    <h3>🟣 Jay X</h3>
-                    <div class="vdesc">de-DE-FlorianMultilingualNeural · Schneller, arroganter Street-Drip</div>
+                    <div class="num">FIGHTER #18 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>🟣 Jay X (ECHTES RVC-Voice-Model · Phantom Drip)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth +1 Semitone Fast Flow) · Echte menschliche Street-Attitüde!</div>
                 </div>
             </div>
             <div class="quote">„Bevor du dein Maul aufmachst, hat dich mein Phantom-Puls schon zerfetzt, komm ran, du Opfer!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('JayX')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-JayX" src="assets/audio/voice_samples/sample_JayX.mp3" preload="none"></audio>
+                <audio id="aud-JayX" src="assets/audio/voice_samples/sample_JayX.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-Dom">
             <div class="card-head">
-                <img src="assets/CHARACTERS/20.Dom/_front.png" alt="🥊 DOM (17 J. · Emys Freund)">
+                <img src="assets/CHARACTERS/20.Dom/_front.png" alt="🥊 DOM (17 J. · Emys Freund · ECHTES RVC-Voice-Model)">
                 <div>
-                    <div class="num">FIGHTER #6</div>
-                    <h3>🥊 DOM (17 J. · Emys Freund)</h3>
-                    <div class="vdesc">en-US-BrianMultilingualNeural · 17-jähriger Guile-Boxer/Kickboxer (trockener Street-Punch)</div>
+                    <div class="num">FIGHTER #19 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>🥊 DOM (17 J. · Emys Freund · ECHTES RVC-Voice-Model)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth · 17 J. Boxer-Timbre) · Trockene, echte menschliche Kämpfer-Stimme!</div>
                 </div>
             </div>
             <div class="quote">„Fass mein Mädchen Emy oder die Familie an und ich brech dir jeden Knochen, Digga! Handschuhe sind zu, Sonic Boom und Licht aus!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Dom')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Dom" src="assets/audio/voice_samples/sample_Dom.mp3" preload="none"></audio>
+                <audio id="aud-Dom" src="assets/audio/voice_samples/sample_Dom.mp3?v=261" preload="none"></audio>
+            </div>
+        </div>
+        
+        <div class="card" id="card-Simba">
+            <div class="card-head">
+                <img src="assets/CHARACTERS/16.Simba/_front.png" alt="🦁 Simba (König der Savanne · ECHTES RVC-Sub-Bass-Beast)">
+                <div>
+                    <div class="num">FIGHTER #20 · 🎙️ ECHTES RVC-VOICE-CLONING</div>
+                    <h3>🦁 Simba (König der Savanne · ECHTES RVC-Sub-Bass-Beast)</h3>
+                    <div class="vdesc">ECHTES RVC-VOICE-MODEL (vikingo040.pth -5 Semitones Monster-Bass) · Brutales, echtes Löwen-Wächter-Grollen!</div>
+                </div>
+            </div>
+            <div class="quote">„Ich bin der Wächter des Hauses und der König der Savanne. Ein Biss und dein Kampf ist vorbei!“</div>
+            <div class="controls">
+                <button class="play-btn" onclick="playSample('Simba')">▶ STIMME ANHÖREN</button>
+                <audio id="aud-Simba" src="assets/audio/voice_samples/sample_Simba.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-Emely">
             <div class="card-head">
-                <img src="assets/CHARACTERS/17.Emely/_front.png" alt="🌸 Emy (16 J.)">
+                <img src="assets/CHARACTERS/17.Emely/_front.png" alt="🌸 Emy (16 J. · It-Girl · Natürlich & Frech)">
                 <div>
-                    <div class="num">FIGHTER #7</div>
-                    <h3>🌸 Emy (16 J.)</h3>
-                    <div class="vdesc">de-DE-SeraphinaMultilingualNeural · 16-jähriges It-Girl (stylisch, arrogant, scharfzüngig)</div>
+                    <div class="num">FIGHTER #21 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🌸 Emy (16 J. · It-Girl · Natürlich & Frech)</h3>
+                    <div class="vdesc">de-DE-SeraphinaMultilingualNeural (Natural Warm Formant) · Lockeres, arrogantes 16-jähriges It-Girl ohne Roboter-Hall</div>
                 </div>
             </div>
             <div class="quote">„Mach Platz, Bitch! Guck mich nicht so billig an, Schatz, Dom steht hinter mir und mein Blütensturm fegt dich weg!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Emely')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Emely" src="assets/audio/voice_samples/sample_Emely.mp3" preload="none"></audio>
+                <audio id="aud-Emely" src="assets/audio/voice_samples/sample_Emely.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-HyperEmely">
             <div class="card-head">
-                <img src="assets/CHARACTERS/17.1.Hyper_Emely/_front.png" alt="🌸 Hyper-Emy">
+                <img src="assets/CHARACTERS/17.1.Hyper_Emely/_front.png" alt="🌸 Hyper-Emy (Sakura-Queen · Natürlich & Dominant)">
                 <div>
-                    <div class="num">FIGHTER #8</div>
-                    <h3>🌸 Hyper-Emy</h3>
-                    <div class="vdesc">en-US-AvaMultilingualNeural · Sakura-Queen (noch dominanterer It-Girl-Vibe)</div>
+                    <div class="num">FIGHTER #22 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>🌸 Hyper-Emy (Sakura-Queen · Natürlich & Dominant)</h3>
+                    <div class="vdesc">en-US-AvaMultilingualNeural (Natural Studio Mastering) · Lässige, überlegene Queen-Stimme</div>
                 </div>
             </div>
             <div class="quote">„Hyper-Emy ist da, Bitches! Du dachtest echt, du hast eine Chance gegen die Queen? Mit Dom an meiner Seite zerlege ich deine ganze Arena!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('HyperEmely')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-HyperEmely" src="assets/audio/voice_samples/sample_HyperEmely.mp3" preload="none"></audio>
+                <audio id="aud-HyperEmely" src="assets/audio/voice_samples/sample_HyperEmely.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-Cayle">
             <div class="card-head">
-                <img src="assets/CHARACTERS/18.Cayle/_front.png" alt="❄️ Cayle (12 J. · Deutsch)">
+                <img src="assets/CHARACTERS/18.Cayle/_front.png" alt="❄️ Cayle (12 J. · 100% Deutsch · Rotzfrech)">
                 <div>
-                    <div class="num">FIGHTER #9</div>
-                    <h3>❄️ Cayle (12 J. · Deutsch)</h3>
-                    <div class="vdesc">de-CH-LeniNeural (Hochdeutsch) · Helle, rotzfreche 12-jährige deutsche Mädchenstimme</div>
+                    <div class="num">FIGHTER #23 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>❄️ Cayle (12 J. · 100% Deutsch · Rotzfrech)</h3>
+                    <div class="vdesc">de-DE-AmalaNeural (Natural Young German Voice) · Echte junge deutsche Mädchenstimme (ohne unnatürlichen Chipmunk-Filter!)</div>
                 </div>
             </div>
             <div class="quote">„Unterschätz mich noch einmal, weil ich die Jüngste bin, und ich frier dein großes Maul direkt zu, du Opfer!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Cayle')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Cayle" src="assets/audio/voice_samples/sample_Cayle.mp3" preload="none"></audio>
+                <audio id="aud-Cayle" src="assets/audio/voice_samples/sample_Cayle.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
         <div class="card" id="card-CayleMinogue">
             <div class="card-head">
-                <img src="assets/CHARACTERS/18.1.Cayle_Minogue/_front.png" alt="💎 Cayle Minogue (Deutsch · Diamond Queen)">
+                <img src="assets/CHARACTERS/18.1.Cayle_Minogue/_front.png" alt="💎 Cayle Minogue (100% Deutsch · Diamond Queen)">
                 <div>
-                    <div class="num">FIGHTER #10</div>
-                    <h3>💎 Cayle Minogue (Deutsch · Diamond Queen)</h3>
-                    <div class="vdesc">de-DE-AmalaNeural · 100% Deutsch! Coole, frech-überlegene deutsche Diamant-Queen</div>
+                    <div class="num">FIGHTER #24 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
+                    <h3>💎 Cayle Minogue (100% Deutsch · Diamond Queen)</h3>
+                    <div class="vdesc">de-DE-AmalaNeural (Natural Warm Mastering) · 100% Deutsch, lässig, eiskalt und arrogant</div>
                 </div>
             </div>
             <div class="quote">„Als Cayle Minogue glitzert mein Eis wie echte Diamanten! Mach Platz, du Verlierer, mein Diamant-Frost schneidet dich in tausend Stücke!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('CayleMinogue')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-CayleMinogue" src="assets/audio/voice_samples/sample_CayleMinogue.mp3" preload="none"></audio>
+                <audio id="aud-CayleMinogue" src="assets/audio/voice_samples/sample_CayleMinogue.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
@@ -299,239 +523,15 @@
             <div class="card-head">
                 <img src="assets/CHARACTERS/19.Annikina/_front.png" alt="🔥 Annikina (Mama · Kneipenterroristen)">
                 <div>
-                    <div class="num">FIGHTER #11</div>
+                    <div class="num">FIGHTER #25 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
                     <h3>🔥 Annikina (Mama · Kneipenterroristen)</h3>
-                    <div class="vdesc">de-DE-KatjaNeural · Knallharte, erwachsene deutsche Straßen-Löwin mit gusseiserner Pfanne</div>
+                    <div class="vdesc">de-DE-KatjaNeural (Natural Heavy Chest Tone) · Knallharte deutsche Mama-Löwin mit gusseiserner Bratpfanne</div>
                 </div>
             </div>
             <div class="quote">„Du wagst es, meine Kinder anzufassen, du Dreckssack?! Jetzt gibt es die heiße gusseiserne Bratpfanne quer durch die Fresse!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Annikina')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Annikina" src="assets/audio/voice_samples/sample_Annikina.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-VikingoRaw">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/14.1.vikingo_shirtless/_front.png" alt="⚡ Dark Vikingo (Kriegsgott von Walhalla)">
-                <div>
-                    <div class="num">FIGHTER #12</div>
-                    <h3>⚡ Dark Vikingo (Kriegsgott von Walhalla)</h3>
-                    <div class="vdesc">de-DE-ConradNeural (Dark Bass) · Brachialer, grollender Endboss-Bass</div>
-                </div>
-            </div>
-            <div class="quote">„Ich bin der verdammte Boss von Walhalla! Zeigt mir, ob ihr Eier aus Stahl habt, oder ich zerschmettere euch im Staub!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('VikingoRaw')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-VikingoRaw" src="assets/audio/voice_samples/sample_VikingoRaw.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Vikingo">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/14.vikingo_coat/_front.png" alt="👑 Vikingo (VIKINGO40 · Der Big Boss)">
-                <div>
-                    <div class="num">FIGHTER #13</div>
-                    <h3>👑 Vikingo (VIKINGO40 · Der Big Boss)</h3>
-                    <div class="vdesc">de-DE-ConradNeural (Paten-Mastering) · Souveränes, tiefes Familien-Oberhaupt</div>
-                </div>
-            </div>
-            <div class="quote">„Hier spricht das Oberhaupt der Familie. Ich habe diese Welt gebaut und unser Blut trägt das Feuer. Zeigt mir Respekt im Ring, oder ich beende euch mit einem Schlag!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Vikingo')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Vikingo" src="assets/audio/voice_samples/sample_Vikingo.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Simba">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/16.Simba/_front.png" alt="🦁 Simba (König der Savanne)">
-                <div>
-                    <div class="num">FIGHTER #14</div>
-                    <h3>🦁 Simba (König der Savanne)</h3>
-                    <div class="vdesc">de-DE-ChristophNeural (Sub-Bass Beast) · Tiefes, animalisch-donnerndes Wächter-Organ</div>
-                </div>
-            </div>
-            <div class="quote">„Ich bin der Wächter des Hauses und der König der Savanne. Ein Biss und dein Kampf ist vorbei!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Simba')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Simba" src="assets/audio/voice_samples/sample_Simba.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Hattori">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/1.Hattori_Japan/_front.png" alt="🇯🇵 Hattori (Tokyo Samurai)">
-                <div>
-                    <div class="num">FIGHTER #15</div>
-                    <h3>🇯🇵 Hattori (Tokyo Samurai)</h3>
-                    <div class="vdesc">ko-KR-HyunsuMultilingualNeural · Echter asiatischer Samurai-Akzent im Deutschen + Bakayaro/Kuso</div>
-                </div>
-            </div>
-            <div class="quote">„Du entehrst meinen Tempel in Tokyo, Bakayaro! Zieh deine Waffe oder stirb durch mein Katana, Kuso!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Hattori')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Hattori" src="assets/audio/voice_samples/sample_Hattori.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Lee">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/11.Lee/_front.png" alt="🇯🇵 Lee (Cyber-Tokyo Speed-Fighter)">
-                <div>
-                    <div class="num">FIGHTER #16</div>
-                    <h3>🇯🇵 Lee (Cyber-Tokyo Speed-Fighter)</h3>
-                    <div class="vdesc">ko-KR-HyunsuMultilingualNeural (Fast Pitch) · Blitzschneller junger Yakuza-Fighter aus Tokyo</div>
-                </div>
-            </div>
-            <div class="quote">„Temee! In den Neon-Straßen von Tokyo überlebt kein langsamer Bastard, mein Blitz schlägt dir die Zähne ein, Bakayaro!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Lee')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Lee" src="assets/audio/voice_samples/sample_Lee.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Tzubaza">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/4.Tzubaza/_front.png" alt="🇨🇳 Tzubaza (China Kung-Fu Meister)">
-                <div>
-                    <div class="num">FIGHTER #17</div>
-                    <h3>🇨🇳 Tzubaza (China Kung-Fu Meister)</h3>
-                    <div class="vdesc">ko-KR-HyunsuMultilingualNeural (Deep Master) · Strenger, arroganter Kung-Fu-Großmeister</div>
-                </div>
-            </div>
-            <div class="quote">„Tamadé! Du wagst es, mit deinem billigen Straßenkampf in meine Festung zu kommen?! Mein Drachen-Kung-Fu bricht dir sämtliche Knochen!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Tzubaza')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Tzubaza" src="assets/audio/voice_samples/sample_Tzubaza.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Raheel">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/2.Raheel/_front.png" alt="🇮🇳 Raheel (Indien · Dhalsim-Feuermeister)">
-                <div>
-                    <div class="num">FIGHTER #18</div>
-                    <h3>🇮🇳 Raheel (Indien · Dhalsim-Feuermeister)</h3>
-                    <div class="vdesc">en-AU-WilliamMultilingualNeural · Exotischer Dhalsim-Mystiker-Akzent mit tiefer Resonanz</div>
-                </div>
-            </div>
-            <div class="quote">„Du glaubst, du kannst mein heiliges Feuer am Ganges stehlen, du Narr? Meine Flammen fressen deine Seele bei lebendigem Leib!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Raheel')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Raheel" src="assets/audio/voice_samples/sample_Raheel.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-AlCapone">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/5.Al_Capone/_front.png" alt="🇮🇹 Al Capone (Rom · Mafia Padrino)">
-                <div>
-                    <div class="num">FIGHTER #19</div>
-                    <h3>🇮🇹 Al Capone (Rom · Mafia Padrino)</h3>
-                    <div class="vdesc">it-IT-GiuseppeMultilingualNeural · ECHTER italienischer Muttersprachler spricht Deutsch + Vaffanculo/Cazzo!</div>
-                </div>
-            </div>
-            <div class="quote">„Hör gut zu, Cazzo: In Rom regiert La Famiglia! Machst du Stress in meinem Kolosseum, schick ich dich im Betonsarg nach Hause, Vaffanculo, Stronzo!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('AlCapone')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-AlCapone" src="assets/audio/voice_samples/sample_AlCapone.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Gargamel">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/6.C_Gargamel/_front.png" alt="🇩🇪🇹🇷 C. Gargamel (Berlin-Kreuzberg)">
-                <div>
-                    <div class="num">FIGHTER #20</div>
-                    <h3>🇩🇪🇹🇷 C. Gargamel (Berlin-Kreuzberg)</h3>
-                    <div class="vdesc">de-AT-JonasNeural (Kreuzberg Street Filter) · Aggressiver Berliner Untergrund-Boss + Lan / sikedim amk</div>
-                </div>
-            </div>
-            <div class="quote">„Was suchst du Hund in meiner Straße, Lan?! Ich schwör, meine Alchemie fickt dein ganzes Leben, sikedim amk!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Gargamel')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Gargamel" src="assets/audio/voice_samples/sample_Gargamel.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-GargamelHoodie">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/6.1.C_Gargamel_Hoodie/_front.png" alt="🇩🇪🇹🇷 Gargamel Hoodie (Berliner Untergrund)">
-                <div>
-                    <div class="num">FIGHTER #21</div>
-                    <h3>🇩🇪🇹🇷 Gargamel Hoodie (Berliner Untergrund)</h3>
-                    <div class="vdesc">de-CH-JanNeural (Dark Underground Filter) · Tiefer, dreckiger Straßen-Alchemist</div>
-                </div>
-            </div>
-            <div class="quote">„Kapuze tief, Fäuste hart, Lan! Hier unten im Berliner Untergrund holt dich kein Krankenwagen mehr ab, sikedim amk!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('GargamelHoodie')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-GargamelHoodie" src="assets/audio/voice_samples/sample_GargamelHoodie.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Kowalski">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/8.Kowalski_Poland/_front.png" alt="🇵🇱 Kowalski (Warschau · Iron Bear)">
-                <div>
-                    <div class="num">FIGHTER #22</div>
-                    <h3>🇵🇱 Kowalski (Warschau · Iron Bear)</h3>
-                    <div class="vdesc">de-DE-ChristophNeural (Heavy Polish Brawler Bass) · Schwerer Warschauer Hooligan-Tank + Kurwa mać / Ja pierdolę</div>
-                </div>
-            </div>
-            <div class="quote">„Kurwa mać! Polnischer Stahl bricht niemals, Bracie! Komm her, ich reiß dir den Kopf ab, ja pierdolę!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Kowalski')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Kowalski" src="assets/audio/voice_samples/sample_Kowalski.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Paco">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/9.Paco_el_Taco/_front.png" alt="🇲🇽 Paco el Taco (Mexiko · Lucha Brawler)">
-                <div>
-                    <div class="num">FIGHTER #23</div>
-                    <h3>🇲🇽 Paco el Taco (Mexiko · Lucha Brawler)</h3>
-                    <div class="vdesc">fr-FR-RemyMultilingualNeural · Feuriger lateinamerikanischer Akzent im Deutschen + Hijo de puta / Cabrón / Pendejo</div>
-                </div>
-            </div>
-            <div class="quote">„¡Qué pasa, Hijo de puta! Auf meiner Pyramide wird nicht geweint, ich schlag dich grün und blau, du verdammter Pendejo, Cabrón!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Paco')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Paco" src="assets/audio/voice_samples/sample_Paco.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Juan">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/10.Juan/_front.png" alt="🇪🇸 Juan (Spanien · Matador)">
-                <div>
-                    <div class="num">FIGHTER #24</div>
-                    <h3>🇪🇸 Juan (Spanien · Matador)</h3>
-                    <div class="vdesc">it-IT-GiuseppeMultilingualNeural (Spanish Torero Pitch) · Arroganter spanischer Arena-Akzent + Maricón / Pendejo</div>
-                </div>
-            </div>
-            <div class="quote">„In meiner spanischen Arena gibt es keine Gnade für Heulsusen, Maricón! Knie nieder vor meiner Klinge, Pendejo!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Juan')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Juan" src="assets/audio/voice_samples/sample_Juan.mp3" preload="none"></audio>
-            </div>
-        </div>
-        
-        <div class="card" id="card-Putin">
-            <div class="card-head">
-                <img src="assets/CHARACTERS/13.Putin/_front.png" alt="🇷🇺 Putin (Sibirien · Cold War Tank)">
-                <div>
-                    <div class="num">FIGHTER #25</div>
-                    <h3>🇷🇺 Putin (Sibirien · Cold War Tank)</h3>
-                    <div class="vdesc">en-AU-WilliamMultilingualNeural (Deep Siberian Bass) · Eiskalter russischer Kommandanten-Bass + Suka Blyat / Idi nahui</div>
-                </div>
-            </div>
-            <div class="quote">„Im ewigen Eis von Sibirien gefriert dein Blut zu Stein, Suka Blyat! Ich breche dich entzwei, idi nahui!“</div>
-            <div class="controls">
-                <button class="play-btn" onclick="playSample('Putin')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Putin" src="assets/audio/voice_samples/sample_Putin.mp3" preload="none"></audio>
+                <audio id="aud-Annikina" src="assets/audio/voice_samples/sample_Annikina.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
@@ -539,7 +539,7 @@
             <div class="card-head">
                 <img src="assets/CHARACTERS/3.Pablo/_front.png" alt="🇧🇷 Pablo (Rio · Unberührt wie gewünscht)">
                 <div>
-                    <div class="num">FIGHTER #26</div>
+                    <div class="num">FIGHTER #26 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
                     <h3>🇧🇷 Pablo (Rio · Unberührt wie gewünscht)</h3>
                     <div class="vdesc">Originaler Pablo-Sound (bleibt 100% erhalten!)</div>
                 </div>
@@ -547,7 +547,7 @@
             <div class="quote">„Unter der Sonne von Rio tanzt der Sturm! Zeig mir deinen Rhythmus im Kampf, Amigo!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Pablo')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Pablo" src="assets/audio/voice_samples/sample_Pablo.mp3" preload="none"></audio>
+                <audio id="aud-Pablo" src="assets/audio/voice_samples/sample_Pablo.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
@@ -555,7 +555,7 @@
             <div class="card-head">
                 <img src="assets/CHARACTERS/7.Marley_Jamaica/_front.png" alt="🇯🇲 Marley (Kingston · Unberührt wie gewünscht)">
                 <div>
-                    <div class="num">FIGHTER #27</div>
+                    <div class="num">FIGHTER #27 · 🌍 ECHTER LANDES-DIALEKT & MUTTERSPRACHLER</div>
                     <h3>🇯🇲 Marley (Kingston · Unberührt wie gewünscht)</h3>
                     <div class="vdesc">Originaler Marley-Sound (bleibt 100% erhalten!)</div>
                 </div>
@@ -563,7 +563,7 @@
             <div class="quote">„An der Küste von Jamaika schlägt das Herz der Freiheit, Bredren. Zeig mir deine Kraft!“</div>
             <div class="controls">
                 <button class="play-btn" onclick="playSample('Marley')">▶ STIMME ANHÖREN</button>
-                <audio id="aud-Marley" src="assets/audio/voice_samples/sample_Marley.mp3" preload="none"></audio>
+                <audio id="aud-Marley" src="assets/audio/voice_samples/sample_Marley.mp3?v=261" preload="none"></audio>
             </div>
         </div>
         
@@ -571,7 +571,7 @@
 <script>
 let currentAudio = null;
 let seqRunning = false;
-const allIds = ['Keano', 'HyperKeano', 'SupremeKeano', 'JJDark', 'JayX', 'Dom', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'VikingoRaw', 'Vikingo', 'Simba', 'Hattori', 'Lee', 'Tzubaza', 'Raheel', 'AlCapone', 'Gargamel', 'GargamelHoodie', 'Kowalski', 'Paco', 'Juan', 'Putin', 'Pablo', 'Marley'];
+const allIds = ['Vikingo', 'VikingoRaw', 'Juan', 'Paco', 'Kowalski', 'Putin', 'Gargamel', 'GargamelHoodie', 'AlCapone', 'Hattori', 'Lee', 'Tzubaza', 'Raheel', 'Keano', 'HyperKeano', 'SupremeKeano', 'JJDark', 'JayX', 'Dom', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'Pablo', 'Marley'];
 
 function stopAll() {
     seqRunning = false;
