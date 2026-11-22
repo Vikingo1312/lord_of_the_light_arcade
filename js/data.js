@@ -269,10 +269,10 @@ export function syncJanBrowserUnlocks() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') return false;
     const host = window.location.hostname || '';
     const isJanLocal = (host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.') || host.endsWith('.local'));
+    const isJanIpVerified = localStorage.getItem('lotl_jan_ip_verified') === 'true';
 
-    if (isJanLocal && !localStorage.getItem('lotl_clean_progression')) {
+    if ((isJanLocal || isJanIpVerified) && !localStorage.getItem('lotl_clean_progression')) {
         try {
-            localStorage.setItem('lotl_vip_jan', 'true');
             localStorage.setItem('lotl_story_complete', 'true');
             for (const s of SPECIALS) {
                 localStorage.setItem(`unlock_${s.id}`, 'true');
@@ -281,8 +281,8 @@ export function syncJanBrowserUnlocks() {
         return true;
     }
 
-    // Auf dem öffentlichen Vercel-Link: keine kostenlosen URL-Unlocks — jeder muss sich seinen Weg erkämpfen!
-    if (!isJanLocal) {
+    // Auf öffentlichen Geräten: keine kostenlosen Voll-Unlocks — jeder muss sich seinen Weg über Story/Arcade erkämpfen!
+    if (!isJanLocal && !isJanIpVerified) {
         try {
             if (localStorage.getItem('lotl_vip_jan') || localStorage.getItem('lotl_vip_emy') || localStorage.getItem('lotl_vip_dom') || localStorage.getItem('lotl_vip_annikina')) {
                 localStorage.removeItem('lotl_vip_jan');
@@ -290,7 +290,9 @@ export function syncJanBrowserUnlocks() {
                 localStorage.removeItem('lotl_vip_dom');
                 localStorage.removeItem('lotl_vip_annikina');
                 for (const s of SPECIALS) {
-                    localStorage.removeItem(`unlock_${s.id}`);
+                    if (localStorage.getItem(`lotl_single_claim_${s.id}`) !== 'true') {
+                        localStorage.removeItem(`unlock_${s.id}`);
+                    }
                 }
             }
         } catch (e) {}

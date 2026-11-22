@@ -10,16 +10,20 @@
                 var host = window.location.hostname || '';
                 var isLocal = (host === 'localhost' || host === '127.0.0.1' || host.indexOf('192.168.') === 0 || host.endsWith('.local'));
                 var allSpecials = ['Vikingo', 'VikingoRaw', 'SupremeKeano', 'HyperKeano', 'JayX', 'GargamelHoodie', 'Simba', 'Emely', 'HyperEmely', 'Cayle', 'CayleMinogue', 'Annikina', 'Dom', 'AliAbi'];
-                if (isLocal && !localStorage.getItem('lotl_clean_progression')) {
-                    // NUR lokal auf Jans Mac sind alle Kämpfer direkt freigeschaltet!
-                    localStorage.setItem('lotl_vip_jan', 'true');
+                var params = new URLSearchParams(window.location.search || '');
+                var claimToken = params.get('claim') || '';
+                var macKey = params.get('mac_key') || '';
+
+                function unlockAllForJanMac() {
+                    localStorage.setItem('lotl_jan_ip_verified', 'true');
                     localStorage.setItem('lotl_story_complete', 'true');
                     for (var i = 0; i < allSpecials.length; i++) {
                         localStorage.setItem('unlock_' + allSpecials[i], 'true');
                     }
-                } else if (!isLocal) {
-                    // Auf Vercel / öffentlich: Jeder muss sich alle Geheimkämpfer selbst im Spiel freikämpfen!
-                    // Einmaliger Reset alter VIP-Flags aus früheren Links:
+                }
+
+                // Clear any old legacy Vercel VIP flags on public devices
+                if (!isLocal && !localStorage.getItem('lotl_jan_ip_verified')) {
                     if (localStorage.getItem('lotl_vip_jan') || localStorage.getItem('lotl_vip_emy') || localStorage.getItem('lotl_vip_dom') || localStorage.getItem('lotl_vip_annikina')) {
                         localStorage.removeItem('lotl_vip_jan');
                         localStorage.removeItem('lotl_vip_emy');
@@ -29,9 +33,42 @@
                             localStorage.removeItem('unlock_' + allSpecials[k]);
                         }
                     }
-                    if (window.location.search && window.history && window.history.replaceState) {
-                        window.history.replaceState({}, document.title, window.location.pathname);
-                    }
+                }
+
+                if (isLocal && !localStorage.getItem('lotl_clean_progression')) {
+                    unlockAllForJanMac();
+                }
+
+                // 1) One-Time Single-Use Invite Link (e.g. ?claim=ali-abi-vip-7788 -> unlocks ONLY AliAbi once!)
+                if (claimToken) {
+                    fetch('/api/lotl/claim?token=' + encodeURIComponent(claimToken), { cache: 'no-store' })
+                        .then(function (r) { return r.json(); })
+                        .then(function (d) {
+                            if (d && d.ok && d.unlockId) {
+                                localStorage.setItem('unlock_' + d.unlockId, 'true');
+                                localStorage.setItem('lotl_single_claim_' + d.unlockId, 'true');
+                                alert('🫲 ALI ABI 🫱 WURDE FÜR DICH FREIGESCHALTET!\n\nDieser Einmal-Link wurde jetzt eingelöst und ist ab sofort für weitere Klicks gesperrt. Viel Spaß im Döner-Palast!');
+                            } else if (d && d.reason === 'already_used') {
+                                alert('⚠️ DIESER EINMAL-LINK WURDE BEREITS BENUTZT!\n\nEinmal-Links können nur ein einziges Mal angeklickt werden.');
+                            }
+                        })
+                        .catch(function () {});
+                }
+
+                // 2) Server-side IP check: ONLY Jan's Mac IP (185.165.255.30) gets all 28 fighters unlocked automatically!
+                fetch('/api/lotl/access' + (macKey ? ('?mac_key=' + encodeURIComponent(macKey)) : ''), { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d && d.isJanMac && !localStorage.getItem('lotl_clean_progression')) {
+                            unlockAllForJanMac();
+                        } else if (d && !d.isJanMac && !isLocal) {
+                            localStorage.removeItem('lotl_jan_ip_verified');
+                        }
+                    })
+                    .catch(function () {});
+
+                if (window.location.search && window.history && window.history.replaceState) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
                 }
             } catch (e) {}
         })();
@@ -352,12 +389,12 @@
 
             if ('serviceWorker' in navigator) {
                 window.addEventListener('load', () => {
-                    navigator.serviceWorker.register('sw.js?v=2.66').catch(() => {});
+                    navigator.serviceWorker.register('sw.js?v=2.67').catch(() => {});
                 });
             }
 
             // Live Auto-Update Checker: Polls version.json from the server and prompts the player when a new update is live!
-            window.LOTL_CURRENT_VERSION = '2.66';
+            window.LOTL_CURRENT_VERSION = '2.67';
             async function checkLiveGameUpdate() {
                 try {
                     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
@@ -380,7 +417,7 @@
     </script>
 
     <!-- ES6 Modules Entry Point -->
-    <script type="module" src="js/main.js?v=2.66"></script>
+    <script type="module" src="js/main.js?v=2.67"></script>
 </body>
 
 </html>
