@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.58';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.58';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.58';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.58';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.59';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.59';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.59';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.59';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -271,6 +271,35 @@ export default class CombatHUD {
             ctx.fillText('SUPER MAX!', p2X + barW - 8, spY + 13);
         }
 
+        // ─── STREET FIGHTER ROUND VICTORY STARS (★) ───
+        const roundsNeeded = combat.roundsToWin || 2;
+        if (roundsNeeded > 1) {
+            const p1Wins = combat.p1RoundWins || 0;
+            const p2Wins = combat.p2RoundWins || 0;
+            const starY = spY + spH + 17;
+            ctx.save();
+            ctx.font = 'bold 18px "Press Start 2P"';
+            for (let r = 0; r < roundsNeeded; r++) {
+                // P1 Stars (inner edge near center timer, growing outward)
+                const s1X = p1X + barW - 14 - r * 28;
+                const won1 = r < p1Wins;
+                ctx.fillStyle = won1 ? '#ffd700' : 'rgba(255, 255, 255, 0.22)';
+                ctx.shadowColor = won1 ? '#ff8800' : 'transparent';
+                ctx.shadowBlur = won1 ? 10 : 0;
+                ctx.textAlign = 'center';
+                ctx.fillText('★', s1X, starY);
+
+                // P2 Stars (inner edge near center timer, growing outward)
+                const s2X = p2X + 14 + r * 28;
+                const won2 = r < p2Wins;
+                ctx.fillStyle = won2 ? '#ffd700' : 'rgba(255, 255, 255, 0.22)';
+                ctx.shadowColor = won2 ? '#ff8800' : 'transparent';
+                ctx.shadowBlur = won2 ? 10 : 0;
+                ctx.fillText('★', s2X, starY);
+            }
+            ctx.restore();
+        }
+
         // ─── CO-OP PARTNER (ALLY) HEALTH & SPECIAL BARS ───
         if (combat.coopMode && combat.ally) {
             const allyY = spY + 34;
@@ -479,16 +508,18 @@ export default class CombatHUD {
             }
             ctx.restore();
         } else if (subPhase === 'ROUND_CALL') {
-            // Phase 2: Announcer roars "ROUND 1!" (only after Story Intro finished!)
+            // Phase 2: Announcer roars "ROUND 1!" / "ROUND 2!" / "FINAL ROUND!" (only after Story Intro finished!)
             const scale = Math.min(1, subT * 4.5);
+            const roundNum = combat.currentRound || 1;
+            const roundLabel = (roundNum >= 3) ? 'FINAL ROUND' : `ROUND ${roundNum}`;
             ctx.save();
             ctx.translate(cx, cy);
             ctx.scale(scale, scale);
-            ctx.font = 'bold 100px "Press Start 2P"';
+            ctx.font = (roundNum >= 3) ? 'bold 84px "Press Start 2P"' : 'bold 100px "Press Start 2P"';
             ctx.fillStyle = '#fdbf00';
             ctx.shadowColor = '#000';
             ctx.shadowBlur = 20;
-            ctx.fillText('ROUND 1', 0, 0);
+            ctx.fillText(roundLabel, 0, 0);
             ctx.shadowBlur = 0;
             ctx.restore();
         } else {
@@ -586,7 +617,7 @@ export default class CombatHUD {
             ctx.restore();
         }
 
-        if (combat.koFreezeTimer >= 3.0) {
+        if (combat.koFreezeTimer >= 2.2) {
             const winnerFighter = combat.winner === 'p1' ? combat.p1 : combat.p2;
             if (winnerFighter.hp >= winnerFighter.maxHP) {
                 ctx.font = 'bold 60px "Press Start 2P"';
@@ -595,7 +626,9 @@ export default class CombatHUD {
                 ctx.shadowBlur = 15;
                 ctx.fillText('PERFECT', cx, cy + 60);
                 ctx.shadowBlur = 0;
-                if (!combat._perfectAnnounced) {
+                // Announce PERFECT on intermediate rounds (on final round, POST_MATCH sequences PERFECT -> Win Quote!)
+                const isFinalMatchRound = ((combat.winner === 'p1' ? (combat.p1RoundWins || 0) : (combat.p2RoundWins || 0)) + 1) >= (combat.roundsToWin || 2);
+                if (!isFinalMatchRound && !combat._perfectAnnounced) {
                     combat._perfectAnnounced = true;
                     playAnnouncer(combat.game.audioManager, 'perfect');
                 }

@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.58';
-import { getFighterStyle } from '../data.js?v=2.58';
+import Hitbox from './Hitbox.js?v=2.59';
+import { getFighterStyle } from '../data.js?v=2.59';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -54,6 +54,12 @@ export default class Fighter {
         this.specialMoveCooldown = 0;
         this.hitStop = 0;
         this.hitImmunity = 0;
+        this.hitStunDuration = 0.34;
+        this.isKnockedDown = false;
+        this.stunMeter = 0;
+        this.maxStunMeter = 100;
+        this.stunDecayTimer = 0;
+        this.midFightDizzyTimer = 0;
 
         // Blocking
         this.isBlocking = false;
@@ -177,16 +183,25 @@ export default class Fighter {
             this.hurtbox.height = this.baseHurtboxHeight;
         }
 
-        // Street Fighter Guard System:
-        // Holding Guard button (B / Shift / Trigger / Mobile 'B' button) OR Holding Back (standing or crouching) OR Crouching (without pressing forward) activates guard!
+        // Authentic Street Fighter II Guard System:
+        // Standing Block = Holding Back (←) or Guard button (B / Shift).
+        // Crouching Block = Holding Down-Back (↙) or Down + Guard button (↓+B).
+        // Simply crouching (↓ alone without Back or Guard) ducks under high projectiles/jabs, but does NOT auto-block!
         const holdingGuardBtn = Boolean(inputQueue.guard);
         const holdingBack = (this.facing === 1 && inputQueue.left) || (this.facing === -1 && inputQueue.right);
         const holdingFwd = (this.facing === 1 && inputQueue.right) || (this.facing === -1 && inputQueue.left);
-        const holdingCrouchGuard = Boolean(inputQueue.down && !holdingFwd);
+        const holdingCrouchGuard = Boolean(inputQueue.down && (holdingBack || holdingGuardBtn));
         const oppAttackingNear = Boolean(this.opponent && this.opponent.state === 'ATTACK' && Math.abs(this.opponent.x - this.x) < 420);
         const inRecoveryGuardWindow = this.state === 'ATTACK' && this.currentAttack && this.stateTimer >= (this.currentAttack.startup + this.currentAttack.active + (this.currentAttack.recovery || 0.2) * 0.45);
-        this.isBlocking = (holdingGuardBtn || holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && this.state !== 'DASH' && this.state !== 'HIT' && this.state !== 'KO';
-        this.isActivelyGuarding = Boolean(this.isBlocking && (holdingGuardBtn || this.blockStun > 0 || inputQueue.opponentThreat || oppAttackingNear || holdingBack || holdingCrouchGuard));
+        this.isBlocking = (holdingGuardBtn || holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && !this.isKnockedDown && this.midFightDizzyTimer <= 0 && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && this.state !== 'DASH' && this.state !== 'HIT' && this.state !== 'KO';
+        this.isActivelyGuarding = Boolean(this.isBlocking && (holdingGuardBtn || this.blockStun > 0 || ((holdingBack || holdingCrouchGuard) && (inputQueue.opponentThreat || oppAttackingNear))));
+
+        // Decay Stun Meter when not being hit
+        if (this.stunDecayTimer > 0) {
+            this.stunDecayTimer = Math.max(0, this.stunDecayTimer - dt);
+        } else if (this.stunMeter > 0 && this.state !== 'HIT' && this.midFightDizzyTimer <= 0) {
+            this.stunMeter = Math.max(0, this.stunMeter - 22 * dt);
+        }
 
         // Hit-immunity countdown (prevents chain-stun after recovering from HIT)
         if (this.hitImmunity > 0) this.hitImmunity -= dt;
@@ -691,21 +706,45 @@ export default class Fighter {
                 break;
 
             case 'HIT':
-                // In hitstun
+                // Tiered Street Fighter Hitstun & Hard Knockdown Wake-Up (Okizeme)
                 this.activeHitbox = null;
-                if (this.stateTimer > 0.34) { // 340ms crisp Street Fighter hitstun baseline
-                    this.state = 'IDLE';
+                const reqStun = this.isKnockedDown ? Math.max(0.56, this.hitStunDuration || 0.56) : (this.hitStunDuration || 0.32);
+                if (this.stateTimer > reqStun && this.isGrounded) {
+                    const wasKD = this.isKnockedDown;
+                    this.isKnockedDown = false;
                     this.consecutiveHitsTaken = 0;
-                    this.hitImmunity = Math.max(this.hitImmunity, 0.36); // Wake-up/recovery immunity prevents cheap infinite loops
+                    if (this.stunMeter >= 100 && this.hp > 1) {
+                        // Street Fighter Mid-Match Dizzy Stun! (Stars over head for 1.55s!)
+                        this.stunMeter = 0;
+                        this.state = 'DIZZY';
+                        this.stateTimer = 0;
+                        this.midFightDizzyTimer = 1.55;
+                        this.pendingStyleCallout = '💫 DIZZY STUN!';
+                    } else {
+                        this.state = inputQueue.down ? 'CROUCH' : 'IDLE';
+                        this.hitImmunity = Math.max(this.hitImmunity, wasKD ? 0.44 : 0.32);
+                    }
                 }
                 // Decelerate pushback rapidly
                 this.vx *= 0.82;
                 break;
 
             case 'DIZZY':
-                // Mortal Kombat "FINISH HIM!" dazed standing state
+                // Street Fighter Mid-Match Stun OR Mortal Kombat "FINISH HIM!" dazed standing state
                 this.activeHitbox = null;
                 this.vx = 0;
+                if (this.midFightDizzyTimer > 0) {
+                    this.midFightDizzyTimer -= dt;
+                    // Rapid directional shake / button mash recovers from Dizzy slightly faster, like SF2!
+                    if (inputQueue.lJust || inputQueue.hJust || inputQueue.left || inputQueue.right) {
+                        this.midFightDizzyTimer -= dt * 0.35;
+                    }
+                    if (this.midFightDizzyTimer <= 0) {
+                        this.midFightDizzyTimer = 0;
+                        this.state = 'IDLE';
+                        this.hitImmunity = Math.max(this.hitImmunity, 0.35);
+                    }
+                }
                 break;
 
             case 'KO':
@@ -840,9 +879,14 @@ export default class Fighter {
         return 'RYU_DRAGON_RUSH';
     }
 
-    executeProjectileCast() {
-        if (this.specialEnergy < 100) return false;
-        this.specialEnergy = 0;
+    executeProjectileCast(consumeSuper = true) {
+        if (consumeSuper) {
+            if (this.specialEnergy < 100) return false;
+            this.specialEnergy = 0;
+        } else {
+            if (this.specialMoveCooldown > 0) return false;
+            this.specialMoveCooldown = 0.52;
+        }
         this.state = 'ATTACK';
         this.stateTimer = 0;
         this.attackHasHit = false;
@@ -1126,13 +1170,13 @@ export default class Fighter {
         } else if (type === 'THROW') {
             // L + H at close range: Unblockable Martial Arts Grapple Slam!
             const isGrappler = (styleId === 'TITAN_GRAPPLER');
-            this.vx = this.facing * (isGrappler ? 250 : 150);
+            this.vx = this.facing * (isGrappler ? 185 : 120);
             this.currentAttack = {
-                startup: 0.038, active: 0.15, recovery: 0.25,
-                damage: Math.round((isGrappler ? 56 : 42) * pwrMul), pushback: 640, hitstop: 0.17,
+                startup: 0.042, active: 0.13, recovery: 0.26,
+                damage: Math.round((isGrappler ? 52 : 40) * pwrMul), pushback: 640, hitstop: 0.17,
                 lift: isGrappler ? -480 : -420,
                 unblockable: true,
-                box: new Hitbox(-18, 45, isGrappler ? 245 : 185, 210),
+                box: new Hitbox(-14, 45, isGrappler ? 182 : 148, 210),
                 type: 'THROW'
             };
         } else if (type === 'SPECIAL') {
@@ -1210,7 +1254,8 @@ export default class Fighter {
                 // Only light normal pokes leave 1 HP on block
                 this.hp = Math.max(1, this.hp - chipDmg);
             }
-            this.blockStun = 0.14;
+            // Tiered Street Fighter Blockstun: Light = 110ms, Heavy/Command = 175ms, Special/Proj = 200ms
+            this.blockStun = isSpecialOrProj ? 0.20 : (isHeavyOrCommand ? 0.175 : 0.11);
             this.hitStop = Math.max(0.055, (attackDef.hitstop || 0.08) * 0.65);
             this.vx = attackerFacing * attackDef.pushback * 0.55;
             if (this.state !== 'CROUCH') this.state = 'IDLE';
@@ -1230,6 +1275,17 @@ export default class Fighter {
         }
 
         // ─── FULL HIT ───
+        // If hit while in Mid-Match Dizzy Stun, clear the stun immediately so they don't get re-dizzy-looped!
+        if (this.midFightDizzyTimer > 0) {
+            this.midFightDizzyTimer = 0;
+            this.stunMeter = 0;
+        } else {
+            // Accumulate Street Fighter Stun Meter on unblocked hits (Sweeps/Specials/Heavy add more stun)
+            const stunGain = isSpecialOrProj ? 22 : (isHeavyOrCommand ? 26 : 12);
+            this.stunMeter = Math.min(100, (this.stunMeter || 0) + stunGain * proration);
+            this.stunDecayTimer = 2.2;
+        }
+
         this.hp = Math.max(0, this.hp - scaledDamage);
         this.stateTimer = 0;
         this.consecutiveHitsTaken = (this.consecutiveHitsTaken || 0) + 1;
@@ -1238,6 +1294,8 @@ export default class Fighter {
             this.hp = 0;
             this.blockStun = 0;
             this.hitStop = 0;
+            this.isKnockedDown = false;
+            this.midFightDizzyTimer = 0;
             this.activeHitbox = null;
             this.currentAttack = null;
             this.state = 'KO';
@@ -1246,6 +1304,18 @@ export default class Fighter {
             this.vx = attackerFacing * attackDef.pushback * 2.5;
         } else {
             this.state = 'HIT';
+            // Determine Tiered Hitstun & Hard Knockdown (Sweep, Throw, Dragon Uppercut, Combo Finisher, or 4th combo hit)
+            const causesKnockdown = Boolean(
+                attackDef.type === 'SWEEP' ||
+                attackDef.type === 'THROW' ||
+                attackDef.type === 'DRAGON_UPPERCUT' ||
+                attackDef.type === 'SPECIAL_DASH' ||
+                attackDef.type === 'COMBO_FINISHER' ||
+                this.consecutiveHitsTaken >= 4
+            );
+            this.isKnockedDown = causesKnockdown;
+            this.hitStunDuration = causesKnockdown ? 0.58 : (isSpecialOrProj ? 0.40 : (isHeavyOrCommand ? 0.36 : 0.24));
+
             // Anti-Infinite Combo Breaker: after 4 consecutive hits, knock back cleanly with wake-up immunity!
             if (this.consecutiveHitsTaken >= 4) {
                 this.vx = attackerFacing * Math.max(460, (attackDef.pushback || 220) * 1.65);
@@ -1588,7 +1658,12 @@ export default class Fighter {
                     suffix = '_punch.png';
                 }
             } else if (this.state === 'HIT') {
-                suffix = '_hit.png';
+                if (this.isKnockedDown && this.isGrounded && this.stateTimer >= 0.08) {
+                    const reqStun = Math.max(0.56, this.hitStunDuration || 0.56);
+                    suffix = (this.stateTimer >= reqStun - 0.14) ? '_crouch.png' : '_ko.png';
+                } else {
+                    suffix = '_hit.png';
+                }
             } else if (this.state === 'KO') {
                 suffix = '_ko.png';
             } else if (this.state === 'WIN') {

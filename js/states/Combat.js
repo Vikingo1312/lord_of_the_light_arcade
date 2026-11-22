@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.58';
-import Projectile from '../entities/Projectile.js?v=2.58';
-import Hitbox from '../entities/Hitbox.js?v=2.58';
-import StageObjectManager from '../entities/StageObjects.js?v=2.58';
-import AIController from '../ai/AIController.js?v=2.58';
-import CombatHUD from '../ui/CombatHUD.js?v=2.58';
+import Fighter from '../entities/Fighter.js?v=2.59';
+import Projectile from '../entities/Projectile.js?v=2.59';
+import Hitbox from '../entities/Hitbox.js?v=2.59';
+import StageObjectManager from '../entities/StageObjects.js?v=2.59';
+import AIController from '../ai/AIController.js?v=2.59';
+import CombatHUD from '../ui/CombatHUD.js?v=2.59';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.58';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.58';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.58';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.58';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.58';
+} from '../core/AssetPreloader.js?v=2.59';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.59';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.59';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.59';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.59';
 
 export default class CombatState {
     constructor(game) {
@@ -154,6 +154,13 @@ export default class CombatState {
         this._koKnockbackApplied = false;
         this._newlyUnlocked = null;
 
+        // Street Fighter Best-of-3 Rounds State (1 round in Survival/Training, 2-of-3 in Story/Arcade/Versus!)
+        this.roundsToWin = (this.survivalMode || this.trainingMode) ? 1 : 2;
+        this.currentRound = 1;
+        this.p1RoundWins = 0;
+        this.p2RoundWins = 0;
+        this._roundWinAwarded = false;
+
         // Story-Driven Match Dialogue Banner
         this.storyDialogue = STORY_DIALOGUES[p2Data.id] || STORY_DIALOGUES[p1Data.id] || null;
         this.storyBannerTimer = this.trainingMode ? 0 : 22.0;
@@ -259,10 +266,11 @@ export default class CombatState {
             this.introSubPhase = 'ROUND_CALL';
             this.introSubTimer = 0;
             this.storyBannerTimer = Math.min(this.storyBannerTimer, 0.35);
-            playAnnouncer(this.game.audioManager, 'round_1', () => {
+            const roundClip = (this.currentRound === 1) ? 'round_1' : ((this.currentRound === 2) ? 'round_2' : 'round_final');
+            playAnnouncer(this.game.audioManager, roundClip, () => {
                 this._startFightCall();
             });
-            // Safety fallback for ROUND 1 duration (announcer_round_1.mp3 is 1.82s long)
+            // Safety fallback for ROUND call duration
             if (this._fightAnnouncerTimeout) clearTimeout(this._fightAnnouncerTimeout);
             this._fightAnnouncerTimeout = setTimeout(() => {
                 this._startFightCall();
@@ -807,6 +815,19 @@ export default class CombatState {
             );
 
             if ((!koSpeechStillPlaying && this.koFreezeTimer >= 3.2) || (this.koFreezeTimer >= 0.85 && p1.skipJust)) {
+                if (!this._roundWinAwarded) {
+                    this._roundWinAwarded = true;
+                    if (this.winner === 'p1') this.p1RoundWins = (this.p1RoundWins || 0) + 1;
+                    else this.p2RoundWins = (this.p2RoundWins || 0) + 1;
+                }
+                const matchDecided = (this.p1RoundWins >= this.roundsToWin) || (this.p2RoundWins >= this.roundsToWin);
+                if (!matchDecided) {
+                    // Advance to Round 2 / Final Round!
+                    this._startNextRound();
+                    if (isOnlineHost) this._broadcastHostSnapshot();
+                    return;
+                }
+
                 this.matchPhase = 'POST_MATCH';
                 this.inputCooldown = 15;
                 this.shakeTimer = 0;
@@ -818,11 +839,19 @@ export default class CombatState {
                 if (this.winner === 'p1' && this.ally && this.ally.state !== 'KO') {
                     this.ally.state = 'WIN';
                 }
+                // Authentic Street Fighter End-of-Match Audio Sequence:
+                // 1. Announcer calls "PERFECT!" or "YOU WIN!" / "YOU LOSE!"
+                // 2. Immediately after Announcer finishes -> Winning Fighter speaks their Victory Quote!
                 setTimeout(() => {
-                    if (this.matchPhase === 'POST_MATCH') {
-                        playFighterSound(this.game.audioManager, winnerFighter.data.id, 'win');
-                    }
-                }, 220);
+                    if (this.matchPhase !== 'POST_MATCH') return;
+                    const isPerf = winnerFighter.hp >= winnerFighter.maxHP;
+                    const endClip = isPerf ? 'perfect' : (this.winner === 'p1' ? 'win' : 'lose');
+                    playAnnouncer(this.game.audioManager, endClip, () => {
+                        if (this.matchPhase === 'POST_MATCH') {
+                            playFighterSound(this.game.audioManager, winnerFighter.data.id, 'win');
+                        }
+                    });
+                }, 140);
             }
             if (isOnlineHost) this._broadcastHostSnapshot();
             return;
@@ -910,7 +939,7 @@ export default class CombatState {
             const holdingDown = Boolean(p1.down || (!anyLiveDir && im.wasDirRecent('down', 150)));
             const canGroundedOrEarlyJump = this.p1.isGrounded || this.p1.state === 'DASH' || (this.p1.state === 'JUMP' && this.p1.stateTimer < 0.28);
 
-            const p1GrabRange = (this.p1.data && this.p1.data.styleId === 'TITAN_GRAPPLER') ? 215 : 190;
+            const p1GrabRange = (this.p1.data && this.p1.data.styleId === 'TITAN_GRAPPLER') ? 178 : 148;
             if ((p1.throwJust || (p1.lJust && (holdingBack || p1.dash))) && p1Dist <= p1GrabRange && this.p1.isGrounded && this.p2.isGrounded) {
                 // ← + P (Back + Punch at close range), D + P, or P + K: Unblockable Street Fighter Throw!
                 p1InputCopy.commandMove = 'THROW';
@@ -1203,7 +1232,8 @@ export default class CombatState {
                 this.p1.hp = 1;
                 this.p1.state = 'IDLE';
             }
-            if (!this.finisherTriggered) {
+            const isMatchPointForP1 = ((this.p1RoundWins || 0) + 1 >= (this.roundsToWin || 2));
+            if (isMatchPointForP1 && !this.finisherTriggered) {
                 this._enterFinishHimPhase('p1');
             } else {
                 this.p2.hp = 0;
@@ -1215,7 +1245,8 @@ export default class CombatState {
                 this._koKnockbackApplied = false;
             }
         } else if (teamP1Defeated) {
-            if (!this.finisherTriggered) {
+            const isMatchPointForP2 = ((this.p2RoundWins || 0) + 1 >= (this.roundsToWin || 2));
+            if (isMatchPointForP2 && !this.finisherTriggered) {
                 this._enterFinishHimPhase('p2');
             } else {
                 this.p1.hp = 0;
@@ -1234,6 +1265,76 @@ export default class CombatState {
                 this._broadcastHostSnapshot();
             }
         }
+    }
+
+    _startNextRound() {
+        this.currentRound = (this.currentRound || 1) + 1;
+        this._roundWinAwarded = false;
+        this.winner = null;
+        this.timer = this.trainingMode ? 99 : ((this.game.settings && this.game.settings.timer) || 99);
+        this.koFreezeTimer = 0;
+        this.finishHimTimer = 0;
+        this.finisherTimer = 0;
+        this.finisherTriggered = false;
+        this._finisherImpactPlayed = false;
+        this._finisherBoomPlayed = false;
+        this._koAnnounced = false;
+        this._perfectAnnounced = false;
+        this._koKnockbackApplied = false;
+        this.firstAttackAwarded = false;
+        this.projectiles = [];
+        this.particles = [];
+        this.shockwaves = [];
+        this.p1ComboCount = 0;
+        this.p1ComboTimer = 0;
+        this.p2ComboCount = 0;
+        this.p2ComboTimer = 0;
+
+        // Reset fighter positions & full HP for the new round (preserving carried-over Super Energy like Street Fighter Alpha / III!)
+        const floorY = this.game.height * 0.9;
+        const resetFighterForRound = (f, xPos, dir) => {
+            if (!f) return;
+            f.x = xPos;
+            f.y = floorY;
+            f.vx = 0;
+            f.vy = 0;
+            f.facing = dir;
+            f.hp = f.maxHP;
+            f.state = 'IDLE';
+            f.stateTimer = 0;
+            f.isGrounded = true;
+            f.isKnockedDown = false;
+            f.stunMeter = 0;
+            f.midFightDizzyTimer = 0;
+            f.hitStop = 0;
+            f.blockStun = 0;
+            f.hitImmunity = 0;
+            f.activeHitbox = null;
+            f.currentAttack = null;
+            f.consecutiveHitsTaken = 0;
+        };
+        if (this.ally) {
+            resetFighterForRound(this.p1, this.game.width * 0.28, 1);
+            resetFighterForRound(this.ally, this.game.width * 0.16, 1);
+            resetFighterForRound(this.p2, this.game.width * 0.76, -1);
+            this.allyTrailHP = this.ally.maxHP;
+        } else {
+            resetFighterForRound(this.p1, this.game.width * 0.25, 1);
+            resetFighterForRound(this.p2, this.game.width * 0.75, -1);
+        }
+        this.p1TrailHP = this.p1.maxHP;
+        this.p2TrailHP = this.p2.maxHP;
+
+        // Enter FIGHT_INTRO directly at ROUND_CALL ("ROUND 2!" / "FINAL ROUND!" -> "FIGHT!")
+        this._clearIntroTimers();
+        this.game.audioManager.stopFighterVoice?.();
+        this.game.audioManager.stopAnnouncerVoice?.();
+        this.matchPhase = 'FIGHT_INTRO';
+        this.introTimer = 0;
+        this.introSubPhase = 'STORY_DIALOGUE';
+        this.introSubTimer = 0;
+        this.storyBannerTimer = 0;
+        this._startRoundCall(true);
     }
 
     _enterFinishHimPhase(winnerSide) {
@@ -1481,14 +1582,16 @@ export default class CombatState {
         const isAirCast = !fighter.isGrounded && (fighter.groundY - fighter.y > 35);
         const hasFullSuper = fighter.specialEnergy >= 100;
 
-        // Grounded Super requires 100 energy; Airborne Diagonal Fireball works either with 100 energy OR on 0.72s cooldown!
-        if (!hasFullSuper && (!isAirCast || fighter.specialMoveCooldown > 0)) return false;
+        // Authentic Street Fighter Projectile vs Super Arts System:
+        // - With 100% Super Energy -> Unleashes SUPER ARTS (Super Freeze, `super` voice callout, high damage)!
+        // - With < 100% Super Energy -> Unleashes standard Street Fighter Projectile (Hadoken / Sonic Boom, `special` voice callout, 0.52s cooldown, max 1 active on screen)!
+        if (!hasFullSuper && fighter.specialMoveCooldown > 0) return false;
         if (this.projectiles.some(p => p.owner === ownerKey && p.charId === fighter.data.id && p.alive)) return false;
 
         const charId = fighter.data.id;
         const isSecondVariant = Boolean(fighter.data.special);
 
-        if (fighter.data.specialType === 'SPECIAL_DASH' && !isAirCast) {
+        if (fighter.data.specialType === 'SPECIAL_DASH' && !isAirCast && hasFullSuper) {
             if (!fighter.executeAttack('SPECIAL_DASH')) return false;
             if (isSecondVariant) {
                 fighter.specialEnergy = 25; // Second-variant meter refund!
@@ -1515,37 +1618,37 @@ export default class CombatState {
         }
 
         if (hasFullSuper) {
-            if (!fighter.executeProjectileCast()) return false;
+            if (!fighter.executeProjectileCast(true)) return false;
             if (isSecondVariant) {
                 fighter.specialEnergy = charId === 'SupremeKeano' ? 35 : 25; // Evolved Second-Variant Super Meter Refund!
             }
         } else {
-            // Free Diagonal Air Fireball / Lightball while jumping!
-            fighter.specialMoveCooldown = 0.72;
-            fighter.state = 'ATTACK';
-            fighter.stateTimer = 0;
-            fighter.attackHasHit = false;
-            fighter.attackWasBlocked = false;
-            fighter.attackHitCount = 0;
-            fighter.activeHitbox = null;
-            fighter.vy = -340;
-            fighter.vx = -fighter.facing * 140;
-            fighter.currentAttack = {
-                startup: 0.05, active: 0.16, recovery: 0.18,
-                damage: 0, pushback: 0, hitstop: 0, box: null, type: 'SPECIAL'
-            };
+            // Standard Street Fighter Projectile (Hadoken / Sonic Boom / Air Fireball) without consuming Super Meter!
+            if (!fighter.executeProjectileCast(false)) return false;
+            fighter.specialEnergy = Math.min(fighter.maxSpecialEnergy, fighter.specialEnergy + 12);
         }
 
-        this.superFreezeTimer = isAirCast ? (hasFullSuper ? 0.14 : 0.06) : 0.24;
-        this.superFreezeFighter = fighter;
-        this.cameraZoom = isAirCast && !hasFullSuper ? 1.02 : 1.04;
-        this.cameraFocusX = fighter.x;
-        this.cameraFocusY = fighter.y - 155;
-        this.triggerCallout(
-            isAirCast ? `☄️ AIR ${fighter.data.specialName || 'FIREBALL'}!` : (fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!'),
-            '#ffd700',
-            ownerKey
-        );
+        if (hasFullSuper) {
+            this.superFreezeTimer = isAirCast ? 0.14 : 0.24;
+            this.superFreezeFighter = fighter;
+            this.cameraZoom = 1.04;
+            this.cameraFocusX = fighter.x;
+            this.cameraFocusY = fighter.y - 155;
+            this.triggerCallout(
+                isAirCast ? `☄️ SUPER ${fighter.data.superName || fighter.data.specialName}!` : (fighter.data.superName || fighter.data.specialName || 'SUPER ARTS!'),
+                '#ffd700',
+                ownerKey
+            );
+        } else {
+            this.cameraZoom = 1.015;
+            this.cameraFocusX = fighter.x;
+            this.cameraFocusY = fighter.y - 150;
+            this.triggerCallout(
+                isAirCast ? `☄️ AIR ${fighter.data.specialName || 'FIREBALL'}!` : `🔥 ${fighter.data.specialName || 'HADOKEN'}!`,
+                fighter.styleInfo?.color || '#00e5ff',
+                ownerKey
+            );
+        }
 
         const imgKey = `${charId}_Cutin`;
         const img = this.game.assetManager.images[imgKey];
@@ -1617,10 +1720,56 @@ export default class CombatState {
     }
 
     checkCombatCollisions() {
+        // 1. Street Fighter Throw Tech (Throw Escape):
+        // If P1 and P2 both execute THROW within 0.16s at close range, or defender presses Throw/Punch+Kick during the first 120ms of an incoming Throw,
+        // both fighters tech-break the grab with blue sparks and push apart cleanly!
+        if (!this.ally && this.p1 && this.p2 && this.p1.state !== 'KO' && this.p2.state !== 'KO') {
+            const p1Throwing = this.p1.state === 'ATTACK' && this.p1.currentAttack?.type === 'THROW' && this.p1.stateTimer <= 0.16;
+            const p2Throwing = this.p2.state === 'ATTACK' && this.p2.currentAttack?.type === 'THROW' && this.p2.stateTimer <= 0.16;
+            const p1TechInput = Boolean(this.game.inputManager?.p1?.throwJust || (this.game.inputManager?.p1?.lJust && this.game.inputManager?.p1?.hJust));
+            if ((p1Throwing && p2Throwing) || (p2Throwing && p1TechInput && Math.abs(this.p1.x - this.p2.x) <= 185)) {
+                this.p1.state = 'IDLE';
+                this.p2.state = 'IDLE';
+                this.p1.currentAttack = null;
+                this.p2.currentAttack = null;
+                this.p1.activeHitbox = null;
+                this.p2.activeHitbox = null;
+                this.p1.hitImmunity = 0.25;
+                this.p2.hitImmunity = 0.25;
+                const dir = this.p1.x <= this.p2.x ? -1 : 1;
+                this.p1.vx = dir * 420;
+                this.p2.vx = -dir * 420;
+                const midX = (this.p1.x + this.p2.x) * 0.5;
+                const midY = this.p1.y - 140;
+                this.spawnSparks(midX, midY, '#00ffff', '#ffffff', 16, 'block');
+                this.triggerCallout('⚡ THROW TECH!', '#00ffff', 'p1');
+                this.game.audioManager?.playBlockSound?.();
+                return;
+            }
+        }
+
+        // 2. Snapshot both active hitboxes BEFORE resolving so simultaneous Street Fighter Trades (Double Hits) work fairly!
+        const p1HitSnap = (!this.ally && this.p1?.activeHitbox && this.p1?.currentAttack)
+            ? { box: this.p1.activeHitbox, atk: this.p1.currentAttack, x: this.p1.x, y: this.p1.y, facing: this.p1.facing }
+            : null;
+        const p2HitSnap = (!this.ally && this.p2?.activeHitbox && this.p2?.currentAttack)
+            ? { box: this.p2.activeHitbox, atk: this.p2.currentAttack, x: this.p2.x, y: this.p2.y, facing: this.p2.facing }
+            : null;
+        const isSimultaneousTrade = Boolean(
+            p1HitSnap && p2HitSnap &&
+            Hitbox.checkCollision(p1HitSnap.box.getWorldRect(p1HitSnap.x, p1HitSnap.y, p1HitSnap.facing), this.p2.hurtbox.getWorldRect(this.p2.x, this.p2.y, this.p2.facing)) &&
+            Hitbox.checkCollision(p2HitSnap.box.getWorldRect(p2HitSnap.x, p2HitSnap.y, p2HitSnap.facing), this.p1.hurtbox.getWorldRect(this.p1.x, this.p1.y, this.p1.facing))
+        );
+
         this._resolveMeleeHit(this.p1, this.p2, 'p1');
         if (this.ally) {
             this._resolveMeleeHit(this.ally, this.p2, 'p1');
             this._resolveMeleeHit(this.p2, this.ally, 'p2');
+        }
+        if (isSimultaneousTrade && !this.p2.activeHitbox && p2HitSnap && this.p2.hp > 0 && this.p1.hp > 0) {
+            // Restore P2's snapshot for this frame so both fighters trade hits simultaneously like in Street Fighter II!
+            this.p2.activeHitbox = p2HitSnap.box;
+            this.p2.currentAttack = p2HitSnap.atk;
         }
         this._resolveMeleeHit(this.p2, this.p1, 'p2');
     }
