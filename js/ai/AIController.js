@@ -250,36 +250,42 @@ export default class AIController {
             }
         }
 
-        // ─── 3. REACT TO P1 MELEE ATTACK (Balanced Guard & Whiff Punish) ───
-        if (p1.state === 'ATTACK' && p1.currentAttack && dist < 250) {
+        // ─── 3. REACT TO P1 MELEE & LUNGING SPECIAL ATTACKS (Street Fighter II Guard & Whiff Punish) ───
+        const p1AtkT = p1.currentAttack ? p1.currentAttack.type : '';
+        const isLungingSpecial = (p1AtkT === 'FLYING_TORPEDO' || p1AtkT === 'DRAGON_RUSH_COMBO' || p1AtkT === 'HURRICANE_KICK' || p1AtkT === 'SPECIAL_DASH');
+        const threatRange = isLungingSpecial ? 560 : 285;
+        if (p1.state === 'ATTACK' && p1.currentAttack && dist < threatRange) {
             const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
 
-            if (isNewP1Swing) {
-                // EASY: 12% - 24%; NORMAL: 16% (Arena 1) -> 48% (Arena 14)
+            if (isNewP1Swing || (isLungingSpecial && p1.stateTimer < activeEnd && p2.aiBlockTimer <= 0 && !p2._reactedToLunge)) {
+                p2._reactedToLunge = true;
+                // EASY: 28% - 50%; NORMAL: 42% (Arena 1) -> 76% (Arena 14); HARD: 64% -> 90%
                 const blockProb = difficultySetting === 'EASY'
-                    ? (0.12 + progress * 0.24)
-                    : (0.16 + progress * 0.36);
+                    ? (0.28 + progress * 0.22)
+                    : (difficultySetting === 'HARD' ? (0.64 + progress * 0.26) : (0.42 + progress * 0.34));
                 const roll = Math.random();
 
                 if (roll < blockProb) {
-                    p2.aiBlockTimer = 0.16 + progress * 0.10;
+                    p2.aiBlockTimer = (isLungingSpecial ? 0.34 : 0.22) + progress * 0.12;
                     ai[dirAwayFromP1] = true;
-                    if (Math.random() < 0.26) {
+                    if (!isLungingSpecial && Math.random() < 0.28) {
                         ai.down = true;
                     }
                     return ai;
-                } else if (styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && roll < blockProb + 0.10) {
+                } else if (styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && roll < blockProb + 0.12) {
                     // Shadow Assassin evasive back-hop!
                     if (dirAwayFromP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
                     p2.aiWaitTimer = 0.28;
                     return ai;
                 }
-            } else if (p1.stateTimer >= activeEnd + 0.08 && p2.blockStun <= 0 &&
+            } else if (p1.stateTimer >= activeEnd + 0.04 && p2.blockStun <= 0 &&
                        (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') &&
-                       dist <= 215 && Math.random() < (0.12 + progress * 0.28) * dt * 10) {
+                       dist <= 235 && Math.random() < (0.26 + progress * 0.38) * dt * 12) {
                 return triggerPunishAttack();
             }
+        } else if (p1.state !== 'ATTACK') {
+            p2._reactedToLunge = false;
         }
 
         // ─── 4. ACTIVE STYLE-BASED FOOTWORK DURING COOLDOWN (Never stand frozen like a statue!) ───

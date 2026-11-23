@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.71';
-import { getFighterStyle } from '../data.js?v=2.71';
+import Hitbox from './Hitbox.js?v=2.72';
+import { getFighterStyle } from '../data.js?v=2.72';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -539,9 +539,8 @@ export default class Fighter {
                         consumeBuffer();
                         this.comboChainStep = 0;
                         this.comboChainTimer = 0;
-                        // LIGHT_DRAGON launches with a rising Dragon Uppercut on 3rd P if holding Up!
-                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up) {
-                            this.specialMoveCooldown = 0;
+                        // LIGHT_DRAGON launches with a rising Dragon Uppercut on 3rd P if holding Up (respecting cooldown)!
+                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up && this.specialMoveCooldown <= 0) {
                             this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
                             this.executeAttack('DRAGON_UPPERCUT');
                         } else {
@@ -551,8 +550,7 @@ export default class Fighter {
                     }
                     if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH') && hasH) {
                         consumeBuffer();
-                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up) {
-                            this.specialMoveCooldown = 0;
+                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up && this.specialMoveCooldown <= 0) {
                             this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
                             this.executeAttack('DRAGON_UPPERCUT');
                         } else if (styleId === 'SHADOW_ASSASSIN' && (atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH')) {
@@ -565,19 +563,16 @@ export default class Fighter {
                     }
                     if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH' || atkType === 'AXE_KICK' || atkType === 'HEAVY' || atkType === 'SWEEP') && hasS) {
                         if (inputQueue.up) {
-                            this.specialMoveCooldown = 0;
                             if (this.executeAttack('DRAGON_UPPERCUT')) {
                                 consumeBuffer();
                                 break;
                             }
                         } else if (inputQueue.down) {
-                            this.specialMoveCooldown = 0;
                             if (this.executeAttack('HURRICANE_KICK')) {
                                 consumeBuffer();
                                 break;
                             }
                         } else if (holdingFwd) {
-                            this.specialMoveCooldown = 0;
                             if (this.executeAttack('FLYING_TORPEDO')) {
                                 consumeBuffer();
                                 break;
@@ -1235,8 +1230,15 @@ export default class Fighter {
             return 'IMMUNE';
         }
 
-        // Chain-hit protection: can't be re-hit during immunity frames
+        // Chain-hit & Knockdown protection:
+        // 1. Cannot be re-hit during hitImmunity frames
+        // 2. Authentic Street Fighter II Knockdown & Air-Reset Rule: Once knocked down (isKnockedDown) or knocked airborne in HIT state (unless it's the remaining multi-hits of the exact same attackDef), the defender is invulnerable until they land and wake up!
         if (this.hitImmunity > 0 && this.state !== 'DIZZY') return 'IMMUNE';
+        if (this.state === 'HIT' && this.isKnockedDown) return 'IMMUNE';
+        if (this.state === 'HIT' && !this.isGrounded && this._lastHitAttackRef && this._lastHitAttackRef !== attackDef) {
+            return 'IMMUNE';
+        }
+        this._lastHitAttackRef = attackDef;
 
         // Street Fighter "Guts" scaling + Combo Proration (anti-button-mash damage scaling!)
         const gutsMul = (this.hp / this.maxHP < 0.25) ? 0.82 : 1.0;
@@ -1325,24 +1327,25 @@ export default class Fighter {
             this.vx = attackerFacing * attackDef.pushback * 2.5;
         } else {
             this.state = 'HIT';
-            // Determine Tiered Hitstun & Hard Knockdown (Sweep, Throw, Dragon Uppercut, Combo Finisher, or 4th combo hit)
+            // Determine Tiered Hitstun & Hard Knockdown (Sweep, Throw, Dragon Uppercut, Combo Finisher, or 3rd combo hit)
             const causesKnockdown = Boolean(
                 attackDef.type === 'SWEEP' ||
                 attackDef.type === 'THROW' ||
                 attackDef.type === 'DRAGON_UPPERCUT' ||
                 attackDef.type === 'SPECIAL_DASH' ||
                 attackDef.type === 'COMBO_FINISHER' ||
-                this.consecutiveHitsTaken >= 4
+                this.consecutiveHitsTaken >= 3
             );
             this.isKnockedDown = causesKnockdown;
-            this.hitStunDuration = causesKnockdown ? 0.58 : (isSpecialOrProj ? 0.40 : (isHeavyOrCommand ? 0.36 : 0.24));
+            this.hitStunDuration = causesKnockdown ? 0.52 : (isSpecialOrProj ? 0.34 : (isHeavyOrCommand ? 0.30 : 0.22));
 
-            // Anti-Infinite Combo Breaker: after 4 consecutive hits, knock back cleanly with wake-up immunity!
-            if (this.consecutiveHitsTaken >= 4) {
-                this.vx = attackerFacing * Math.max(460, (attackDef.pushback || 220) * 1.65);
+            // Authentic Street Fighter II 3-Hit Combo Limit & Knockdown Immunity:
+            // After 3 hits (or any knockdown finisher), knock back cleanly with 0.72s wake-up immunity so the defender can ALWAYS block or counter on wake-up!
+            if (causesKnockdown || this.consecutiveHitsTaken >= 3) {
+                this.vx = attackerFacing * Math.max(440, (attackDef.pushback || 220) * 1.55);
                 this.vy = -340;
                 this.isGrounded = false;
-                this.hitImmunity = 0.60;
+                this.hitImmunity = 0.72;
                 this.consecutiveHitsTaken = 0;
             } else {
                 this.vx = attackerFacing * attackDef.pushback;

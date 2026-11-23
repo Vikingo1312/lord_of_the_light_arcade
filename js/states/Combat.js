@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.71';
-import Projectile from '../entities/Projectile.js?v=2.71';
-import Hitbox from '../entities/Hitbox.js?v=2.71';
-import StageObjectManager from '../entities/StageObjects.js?v=2.71';
-import AIController from '../ai/AIController.js?v=2.71';
-import CombatHUD from '../ui/CombatHUD.js?v=2.71';
+import Fighter from '../entities/Fighter.js?v=2.72';
+import Projectile from '../entities/Projectile.js?v=2.72';
+import Hitbox from '../entities/Hitbox.js?v=2.72';
+import StageObjectManager from '../entities/StageObjects.js?v=2.72';
+import AIController from '../ai/AIController.js?v=2.72';
+import CombatHUD from '../ui/CombatHUD.js?v=2.72';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.71';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.71';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.71';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.71';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.71';
+} from '../core/AssetPreloader.js?v=2.72';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.72';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.72';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.72';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.72';
 
 export default class CombatState {
     constructor(game) {
@@ -1850,9 +1850,9 @@ export default class CombatState {
             // Multi-hit support (e.g. HURRICANE_KICK hits up to 3-4 times, LIGHT_DRAGON DRAGON_UPPERCUT hits 2 times!)
             const maxHits = attacker.currentAttack.maxHits || 1;
             attacker.attackHitCount = (attacker.attackHitCount || 0) + 1;
-            if (attacker.attackHitCount < maxHits) {
+            if (attacker.attackHitCount < maxHits && !defender.isKnockedDown) {
                 attacker.multiHitCooldown = 0.11;
-                defender.hitImmunity = 0.08;
+                defender.hitImmunity = Math.max(defender.hitImmunity || 0, 0.08);
             } else {
                 attacker.attackHasHit = true;
             }

@@ -1,4 +1,4 @@
-import { STAGES } from '../data.js?v=2.71';
+import { STAGES } from '../data.js?v=2.72';
 
 const AUDIO_MAP = {
     'Keano': 'keano',
@@ -48,7 +48,7 @@ export function preloadFighterSprites(assetManager, char) {
         '_windup_kick', '_mid_kick', '_low_kick', '_dive_kick', '_spin_kick', '_axe_kick', '_hurricane_kick'
     ];
 
-    const ver = '?v=2.71';
+    const ver = '?v=2.72';
     for (const suf of [...coreSuffixes, ...extraSuffixes]) {
         const key = `${char.id}${suf}.png`;
         if (!assetManager.images[key]) {
