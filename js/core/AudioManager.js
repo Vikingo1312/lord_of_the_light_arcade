@@ -71,25 +71,30 @@ export default class AudioManager {
     applyMixerSettings() {
         if (!this.audioCtx) return;
         const now = this.audioCtx.currentTime;
+        const isDucked = this._voicePlaying || this._announcerPlaying || (this._fighterVoicePlaying && this._fighterVoicePriority >= 2);
+        const isSpeechLine = this._voicePlaying || (this._fighterVoicePlaying && this._fighterVoicePriority >= 2);
         if (this.masterGain) {
             this.masterGain.gain.setTargetAtTime(Math.max(0, this._getMasterVol()), now, 0.03);
         }
         if (this.gainNode) {
-            const isDucked = this._voicePlaying || this._announcerPlaying || (this._fighterVoicePlaying && this._fighterVoicePriority >= 2);
             const baseMusic = Math.max(0, this._getMusicVol(0.22));
-            const targetMusic = isDucked ? baseMusic * 0.35 : baseMusic;
+            const targetMusic = isDucked ? baseMusic * 0.18 : baseMusic;
             this.gainNode.gain.setTargetAtTime(targetMusic, now, 0.05);
         }
+        if (this.lpFilter && !this.filterActive) {
+            this.lpFilter.frequency.setTargetAtTime(isDucked ? 900 : 20000, now, 0.08);
+        }
         if (this.sfxGain) {
-            // 1.25x studio boost so hits & blocks punch cleanly above BGM
-            this.sfxGain.gain.setTargetAtTime(Math.max(0, this._getSfxVol(0.90) * 1.25), now, 0.03);
+            // Duck combat SFX explosions down to 48% while a fighter is speaking a line so speech is 100% intelligible!
+            const sfxBase = Math.max(0, this._getSfxVol(0.90) * 1.12);
+            this.sfxGain.gain.setTargetAtTime(isSpeechLine ? sfxBase * 0.48 : sfxBase, now, 0.03);
         }
         if (this.voiceGain) {
-            // 1.40x studio boost so fighter & story voices are crystal-clear and upfront
-            this.voiceGain.gain.setTargetAtTime(Math.max(0, this._getVoiceVol(1.0) * 1.40), now, 0.03);
+            // 1.75x studio broadcast boost so fighter & story voices are crystal-clear and upfront
+            this.voiceGain.gain.setTargetAtTime(Math.max(0, this._getVoiceVol(1.0) * 1.75), now, 0.03);
         }
         if (this.announcerGain) {
-            this.announcerGain.gain.setTargetAtTime(Math.max(0, this._getAnnouncerVol(0.95) * 1.30), now, 0.03);
+            this.announcerGain.gain.setTargetAtTime(Math.max(0, this._getAnnouncerVol(0.95) * 1.35), now, 0.03);
         }
     }
 
@@ -124,39 +129,51 @@ export default class AudioManager {
             this.sfxGain.gain.value = this._getSfxVol(0.90) * 1.25;
             this.sfxGain.connect(this.masterGain);
 
-            // Bus 3 & 4 Clean Natural Studio Voice Chain (NO short delay comb-filtering!):
-            // Natural warmth (150Hz +2.0dB) + Clear Presence (3.8kHz +1.8dB) + Gentle Studio Limiter
-            const voiceLowShelf = this.audioCtx.createBiquadFilter();
-            voiceLowShelf.type = 'lowshelf';
-            voiceLowShelf.frequency.value = 150;
-            voiceLowShelf.gain.value = 2.0;
+            // Bus 3 & 4 Broadcast Vocal Clarity Chain (Highpass 95Hz + Mud Cut 250Hz -2.2dB + Consonant Presence 2.85kHz +3.5dB + Air 6.2kHz +2.0dB):
+            const voiceHighpass = this.audioCtx.createBiquadFilter();
+            voiceHighpass.type = 'highpass';
+            voiceHighpass.frequency.value = 95;
+            voiceHighpass.Q.value = 0.707;
+
+            const voiceMudCut = this.audioCtx.createBiquadFilter();
+            voiceMudCut.type = 'peaking';
+            voiceMudCut.frequency.value = 250;
+            voiceMudCut.Q.value = 1.2;
+            voiceMudCut.gain.value = -2.2;
 
             const voicePresence = this.audioCtx.createBiquadFilter();
             voicePresence.type = 'peaking';
-            voicePresence.frequency.value = 3800;
-            voicePresence.Q.value = 1.0;
-            voicePresence.gain.value = 1.8;
+            voicePresence.frequency.value = 2850;
+            voicePresence.Q.value = 0.9;
+            voicePresence.gain.value = 3.5;
+
+            const voiceAir = this.audioCtx.createBiquadFilter();
+            voiceAir.type = 'highshelf';
+            voiceAir.frequency.value = 6200;
+            voiceAir.gain.value = 2.0;
 
             const voiceComp = this.audioCtx.createDynamicsCompressor();
-            voiceComp.threshold.value = -14;
+            voiceComp.threshold.value = -16;
             voiceComp.knee.value = 10;
-            voiceComp.ratio.value = 2.2;
-            voiceComp.attack.value = 0.005;
+            voiceComp.ratio.value = 2.6;
+            voiceComp.attack.value = 0.004;
             voiceComp.release.value = 0.12;
 
-            voiceLowShelf.connect(voicePresence);
-            voicePresence.connect(voiceComp);
+            voiceHighpass.connect(voiceMudCut);
+            voiceMudCut.connect(voicePresence);
+            voicePresence.connect(voiceAir);
+            voiceAir.connect(voiceComp);
             voiceComp.connect(this.masterGain);
 
             // Bus 3: Fighter & Story Voices
             this.voiceGain = this.audioCtx.createGain();
-            this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.45;
-            this.voiceGain.connect(voiceLowShelf);
+            this.voiceGain.gain.value = this._getVoiceVol(1.0) * 1.75;
+            this.voiceGain.connect(voiceHighpass);
 
             // Bus 4: Arcade Announcer
             this.announcerGain = this.audioCtx.createGain();
-            this.announcerGain.gain.value = this._getAnnouncerVol(0.95) * 1.30;
-            this.announcerGain.connect(voiceLowShelf);
+            this.announcerGain.gain.value = this._getAnnouncerVol(0.95) * 1.35;
+            this.announcerGain.connect(voiceHighpass);
         } catch (e) {
             console.warn("WebAudio API not supported:", e);
         }
@@ -264,7 +281,7 @@ export default class AudioManager {
         }
 
         const fetchAndDecode = async (tryPath) => {
-            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.70`;
+            const urlWithVer = tryPath.includes('?') ? tryPath : `${tryPath}?v=2.71`;
             const res = await fetch(urlWithVer);
             if (!res.ok) throw new Error(`HTTP ${res.status} for ${tryPath}`);
             const arr = await res.arrayBuffer();
@@ -338,8 +355,12 @@ export default class AudioManager {
             src.buffer = buffer;
             src.loop = loop;
 
-            this.lpFilter.frequency.setValueAtTime(targetFreq, this.audioCtx.currentTime);
-            this.gainNode.gain.setValueAtTime(effectiveVol, this.audioCtx.currentTime);
+            const isDucked = this._voicePlaying || this._announcerPlaying || (this._fighterVoicePlaying && this._fighterVoicePriority >= 2);
+            const startFreq = useFilter ? 450 : (isDucked ? 900 : 20000);
+            const startVol = isDucked ? effectiveVol * 0.18 : effectiveVol;
+
+            this.lpFilter.frequency.setValueAtTime(startFreq, this.audioCtx.currentTime);
+            this.gainNode.gain.setValueAtTime(startVol, this.audioCtx.currentTime);
 
             src.connect(this.lpFilter);
             try {
@@ -510,12 +531,16 @@ export default class AudioManager {
         });
     }
 
-    _duckCombatBGM(factor = 0.35) {
+    _duckCombatBGM(factor = 0.18) {
         const baseVol = this._getMusicVol(0.22);
         const ducked = baseVol * factor;
         if (this.gainNode && this.audioCtx) {
-            this.gainNode.gain.setTargetAtTime(ducked, this.audioCtx.currentTime, 0.05);
+            this.gainNode.gain.setTargetAtTime(ducked, this.audioCtx.currentTime, 0.04);
         }
+        if (this.lpFilter && this.audioCtx && !this.filterActive) {
+            this.lpFilter.frequency.setTargetAtTime(900, this.audioCtx.currentTime, 0.06);
+        }
+        this.applyMixerSettings();
     }
 
     _restoreCombatBGM() {
@@ -525,6 +550,10 @@ export default class AudioManager {
         if (this.gainNode && this.audioCtx) {
             this.gainNode.gain.setTargetAtTime(baseVol, this.audioCtx.currentTime, 0.16);
         }
+        if (this.lpFilter && this.audioCtx && !this.filterActive) {
+            this.lpFilter.frequency.setTargetAtTime(20000, this.audioCtx.currentTime, 0.18);
+        }
+        this.applyMixerSettings();
     }
 
     // ─── FIGHTER VOICE PLAYBACK (Strict Priority + Token Cancellation) ───

@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.70';
-import Projectile from '../entities/Projectile.js?v=2.70';
-import Hitbox from '../entities/Hitbox.js?v=2.70';
-import StageObjectManager from '../entities/StageObjects.js?v=2.70';
-import AIController from '../ai/AIController.js?v=2.70';
-import CombatHUD from '../ui/CombatHUD.js?v=2.70';
+import Fighter from '../entities/Fighter.js?v=2.71';
+import Projectile from '../entities/Projectile.js?v=2.71';
+import Hitbox from '../entities/Hitbox.js?v=2.71';
+import StageObjectManager from '../entities/StageObjects.js?v=2.71';
+import AIController from '../ai/AIController.js?v=2.71';
+import CombatHUD from '../ui/CombatHUD.js?v=2.71';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.70';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.70';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.70';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.70';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.70';
+} from '../core/AssetPreloader.js?v=2.71';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.71';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.71';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.71';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.71';
 
 export default class CombatState {
     constructor(game) {
@@ -96,28 +96,28 @@ export default class CombatState {
             const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
 
             if (diff === 'EASY') {
-                this.p2.specialEnergy = stageNum >= 4 ? 55 : 25;
-                const hpMul = 0.82 + stageRatio * 0.16; // 82% -> 98% HP
+                this.p2.specialEnergy = stageNum >= 4 ? 50 : 25;
+                const hpMul = 0.88 + stageRatio * 0.14; // 88% -> 102% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.78 + stageRatio * 0.18)); // 78% -> 96% Power
+                this.p2.power = Math.round((p2Data.power || 100) * (0.85 + stageRatio * 0.15)); // 85% -> 100% Power
             } else if (diff === 'NORMAL') {
-                // Street Fighter II Arcade Ladder Progression:
-                // Arena 1-3: 88%-93% HP, 85%-91% Power (fair warm-up)
-                // Arena 4-9: 95%-105% HP, 93%-103% Power (evenly matched rivalry)
-                // Arena 10-14: 107%-116% HP, 105%-114% Power (true championship / boss challenge!)
-                this.p2.specialEnergy = isLadderMode ? Math.round(35 + stageRatio * 65) : 80;
-                const hpMul = isLadderMode ? (0.88 + stageRatio * 0.28) : 1.0;
+                // Balanced Street Fighter II Arcade Ladder Progression:
+                // Arena 1-3: 96%-100% HP, 94%-98% Power (fair, active match right from Stage 1!)
+                // Arena 4-9: 101%-106% HP, 99%-105% Power (evenly matched rivalry)
+                // Arena 10-14: 108%-114% HP, 106%-112% Power (championship / boss challenge!)
+                this.p2.specialEnergy = isLadderMode ? Math.round(45 + stageRatio * 45) : 50;
+                const hpMul = isLadderMode ? (0.96 + stageRatio * 0.18) : 1.0;
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                const pwrScale = isLadderMode ? (0.85 + stageRatio * 0.29) : 1.0;
+                const pwrScale = isLadderMode ? (0.94 + stageRatio * 0.18) : 1.0;
                 this.p2.power = Math.round((p2Data.power || 100) * pwrScale);
             } else if (diff === 'HARD') {
-                this.p2.specialEnergy = 100;
-                const hpMul = 1.02 + stageRatio * 0.24; // 102% -> 126% HP
+                this.p2.specialEnergy = 85;
+                const hpMul = 1.04 + stageRatio * 0.20; // 104% -> 124% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.98 + stageRatio * 0.22)); // 98% -> 120% Power
+                this.p2.power = Math.round((p2Data.power || 100) * (1.00 + stageRatio * 0.18)); // 100% -> 118% Power
             }
         }
 
@@ -1381,11 +1381,13 @@ export default class CombatState {
         this.finisherTimer = 0;
         this._finisherImpactPlayed = false;
         this._finisherBoomPlayed = false;
+        this.p1ComboTimer = 0;
+        this.p2ComboTimer = 0;
 
         const winnerFighter = this.winner === 'p1' ? this.p1 : this.p2;
         if (winnerFighter) {
             const fMove = getFinisherMove(winnerFighter.data.id);
-            this.triggerCallout(`🎬 ${fMove.name}!`, fMove.color1 || '#ffd700', this.winner);
+            this.triggerCallout(`🎬 ${fMove.title || fMove.name || 'MORTAL FINISHER'}!`, fMove.color1 || '#ffd700', this.winner);
             playCombatSound(this.game.audioManager, 'super', winnerFighter.data.id);
             this._emitNetEvent({ combatSound: { type: 'super', charId: winnerFighter.data.id }, shake: { i: 6, d: 0.4 } });
         }
@@ -1836,6 +1838,14 @@ export default class CombatState {
         if (result === 'BLOCKED') {
             attacker.attackWasBlocked = true;
             attacker.attackHasHit = true;
+            // Street Fighter Guard Bounce: Blocked Flying Torpedo / Rush / Hurricane Kick bounces off guard immediately!
+            if (atkType === 'FLYING_TORPEDO' || atkType === 'DRAGON_RUSH_COMBO' || atkType === 'HURRICANE_KICK' || atkType === 'SPECIAL_DASH') {
+                attacker.activeHitbox = null;
+                attacker.vx = -attacker.facing * 260;
+                if (!attacker.isGrounded) {
+                    attacker.vy = -240;
+                }
+            }
         } else {
             // Multi-hit support (e.g. HURRICANE_KICK hits up to 3-4 times, LIGHT_DRAGON DRAGON_UPPERCUT hits 2 times!)
             const maxHits = attacker.currentAttack.maxHits || 1;
@@ -2504,7 +2514,6 @@ export default class CombatState {
             } else if (this.matchPhase === 'KO_FREEZE') {
                 CombatHUD.drawKO(ctx, this);
             } else if (this.matchPhase === 'POST_MATCH') {
-                CombatHUD.drawKO(ctx, this);
                 CombatHUD.drawPostMatch(ctx, this);
             } else if (this.matchPhase === 'VICTORY') {
                 CombatHUD.drawVictory(ctx, this);

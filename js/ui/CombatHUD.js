@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.70';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.70';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.70';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.70';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.71';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.71';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.71';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.71';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -405,7 +405,7 @@ export default class CombatHUD {
         }
 
         // ─── STREET FIGHTER CALLOUT BANNERS (FIRST ATTACK! / COUNTER HIT!) ───
-        if (combat.callout && combat.callout.timer > 0) {
+        if (combat.callout && combat.callout.timer > 0 && combat.matchPhase === 'FIGHTING') {
             const c = combat.callout;
             const alpha = Math.min(1, c.timer / 0.25);
             const isP1 = c.side === 'p1';
@@ -415,7 +415,7 @@ export default class CombatHUD {
 
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.font = 'bold 22px "Press Start 2P"';
+            ctx.font = 'bold 20px "Press Start 2P"';
             ctx.textAlign = isP1 ? 'left' : 'right';
             ctx.fillStyle = c.color;
             ctx.shadowColor = '#000000';
@@ -425,8 +425,8 @@ export default class CombatHUD {
         }
 
         // ─── DYNAMIC ARCADE COMBO COUNTERS ───
-        const comboY = (combat.coopMode && combat.ally) ? 290 : 245;
-        if (combat.p1ComboCount >= 2 && combat.p1ComboTimer > 0) {
+        const comboY = (combat.coopMode && combat.ally) ? 312 : 268;
+        if (combat.p1ComboCount >= 2 && combat.p1ComboTimer > 0 && combat.matchPhase === 'FIGHTING') {
             const pop = 1 + Math.min(0.28, (combat.p1ComboTimer - 1.0) * 0.6);
             const scale = Math.max(1.0, pop);
             ctx.save();
@@ -444,11 +444,11 @@ export default class CombatHUD {
             ctx.restore();
         }
 
-        if (combat.p2ComboCount >= 2 && combat.p2ComboTimer > 0) {
+        if (combat.p2ComboCount >= 2 && combat.p2ComboTimer > 0 && combat.matchPhase === 'FIGHTING') {
             const pop = 1 + Math.min(0.28, (combat.p2ComboTimer - 1.0) * 0.6);
             const scale = Math.max(1.0, pop);
             ctx.save();
-            ctx.translate(game.width - 108, 245);
+            ctx.translate(game.width - 108, 268);
             ctx.scale(scale, scale);
             ctx.textAlign = 'right';
             ctx.font = 'bold 42px "Press Start 2P"';
@@ -648,6 +648,8 @@ export default class CombatHUD {
     }
 
     static drawPostMatch(ctx, combat) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fillRect(0, 0, combat.game.width, combat.game.height);
         const cx = combat.game.width / 2;
         const cy = combat.game.height / 2;
         const startY = combat.game.height * 0.65;
@@ -661,7 +663,7 @@ export default class CombatHUD {
             const winnerText = isCoopWin
                 ? `${combat.p1.data.name.toUpperCase()} & ${combat.ally.data.name.toUpperCase()} WIN!`
                 : `${winnerFighter.data.name.toUpperCase()} WINS!`;
-            ctx.font = isCoopWin ? 'bold 38px "Press Start 2P"' : 'bold 48px "Press Start 2P"';
+            ctx.font = isCoopWin ? 'bold 38px "Press Start 2P"' : 'bold 52px "Press Start 2P"';
             ctx.fillStyle = '#fdbf00';
             ctx.shadowColor = '#000';
             ctx.shadowBlur = 12;
