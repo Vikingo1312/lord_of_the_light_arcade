@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.73';
-import Projectile from '../entities/Projectile.js?v=2.73';
-import Hitbox from '../entities/Hitbox.js?v=2.73';
-import StageObjectManager from '../entities/StageObjects.js?v=2.73';
-import AIController from '../ai/AIController.js?v=2.73';
-import CombatHUD from '../ui/CombatHUD.js?v=2.73';
+import Fighter from '../entities/Fighter.js?v=2.74';
+import Projectile from '../entities/Projectile.js?v=2.74';
+import Hitbox from '../entities/Hitbox.js?v=2.74';
+import StageObjectManager from '../entities/StageObjects.js?v=2.74';
+import AIController from '../ai/AIController.js?v=2.74';
+import CombatHUD from '../ui/CombatHUD.js?v=2.74';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.73';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.73';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.73';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.73';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.73';
+} from '../core/AssetPreloader.js?v=2.74';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.74';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.74';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.74';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.74';
 
 export default class CombatState {
     constructor(game) {
@@ -90,10 +90,11 @@ export default class CombatState {
         if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
             const diff = (this.game.settings && this.game.settings.difficulty) || 'NORMAL';
             const isLadderMode = Boolean(this.storyMode || this.arcadeMode || this.survivalMode);
+            const totalSt = (this.arcadeLadder && this.arcadeLadder.length) ? this.arcadeLadder.length : 15;
             const stageNum = isLadderMode
-                ? Math.max(1, Math.min(14, this.arcadeIndex || 1))
+                ? Math.max(1, Math.min(totalSt, this.arcadeIndex || 1))
                 : Math.max(6, Math.min(11, (p2Data.rosterIndex ?? 6) + 1));
-            const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
+            const stageRatio = (stageNum - 1) / Math.max(1, totalSt - 1); // 0.0 in Arena 1 -> 1.0 in Arena 15
 
             const curve = Math.pow(stageRatio, 1.3); // Gentle in Stages 1-6, ramps up toward Stages 11-14
             if (diff === 'EASY') {
@@ -321,7 +322,8 @@ export default class CombatState {
         this.game.audioManager.stopFighterVoice?.();
         this.game.audioManager.stopAnnouncerVoice?.();
 
-        const isFinalBoss = (this.arcadeIndex === ROSTER.length - 1);
+        const totalSt = (this.arcadeLadder && this.arcadeLadder.length) ? this.arcadeLadder.length : (ROSTER.length - 1);
+        const isFinalBoss = (this.arcadeIndex === totalSt);
         const wonBossFight = (isFinalBoss && this.winner === 'p1');
         if (!wonBossFight) {
             this.game.audioManager.stopBGM();

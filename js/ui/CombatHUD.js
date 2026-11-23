@@ -1,7 +1,7 @@
-import { ROSTER, getFighterStyle } from '../data.js?v=2.73';
-import { playAnnouncer } from '../core/AssetPreloader.js?v=2.73';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.73';
-import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.73';
+import { ROSTER, getFighterStyle } from '../data.js?v=2.74';
+import { playAnnouncer } from '../core/AssetPreloader.js?v=2.74';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.74';
+import { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.74';
 
 /**
  * CombatHUD — Renders health/special bars, timers, and match overlays
@@ -702,7 +702,8 @@ export default class CombatHUD {
                 ctx.font = 'bold 20px "Press Start 2P"';
                 ctx.textAlign = 'center';
                 ctx.fillStyle = '#fdbf00';
-                ctx.fillText(`FIGHT ${combat.arcadeIndex} / ${ROSTER.length - 1} CLEAR!`, cx, startY + 68);
+                const totalStages = (combat.arcadeLadder && combat.arcadeLadder.length) ? combat.arcadeLadder.length : (ROSTER.length - 1);
+                ctx.fillText(`FIGHT ${combat.arcadeIndex} / ${totalStages} CLEAR!`, cx, startY + 68);
             } else {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
                 ctx.fillRect(cx - 300, startY + 20, 600, 150);
@@ -744,9 +745,10 @@ export default class CombatHUD {
         ctx.fillText('CHAMPION', cx, cy - 60);
         ctx.shadowBlur = 0;
 
+        const totalStages = (combat.arcadeLadder && combat.arcadeLadder.length) ? combat.arcadeLadder.length : (ROSTER.length - 1);
         ctx.font = 'bold 36px "Press Start 2P"';
         ctx.fillStyle = '#00ffff';
-        ctx.fillText('YOU CONQUERED ALL 14 WARRIORS!', cx, cy + 10);
+        ctx.fillText(`YOU CONQUERED ALL ${totalStages} WARRIORS!`, cx, cy + 10);
 
         ctx.font = '24px "Press Start 2P"';
         ctx.fillStyle = '#ffffff';

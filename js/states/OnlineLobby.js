@@ -4,9 +4,9 @@
  *  1) 1 VS 1 DUELL (Head-to-head PvP!)
  *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.73';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.73';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.73';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.74';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.74';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.74';
 
 export default class OnlineLobbyState {
     constructor(game) {
@@ -33,7 +33,7 @@ export default class OnlineLobbyState {
         for (const f of ALL_FIGHTERS) {
             const key = `${f.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.73`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.74`);
             }
         }
         this.game.assetManager.loadAll();
@@ -295,7 +295,7 @@ export default class OnlineLobbyState {
 
         const key = `${nextChar.id}_front.png`;
         if (!this.game.assetManager.images[key]) {
-            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.73`);
+            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.74`);
             this.game.assetManager.loadAll();
         }
 
@@ -333,7 +333,17 @@ export default class OnlineLobbyState {
         const net = this.game.networkManager;
         const p1Char = net.getFighterById(p1Id || 'Keano');
         const allyChar = net.getFighterById(allyId || 'JJDark');
-        const opponent = ROSTER[1]; // Stage 1: Hattori
+        const baseStory = ROSTER.slice(1).map(f => ({ ...f }));
+        const aliObj = SPECIALS.find(s => s.id === 'AliAbi');
+        if (aliObj) {
+            baseStory.splice(7, 0, { ...aliObj, stageId: 'Ali_Abi_Bazar' });
+        }
+        const storyLadder = baseStory.map((f, idx) => ({
+            ...f,
+            stageId: f.stageId || 'Japan',
+            rosterIndex: idx + 1
+        }));
+        const opponent = storyLadder[0]; // Stage 1: Hattori
         const stageId = opponent.stageId;
 
         preloadFighterSprites(this.game.assetManager, p1Char);
@@ -349,6 +359,7 @@ export default class OnlineLobbyState {
             stageId: stageId,
             arcadeMode: true,
             storyMode: true,
+            arcadeLadder: storyLadder,
             coopMode: true,
             onlineMode: isOnlineConnected ? 'coop' : null,
             arcadeIndex: 1,

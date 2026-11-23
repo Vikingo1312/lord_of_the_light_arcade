@@ -31,13 +31,14 @@ export default class AIController {
         const dirAwayFromP1 = p1.x > p2.x ? 'left' : 'right';
         const styleId = (p2.data && p2.data.styleId) || 'LIGHT_DRAGON';
 
-        // Progressive stage index: Ladder modes use 1..14; Versus 1v1 uses balanced mid-tier 6..11
+        // Progressive stage index: Ladder modes use 1..15; Versus 1v1 uses balanced mid-tier 6..11
         const isLadder = Boolean(combat.storyMode || combat.arcadeMode || combat.survivalMode);
+        const totalSt = (combat.arcadeLadder && combat.arcadeLadder.length) ? combat.arcadeLadder.length : 15;
         const rawStage = isLadder
             ? (combat.arcadeIndex || 1)
             : Math.max(6, Math.min(11, (combat.combatData?.p2?.rosterIndex ?? 6) + 1));
-        const rosterIdx = Math.max(1, Math.min(14, rawStage));
-        const stageProgress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 arenas
+        const rosterIdx = Math.max(1, Math.min(totalSt, rawStage));
+        const stageProgress = (rosterIdx - 1) / Math.max(1, totalSt - 1); // 0.0 to 1.0 across all 15 arenas
 
         // Smooth 14-Stage Arcade Progression Curve (easy & welcoming in Stages 1-4, gradually ramping toward Stages 12-14):
         // - EASY: 0.02 (Arena 1) -> 0.32 (Arena 14)

@@ -1,6 +1,6 @@
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.73';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.73';
-import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.73';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked, getFighterStyle } from '../data.js?v=2.74';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.74';
+import { preloadFighterSprites, preloadStageAssets, playFighterSound, playAnnouncer } from '../core/AssetPreloader.js?v=2.74';
 
 export default class CharacterSelectState {
     constructor(game) {
@@ -50,7 +50,7 @@ export default class CharacterSelectState {
         for (const char of this.allFighters) {
             const key = `${char.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.73`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${char.folder}/_front.png?v=2.74`);
                 needsLoad = true;
             }
         }
@@ -131,13 +131,13 @@ export default class CharacterSelectState {
         const remainingSpecials = shuffle(SPECIALS.filter(s => s.id !== p1Char.id && s.id !== finalBoss.id));
         const remainingRoster = shuffle(ROSTER.filter(r => r.id !== p1Char.id && r.id !== finalBoss.id));
 
-        // Always ensure Ali Abi (in his Döner-Palast stage!) is part of the 14-stage Arcade Shuffle Ladder!
+        // Always ensure Ali Abi (in his Döner-Palast stage!) is part of the 15-stage Arcade Shuffle Ladder (14 challengers + 1 Final Boss = 15 stages)!
         const aliObj = SPECIALS.find(s => s.id === 'AliAbi');
-        let pickedSpecials = remainingSpecials.slice(0, 6);
+        let pickedSpecials = remainingSpecials.slice(0, 7);
         if (aliObj && p1Char.id !== 'AliAbi' && finalBoss.id !== 'AliAbi' && !pickedSpecials.some(s => s.id === 'AliAbi')) {
-            pickedSpecials = [aliObj, ...remainingSpecials.filter(s => s.id !== 'AliAbi').slice(0, 5)];
+            pickedSpecials = [aliObj, ...remainingSpecials.filter(s => s.id !== 'AliAbi').slice(0, 6)];
         }
-        const pickedRoster = remainingRoster.slice(0, 13 - pickedSpecials.length);
+        const pickedRoster = remainingRoster.slice(0, 14 - pickedSpecials.length);
         const midPool = shuffle([...pickedSpecials, ...pickedRoster]).sort((a, b) => {
             const scoreA = (a.power || 100) * 1.6 + (a.hp || 300) * 0.35 + (Math.random() * 8 - 4);
             const scoreB = (b.power || 100) * 1.6 + (b.hp || 300) * 0.35 + (Math.random() * 8 - 4);
@@ -156,15 +156,15 @@ export default class CharacterSelectState {
     }
 
     /**
-     * Builds the 14-Stage Story Mode Ladder including Ali Abi in his Döner-Palast Arena
-     * while preserving the 14-stage Story journey (ending with JJ Dark, Putin, and Dark Vikingo).
+     * Builds the 15-Stage Story Mode Ladder: all 14 original Story opponents PLUS Ali Abi
+     * in his Döner-Palast Arena (`Ali_Abi_Bazar`) as Stage 8 (ending with Stage 13 JJ Dark, Stage 14 Putin, and Stage 15 Dark Vikingo).
      */
     _buildStoryLadder(p1Char) {
-        const baseStory = ROSTER.slice(1).map(f => ({ ...f })); // 14 stages (ROSTER[1]..ROSTER[14])
+        const baseStory = ROSTER.slice(1).map(f => ({ ...f })); // 14 original Story stages (ROSTER[1]..ROSTER[14])
         const aliObj = SPECIALS.find(s => s.id === 'AliAbi');
-        if (aliObj && p1Char.id !== 'AliAbi') {
-            // Place Ali Abi at Stage 7 (right after the Story Midpoint Reflexion!) so total Story length remains 14 stages!
-            baseStory[6] = { ...aliObj, stageId: 'Ali_Abi_Bazar' };
+        if (aliObj) {
+            // Insert Ali Abi in his Döner-Palast Arena right after Stage 7 (Marley) as Stage 8 -> 15 Story Stages total!
+            baseStory.splice(7, 0, { ...aliObj, stageId: 'Ali_Abi_Bazar' });
         }
         return baseStory.map((f, idx) => ({
             ...f,
