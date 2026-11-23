@@ -431,18 +431,19 @@
             }
 
             // Live Auto-Update Checker: Polls version.json from the server and prompts the player when a new update is live!
-            window.LOTL_CURRENT_VERSION = '2.69';
+            window.LOTL_CURRENT_VERSION = '2.70';
             async function checkLiveGameUpdate() {
                 try {
                     const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
                     if (!res.ok) return;
                     const data = await res.json();
-                    if (data && data.version && data.version !== window.LOTL_CURRENT_VERSION) {
+                    const dismissedVer = sessionStorage.getItem('lotl_dismissed_update_ver');
+                    if (data && data.version && data.version !== window.LOTL_CURRENT_VERSION && data.version !== dismissedVer) {
                         if (!document.getElementById('lotl-update-banner')) {
                             const bar = document.createElement('div');
                             bar.id = 'lotl-update-banner';
                             bar.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:99999;background:linear-gradient(135deg,#0d1428,#1a0b2e);border:2px solid #00ff88;border-radius:12px;padding:12px 20px;display:flex;align-items:center;gap:16px;box-shadow:0 0 28px rgba(0,255,136,0.45);font-family:Orbitron,sans-serif;color:#fff;';
-                            bar.innerHTML = '<div><div style="color:#00ff88;font-weight:900;font-size:13px;">⚡ NEUES SPIEL-UPDATE VERFÜGBAR (v' + data.version + ')!</div><div style="font-size:11px;color:#ccd6f6;margin-top:2px;">' + (data.notes || 'Neue Fixes & Inhalte bereit!') + '</div></div><button onclick="if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k)));}window.location.reload(true);" style="background:linear-gradient(135deg,#00c853,#009624);color:#fff;border:1.5px solid #69f0ae;border-radius:8px;padding:9px 16px;font:bold 12px Orbitron,sans-serif;cursor:pointer;white-space:nowrap;">🔄 JETZT AKTUALISIEREN</button>';
+                            bar.innerHTML = '<div><div style="color:#00ff88;font-weight:900;font-size:13px;">⚡ NEUES SPIEL-UPDATE VERFÜGBAR (v' + data.version + ')!</div><div style="font-size:11px;color:#ccd6f6;margin-top:2px;">' + (data.notes || 'Neue Fixes & Inhalte bereit!') + '</div></div><button onclick="sessionStorage.setItem(\'lotl_dismissed_update_ver\',\'' + data.version + '\');if(window.caches){caches.keys().then(ks=>ks.forEach(k=>caches.delete(k)));}if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister()));}setTimeout(()=>{window.location.href=window.location.pathname+\'?v=' + data.version + '\';},150);" style="background:linear-gradient(135deg,#00c853,#009624);color:#fff;border:1.5px solid #69f0ae;border-radius:8px;padding:9px 16px;font:bold 12px Orbitron,sans-serif;cursor:pointer;white-space:nowrap;">🔄 JETZT AKTUALISIEREN</button><button onclick="sessionStorage.setItem(\'lotl_dismissed_update_ver\',\'' + data.version + '\');document.getElementById(\'lotl-update-banner\').remove();" style="background:transparent;color:#aaa;border:none;font:bold 16px sans-serif;cursor:pointer;padding:4px 8px;">✕</button>';
                             document.body.appendChild(bar);
                         }
                     }
