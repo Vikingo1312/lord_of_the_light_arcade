@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.72';
-import Projectile from '../entities/Projectile.js?v=2.72';
-import Hitbox from '../entities/Hitbox.js?v=2.72';
-import StageObjectManager from '../entities/StageObjects.js?v=2.72';
-import AIController from '../ai/AIController.js?v=2.72';
-import CombatHUD from '../ui/CombatHUD.js?v=2.72';
+import Fighter from '../entities/Fighter.js?v=2.73';
+import Projectile from '../entities/Projectile.js?v=2.73';
+import Hitbox from '../entities/Hitbox.js?v=2.73';
+import StageObjectManager from '../entities/StageObjects.js?v=2.73';
+import AIController from '../ai/AIController.js?v=2.73';
+import CombatHUD from '../ui/CombatHUD.js?v=2.73';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.72';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.72';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.72';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.72';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.72';
+} from '../core/AssetPreloader.js?v=2.73';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.73';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.73';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.73';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.73';
 
 export default class CombatState {
     constructor(game) {
@@ -95,29 +95,31 @@ export default class CombatState {
                 : Math.max(6, Math.min(11, (p2Data.rosterIndex ?? 6) + 1));
             const stageRatio = (stageNum - 1) / 13; // 0.0 in Arena 1 -> 1.0 in Arena 14
 
+            const curve = Math.pow(stageRatio, 1.3); // Gentle in Stages 1-6, ramps up toward Stages 11-14
             if (diff === 'EASY') {
-                this.p2.specialEnergy = stageNum >= 4 ? 50 : 25;
-                const hpMul = 0.88 + stageRatio * 0.14; // 88% -> 102% HP
+                this.p2.specialEnergy = stageNum >= 8 ? 35 : 0;
+                const hpMul = 0.62 + curve * 0.28; // Stage 1: 62% HP -> Stage 14: 90% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (0.85 + stageRatio * 0.15)); // 85% -> 100% Power
+                this.p2.power = Math.round((p2Data.power || 100) * (0.58 + curve * 0.28)); // Stage 1: 58% Power -> Stage 14: 86% Power
             } else if (diff === 'NORMAL') {
-                // Balanced Street Fighter II Arcade Ladder Progression:
-                // Arena 1-3: 96%-100% HP, 94%-98% Power (fair, active match right from Stage 1!)
-                // Arena 4-9: 101%-106% HP, 99%-105% Power (evenly matched rivalry)
-                // Arena 10-14: 108%-114% HP, 106%-112% Power (championship / boss challenge!)
-                this.p2.specialEnergy = isLadderMode ? Math.round(45 + stageRatio * 45) : 50;
-                const hpMul = isLadderMode ? (0.96 + stageRatio * 0.18) : 1.0;
+                // Smooth 14-Stage Arcade Progression Curve:
+                // Arena 1-3: 72%-77% HP, 68%-73% Power (relaxed, fun warm-up where player dominates!)
+                // Arena 4-8: 80%-90% HP, 76%-86% Power (fair mid-game arcade challenge)
+                // Arena 9-12: 92%-100% HP, 89%-98% Power (exciting tournament fights)
+                // Arena 13-14: 103%-108% HP, 101%-106% Power (worthy final boss showdown!)
+                this.p2.specialEnergy = isLadderMode ? (stageNum <= 4 ? 0 : Math.round((stageNum - 4) * 5)) : 40;
+                const hpMul = isLadderMode ? (0.72 + curve * 0.36) : 0.92;
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                const pwrScale = isLadderMode ? (0.94 + stageRatio * 0.18) : 1.0;
+                const pwrScale = isLadderMode ? (0.68 + curve * 0.38) : 0.90;
                 this.p2.power = Math.round((p2Data.power || 100) * pwrScale);
             } else if (diff === 'HARD') {
-                this.p2.specialEnergy = 85;
-                const hpMul = 1.04 + stageRatio * 0.20; // 104% -> 124% HP
+                this.p2.specialEnergy = stageNum <= 2 ? 25 : 65;
+                const hpMul = 0.88 + curve * 0.28; // Stage 1: 88% HP -> Stage 14: 116% HP
                 this.p2.maxHP = Math.round(this.p2.baseMaxHP * hpMul);
                 this.p2.hp = this.p2.maxHP;
-                this.p2.power = Math.round((p2Data.power || 100) * (1.00 + stageRatio * 0.18)); // 100% -> 118% Power
+                this.p2.power = Math.round((p2Data.power || 100) * (0.85 + curve * 0.28)); // Stage 1: 85% Power -> Stage 14: 113% Power
             }
         }
 

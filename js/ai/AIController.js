@@ -39,14 +39,15 @@ export default class AIController {
         const rosterIdx = Math.max(1, Math.min(14, rawStage));
         const stageProgress = (rosterIdx - 1) / 13; // 0.0 to 1.0 across the 14 arenas
 
-        // Balanced Street Fighter II Turbo progression:
-        // - EASY: 0.12 -> 0.42 (approachable, readable, active & varied)
-        // - NORMAL: 0.25 (Arena 1) -> 0.58 (Arena 7) -> 0.90 (Arena 14) — true ascending arcade ladder challenge!
-        // - HARD: 0.62 -> 0.98
-        let progress = stageProgress;
-        if (difficultySetting === 'EASY') progress = 0.12 + stageProgress * 0.30;
-        else if (difficultySetting === 'NORMAL') progress = 0.25 + stageProgress * 0.65;
-        else if (difficultySetting === 'HARD') progress = 0.62 + stageProgress * 0.36;
+        // Smooth 14-Stage Arcade Progression Curve (easy & welcoming in Stages 1-4, gradually ramping toward Stages 12-14):
+        // - EASY: 0.02 (Arena 1) -> 0.32 (Arena 14)
+        // - NORMAL: 0.05 (Arena 1) -> 0.12 (Arena 3) -> 0.34 (Arena 7) -> 0.78 (Arena 14)
+        // - HARD: 0.35 (Arena 1) -> 0.88 (Arena 14)
+        const curvedStage = Math.pow(stageProgress, 1.45);
+        let progress = curvedStage;
+        if (difficultySetting === 'EASY') progress = 0.02 + curvedStage * 0.30;
+        else if (difficultySetting === 'NORMAL') progress = 0.05 + curvedStage * 0.73;
+        else if (difficultySetting === 'HARD') progress = 0.35 + curvedStage * 0.53;
 
         // Initialize AI state trackers on p2
         if (typeof p2.aiWaitTimer === 'undefined') p2.aiWaitTimer = 0;
@@ -63,10 +64,10 @@ export default class AIController {
             p2._lastSeenP1Attack = null;
         }
 
-        // Give P1 wake-up respect when P1 has wake-up immunity
-        if (p1.hitImmunity > 0.12) {
-            p2.aiWaitTimer = Math.max(p2.aiWaitTimer, 0.24);
-            if (dist < 175 && styleId !== 'TITAN_GRAPPLER') ai[dirAwayFromP1] = true;
+        // Give P1 wake-up respect when P1 has wake-up immunity or is getting up
+        if (p1.hitImmunity > 0.08 || p1.isKnockedDown) {
+            p2.aiWaitTimer = Math.max(p2.aiWaitTimer, 0.42);
+            if (dist < 195 && styleId !== 'TITAN_GRAPPLER') ai[dirAwayFromP1] = true;
             return ai;
         }
 
@@ -75,17 +76,20 @@ export default class AIController {
             if (moveTag) p2._lastAIMove = moveTag;
             if (ai.lJust || ai.hJust || ai.sJust || ai.commandMove) {
                 if (difficultySetting === 'EASY') {
-                    p2.aiWaitTimer = 0.72 + Math.random() * 0.42;
+                    p2.aiWaitTimer = 1.15 + Math.random() * 0.55;
                 } else if (rosterIdx <= 2) {
-                    // Arena 1-2: 0.56s to 0.88s — lively Street Fighter pace while giving the player clear counter windows!
-                    p2.aiWaitTimer = 0.56 + Math.random() * 0.32;
-                } else if (rosterIdx <= 6) {
-                    // Arena 3-6: 0.42s to 0.72s
-                    p2.aiWaitTimer = 0.42 + Math.random() * 0.30;
+                    // Arena 1-2: 1.05s to 1.55s — relaxed warm-up pace with big openings for the player!
+                    p2.aiWaitTimer = 1.05 + Math.random() * 0.50;
+                } else if (rosterIdx <= 5) {
+                    // Arena 3-5: 0.78s to 1.18s
+                    p2.aiWaitTimer = 0.78 + Math.random() * 0.40;
+                } else if (rosterIdx <= 9) {
+                    // Arena 6-9: 0.55s to 0.88s
+                    p2.aiWaitTimer = 0.55 + Math.random() * 0.33;
                 } else {
-                    // Arena 7-14: Smooth ramp from 0.36s down to 0.22s
-                    const minWait = Math.max(0.22, 0.48 - progress * 0.26);
-                    const randWait = Math.max(0.14, 0.28 - progress * 0.14);
+                    // Arena 10-14: Smooth ramp from 0.42s down to 0.28s
+                    const minWait = Math.max(0.28, 0.54 - progress * 0.26);
+                    const randWait = Math.max(0.18, 0.32 - progress * 0.14);
                     p2.aiWaitTimer = minWait + Math.random() * randWait;
                 }
             }
@@ -126,55 +130,55 @@ export default class AIController {
             return applyCooldown('COMMAND_PUNCH');
         };
 
-        // ─── 0. ARCHETYPE-SPECIFIC & STREET FIGHTER HIT-CONFIRM COMBO CHAINING ───
+        // ─── 0. ARCHETYPE-SPECIFIC & STREET FIGHTER HIT-CONFIRM COMBO CHAINING (Only from Stage 4+!) ───
         const p2AtkType = p2.currentAttack ? p2.currentAttack.type : '';
         const p2HitConfirmed = p2.state === 'ATTACK' && (p2.attackHasHit || p2.attackHitCount > 0) && !p2.attackWasBlocked;
 
-        if (p2HitConfirmed && p2.isGrounded && dist <= 235) {
-            const styleChainProb = difficultySetting === 'EASY' ? 0.18 : (0.24 + progress * 0.44);
+        if (rosterIdx >= 4 && p2.aiWaitTimer <= 0 && p2HitConfirmed && p2.isGrounded && dist <= 235) {
+            const styleChainProb = difficultySetting === 'EASY' ? 0.08 : (0.10 + progress * 0.35);
             if (Math.random() < styleChainProb) {
                 if (styleId === 'SHADOW_ASSASSIN' && (p2AtkType === 'HEAVY' || p2AtkType === 'SWEEP')) {
                     ai.lJust = true;
-                    p2.aiWaitTimer = 0.26;
+                    p2.aiWaitTimer = 0.55;
                     return ai;
                 }
                 if (styleId === 'SHADOW_ASSASSIN' && p2AtkType === 'COMMAND_PUNCH') {
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.48;
+                    p2.aiWaitTimer = 0.68;
                     return ai;
                 }
                 if (styleId === 'CAPOEIRA_TRICKSTER' && (p2AtkType === 'HEAVY' || p2AtkType === 'SWEEP' || p2AtkType === 'COMBO_KICK')) {
                     ai.hJust = true;
-                    p2.aiWaitTimer = p2AtkType === 'COMBO_KICK' ? 0.50 : 0.25;
+                    p2.aiWaitTimer = 0.65;
                     return ai;
                 }
-                if (rosterIdx >= 3 && styleId === 'TITAN_GRAPPLER' && (p2AtkType === 'LIGHT' || p2AtkType === 'COMBO_KICK') && dist <= 210) {
+                if (rosterIdx >= 6 && styleId === 'TITAN_GRAPPLER' && (p2AtkType === 'LIGHT' || p2AtkType === 'COMBO_KICK') && dist <= 210) {
                     ai.l = true;
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.55;
+                    p2.aiWaitTimer = 0.75;
                     return ai;
                 }
                 if (styleId === 'VALHALLA_BERSERKER' && p2AtkType === 'COMMAND_PUNCH') {
                     ai.lJust = true;
-                    p2.aiWaitTimer = 0.28;
+                    p2.aiWaitTimer = 0.58;
                     return ai;
                 }
                 if (styleId === 'MASTER_STRIKER' && p2AtkType === 'HEAVY' && p2.comboChainStep >= 1) {
                     ai.hJust = true;
-                    p2.aiWaitTimer = 0.48;
+                    p2.aiWaitTimer = 0.68;
                     return ai;
                 }
             }
         }
 
-        if (p2.comboChainStep > 0 && p2.comboChainTimer > 0.04 && dist <= 220) {
+        if (rosterIdx >= 3 && p2.aiWaitTimer <= 0 && p2.comboChainStep > 0 && p2.comboChainTimer > 0.04 && dist <= 220) {
             const canCancel = p2.state === 'IDLE' || p2.state === 'WALK' || p2HitConfirmed;
             if (canCancel) {
-                const chainProb = p2.comboChainStep === 1 ? (0.30 + progress * 0.42) : (0.22 + progress * 0.38);
+                const chainProb = p2.comboChainStep === 1 ? (0.12 + progress * 0.35) : (0.08 + progress * 0.28);
                 if (Math.random() < chainProb) {
-                    if (p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < (0.22 + progress * 0.30)) {
+                    if (rosterIdx >= 6 && p2.comboChainStep === 2 && p2.specialEnergy >= 100 && Math.random() < (0.12 + progress * 0.25)) {
                         ai.sJust = true;
-                    } else if (p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < (0.28 + progress * 0.32)) {
+                    } else if (rosterIdx >= 5 && p2.comboChainStep === 2 && p2.specialMoveCooldown <= 0 && Math.random() < (0.15 + progress * 0.25)) {
                         if (styleId === 'LIGHT_DRAGON') {
                             ai.up = true;
                             ai.lJust = true;
@@ -184,10 +188,10 @@ export default class AIController {
                     } else {
                         ai.lJust = true;
                     }
-                    p2.aiWaitTimer = p2.comboChainStep === 2 ? Math.max(0.38, 0.72 - progress * 0.32) : 0.22;
+                    p2.aiWaitTimer = p2.comboChainStep === 2 ? Math.max(0.58, 0.95 - progress * 0.35) : 0.42;
                     return ai;
                 } else {
-                    p2.aiWaitTimer = 0.42;
+                    p2.aiWaitTimer = 0.62;
                 }
             }
         }
@@ -197,9 +201,9 @@ export default class AIController {
             p2.aiBlockTimer -= dt;
             ai[dirAwayFromP1] = true;
 
-            if (p1.state === 'ATTACK' && p1.currentAttack && dist < 245) {
+            if (rosterIdx >= 4 && p1.state === 'ATTACK' && p1.currentAttack && dist < 245) {
                 const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
-                if (p1.stateTimer >= activeEnd && p2.blockStun <= 0 && dist <= 210 && Math.random() < (0.12 + progress * 0.32)) {
+                if (p1.stateTimer >= activeEnd && p2.blockStun <= 0 && dist <= 210 && Math.random() < (0.06 + progress * 0.24)) {
                     return triggerPunishAttack();
                 }
             }
@@ -213,20 +217,17 @@ export default class AIController {
                 ((proj.facing === 1 && proj.x < p2.x) || (proj.facing === -1 && proj.x > p2.x))
         );
         if (incomingProj && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            const reactChance = (0.18 + progress * 0.45) * dt * 8;
+            const reactChance = (0.08 + progress * 0.38) * dt * 6;
             if (Math.random() < reactChance) {
-                if (styleId === 'SHADOW_ASSASSIN' && dist < 360 && p2.dashCooldown <= 0 && Math.random() < 0.48) {
+                if (rosterIdx >= 4 && styleId === 'SHADOW_ASSASSIN' && dist < 360 && p2.dashCooldown <= 0 && Math.random() < 0.38) {
                     if (dirToP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
-                    p2.aiWaitTimer = 0.35;
+                    p2.aiWaitTimer = 0.45;
                     return ai;
-                } else if (p2.specialMoveCooldown <= 0 && dist < 380 && Math.random() < 0.32) {
-                    ai.commandMove = 'FLYING_TORPEDO';
-                    return applyCooldown('FLYING_TORPEDO');
-                } else if (Math.random() < 0.58) {
+                } else if (Math.random() < 0.48) {
                     ai[dirToP1] = true;
                     ai.up = true;
-                    p2.aiWaitTimer = 0.38;
+                    p2.aiWaitTimer = 0.50;
                     return ai;
                 } else {
                     p2.aiBlockTimer = 0.22;
@@ -237,9 +238,9 @@ export default class AIController {
         }
 
         // ─── 2B. ANTI-AIR REACTION (Rising Dragon Uppercut or Guard against Jump-Ins!) ───
-        if (!p1.isGrounded && dist < 225 && p1.y < p2.y - 60 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-            if (Math.random() < (0.12 + progress * 0.34) * dt * 8) {
-                if (p2.specialMoveCooldown <= 0 && Math.random() < (0.38 + progress * 0.25)) {
+        if (rosterIdx >= 3 && !p1.isGrounded && dist < 225 && p1.y < p2.y - 60 && p2.isGrounded && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+            if (Math.random() < (0.06 + progress * 0.28) * dt * 6) {
+                if (rosterIdx >= 5 && p2.specialMoveCooldown <= 0 && Math.random() < (0.22 + progress * 0.25)) {
                     ai.commandMove = 'DRAGON_UPPERCUT';
                     return applyCooldown('DRAGON_UPPERCUT');
                 } else {
@@ -250,38 +251,38 @@ export default class AIController {
             }
         }
 
-        // ─── 3. REACT TO P1 MELEE & LUNGING SPECIAL ATTACKS (Street Fighter II Guard & Whiff Punish) ───
+        // ─── 3. REACT TO P1 MELEE & LUNGING SPECIAL ATTACKS (Balanced Guard & Whiff Punish) ───
         const p1AtkT = p1.currentAttack ? p1.currentAttack.type : '';
         const isLungingSpecial = (p1AtkT === 'FLYING_TORPEDO' || p1AtkT === 'DRAGON_RUSH_COMBO' || p1AtkT === 'HURRICANE_KICK' || p1AtkT === 'SPECIAL_DASH');
-        const threatRange = isLungingSpecial ? 560 : 285;
+        const threatRange = isLungingSpecial ? 480 : 265;
         if (p1.state === 'ATTACK' && p1.currentAttack && dist < threatRange) {
             const activeEnd = (p1.currentAttack.startup || 0.05) + (p1.currentAttack.active || 0.15);
 
             if (isNewP1Swing || (isLungingSpecial && p1.stateTimer < activeEnd && p2.aiBlockTimer <= 0 && !p2._reactedToLunge)) {
                 p2._reactedToLunge = true;
-                // EASY: 28% - 50%; NORMAL: 42% (Arena 1) -> 76% (Arena 14); HARD: 64% -> 90%
+                // EASY: 8% - 24%; NORMAL: 10% (Arena 1) -> 52% (Arena 14); HARD: 35% -> 72%
                 const blockProb = difficultySetting === 'EASY'
-                    ? (0.28 + progress * 0.22)
-                    : (difficultySetting === 'HARD' ? (0.64 + progress * 0.26) : (0.42 + progress * 0.34));
+                    ? (0.08 + progress * 0.20)
+                    : (difficultySetting === 'HARD' ? (0.35 + progress * 0.38) : (0.10 + progress * 0.42));
                 const roll = Math.random();
 
                 if (roll < blockProb) {
-                    p2.aiBlockTimer = (isLungingSpecial ? 0.34 : 0.22) + progress * 0.12;
+                    p2.aiBlockTimer = (isLungingSpecial ? 0.28 : 0.18) + progress * 0.10;
                     ai[dirAwayFromP1] = true;
-                    if (!isLungingSpecial && Math.random() < 0.28) {
+                    if (!isLungingSpecial && Math.random() < 0.24) {
                         ai.down = true;
                     }
                     return ai;
-                } else if (styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && roll < blockProb + 0.12) {
+                } else if (rosterIdx >= 4 && styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && roll < blockProb + 0.08) {
                     // Shadow Assassin evasive back-hop!
                     if (dirAwayFromP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
-                    p2.aiWaitTimer = 0.28;
+                    p2.aiWaitTimer = 0.38;
                     return ai;
                 }
-            } else if (p1.stateTimer >= activeEnd + 0.04 && p2.blockStun <= 0 &&
+            } else if (rosterIdx >= 4 && p2.aiWaitTimer <= 0 && p1.stateTimer >= activeEnd + 0.08 && p2.blockStun <= 0 &&
                        (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') &&
-                       dist <= 235 && Math.random() < (0.26 + progress * 0.38) * dt * 12) {
+                       dist <= 220 && Math.random() < (0.10 + progress * 0.26) * dt * 8) {
                 return triggerPunishAttack();
             }
         } else if (p1.state !== 'ATTACK') {
@@ -399,22 +400,22 @@ export default class AIController {
         if (dist > 265) {
             ai[dirToP1] = true;
 
-            // 1. Forward Dash approach (all stages, higher frequency for Assassins, Capoeira & Strikers!)
-            if (p2.isGrounded && p2.dashCooldown <= 0) {
+            // 1. Forward Dash approach (only from Stage 4+, higher frequency in later arenas!)
+            if (rosterIdx >= 4 && p2.isGrounded && p2.dashCooldown <= 0) {
                 const dashRatePerSec = (styleId === 'SHADOW_ASSASSIN' || styleId === 'CAPOEIRA_TRICKSTER')
-                    ? (0.65 + progress * 0.85)
-                    : (0.35 + progress * 0.55);
+                    ? (0.25 + progress * 0.75)
+                    : (0.15 + progress * 0.45);
                 if (Math.random() < dashRatePerSec * dt) {
                     if (dirToP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
-                    p2.aiWaitTimer = 0.24;
+                    p2.aiWaitTimer = 0.35;
                     return ai;
                 }
             }
 
-            // 2. Full-Screen Signature Moves (`FLYING_TORPEDO` or `DRAGON_RUSH_COMBO`) to close distance with style!
-            if (p2.specialMoveCooldown <= 0 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
-                const sigRatePerSec = 0.28 + progress * 0.52;
+            // 2. Full-Screen Signature Moves (`FLYING_TORPEDO` or `DRAGON_RUSH_COMBO`) — rare in early stages!
+            if (rosterIdx >= 3 && p2.specialMoveCooldown <= 0 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+                const sigRatePerSec = 0.06 + progress * 0.42;
                 if (Math.random() < sigRatePerSec * dt) {
                     const useRush = Math.random() < (styleId === 'LIGHT_DRAGON' || styleId === 'MASTER_STRIKER' ? 0.48 : 0.35);
                     return triggerChosenMove(useRush ? 'DRAGON_RUSH_COMBO' : 'FLYING_TORPEDO');
@@ -422,10 +423,10 @@ export default class AIController {
             }
 
             // 3. Fire projectile / Super from range when Super Energy is full!
-            if (p2.specialEnergy >= 100 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
+            if (rosterIdx >= 3 && p2.specialEnergy >= 100 && (p2.state === 'IDLE' || p2.state === 'WALK')) {
                 const zoningRatePerSec = (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER' || styleId === 'MASTER_STRIKER')
-                    ? (0.58 + progress * 0.78)
-                    : (0.35 + progress * 0.55);
+                    ? (0.20 + progress * 0.65)
+                    : (0.12 + progress * 0.45);
                 if (Math.random() < zoningRatePerSec * dt) {
                     return triggerChosenMove('SUPER_SPECIAL');
                 }
@@ -433,12 +434,12 @@ export default class AIController {
 
             // 4. Acrobatic Jump-In approach
             const jumpRatePerSec = (styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'SHADOW_ASSASSIN')
-                ? (0.42 + progress * 0.55)
-                : (0.28 + progress * 0.45);
+                ? (0.15 + progress * 0.45)
+                : (0.10 + progress * 0.35);
             if (Math.random() < jumpRatePerSec * dt && p2.isGrounded) {
                 ai[dirToP1] = true;
                 ai.up = true;
-                p2.aiWaitTimer = 0.35;
+                p2.aiWaitTimer = 0.45;
             }
             return ai;
         }
@@ -448,47 +449,47 @@ export default class AIController {
         if (dist <= strikeRange) {
             if (p2.state === 'IDLE' || p2.state === 'WALK' || p2.state === 'CROUCH') {
                 const grabRange = styleId === 'TITAN_GRAPPLER' ? 210 : 165;
-                const canThrow = dist <= grabRange && p1.isGrounded && p2.isGrounded && (rosterIdx >= 2 || styleId === 'TITAN_GRAPPLER');
-                const canPhysSpecial = p2.specialMoveCooldown <= 0;
-                const canSuper = p2.specialEnergy >= 100;
+                const canThrow = dist <= grabRange && p1.isGrounded && p2.isGrounded && (rosterIdx >= 4 || styleId === 'TITAN_GRAPPLER');
+                const canPhysSpecial = p2.specialMoveCooldown <= 0 && (rosterIdx >= 3 || Math.random() < 0.35);
+                const canSuper = p2.specialEnergy >= 100 && rosterIdx >= 3;
 
                 const candidates = [
-                    { tag: 'LIGHT', weight: 22 },
-                    { tag: 'HEAVY', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'VALHALLA_BERSERKER' ? 22 : 18 },
-                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' || styleId === 'SHADOW_ASSASSIN' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
-                    { tag: 'AXE_KICK', weight: styleId === 'VALHALLA_BERSERKER' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 18 : 13 },
-                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'SONIC_STRIKER' ? 18 : 12 },
-                    { tag: 'CROUCH_LIGHT', weight: 9 }
+                    { tag: 'LIGHT', weight: 28 },
+                    { tag: 'HEAVY', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'VALHALLA_BERSERKER' ? 20 : 16 },
+                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SONIC_STRIKER' || styleId === 'SHADOW_ASSASSIN' || styleId === 'KNEIPEN_TERRORIST' ? 14 : 10 },
+                    { tag: 'AXE_KICK', weight: styleId === 'VALHALLA_BERSERKER' || styleId === 'SONIC_STRIKER' || styleId === 'KNEIPEN_TERRORIST' ? 14 : 10 },
+                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' || styleId === 'SONIC_STRIKER' ? 14 : 10 },
+                    { tag: 'CROUCH_LIGHT', weight: 12 }
                 ];
 
                 if (canThrow) {
                     candidates.push({
                         tag: 'THROW',
-                        weight: styleId === 'TITAN_GRAPPLER' ? (14 + progress * 12) : (5 + progress * 7)
+                        weight: styleId === 'TITAN_GRAPPLER' ? (8 + progress * 12) : (3 + progress * 7)
                     });
                 }
                 if (canPhysSpecial) {
                     candidates.push({
                         tag: 'DRAGON_UPPERCUT',
-                        weight: (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER') ? (13 + progress * 11) : (8 + progress * 8)
+                        weight: (styleId === 'LIGHT_DRAGON' || styleId === 'SONIC_STRIKER') ? (5 + progress * 11) : (3 + progress * 8)
                     });
                     candidates.push({
                         tag: 'HURRICANE_KICK',
-                        weight: styleId === 'CAPOEIRA_TRICKSTER' ? (14 + progress * 10) : (8 + progress * 8)
+                        weight: styleId === 'CAPOEIRA_TRICKSTER' ? (6 + progress * 10) : (3 + progress * 8)
                     });
                     candidates.push({
                         tag: 'FLYING_TORPEDO',
-                        weight: 6 + progress * 8
+                        weight: 2 + progress * 8
                     });
                     candidates.push({
                         tag: 'DRAGON_RUSH_COMBO',
-                        weight: 5 + progress * 7
+                        weight: 2 + progress * 7
                     });
                 }
                 if (canSuper) {
                     candidates.push({
                         tag: 'SUPER_SPECIAL',
-                        weight: 12 + progress * 14
+                        weight: 6 + progress * 14
                     });
                 }
 
@@ -506,28 +507,29 @@ export default class AIController {
         }
 
         if (p2.state === 'IDLE' || p2.state === 'WALK') {
-            const footsiesRatePerSec = 1.15 + progress * 1.45;
+            const footsiesRatePerSec = 0.45 + progress * 1.35;
             if (Math.random() < footsiesRatePerSec * dt) {
-                if (styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && Math.random() < 0.34) {
+                if (rosterIdx >= 5 && styleId === 'SHADOW_ASSASSIN' && p2.dashCooldown <= 0 && Math.random() < 0.30) {
                     if (dirToP1 === 'right') ai.dashRightJust = true;
                     else ai.dashLeftJust = true;
-                    p2.aiWaitTimer = 0.22;
+                    p2.aiWaitTimer = 0.35;
                     return ai;
                 }
 
                 const midCandidates = [
-                    { tag: 'AXE_KICK', weight: 20 },
-                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' ? 22 : 16 },
-                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SHADOW_ASSASSIN' ? 22 : 15 },
-                    { tag: 'HEAVY', weight: 16 }
+                    { tag: 'LIGHT', weight: 20 },
+                    { tag: 'HEAVY', weight: 18 },
+                    { tag: 'AXE_KICK', weight: 14 },
+                    { tag: 'SWEEP', weight: styleId === 'CAPOEIRA_TRICKSTER' ? 18 : 12 },
+                    { tag: 'COMMAND_PUNCH', weight: styleId === 'MASTER_STRIKER' || styleId === 'SHADOW_ASSASSIN' ? 18 : 12 }
                 ];
-                if (p2.specialMoveCooldown <= 0) {
-                    midCandidates.push({ tag: 'HURRICANE_KICK', weight: 15 });
-                    midCandidates.push({ tag: 'FLYING_TORPEDO', weight: 14 });
-                    midCandidates.push({ tag: 'DRAGON_RUSH_COMBO', weight: 12 });
+                if (rosterIdx >= 4 && p2.specialMoveCooldown <= 0) {
+                    midCandidates.push({ tag: 'HURRICANE_KICK', weight: 8 + progress * 8 });
+                    midCandidates.push({ tag: 'FLYING_TORPEDO', weight: 6 + progress * 8 });
+                    midCandidates.push({ tag: 'DRAGON_RUSH_COMBO', weight: 5 + progress * 7 });
                 }
-                if (p2.specialEnergy >= 100) {
-                    midCandidates.push({ tag: 'SUPER_SPECIAL', weight: 16 });
+                if (rosterIdx >= 4 && p2.specialEnergy >= 100) {
+                    midCandidates.push({ tag: 'SUPER_SPECIAL', weight: 10 + progress * 10 });
                 }
 
                 return triggerChosenMove(pickWeightedMove(midCandidates));
