@@ -1,5 +1,5 @@
-import Hitbox from './Hitbox.js?v=2.74';
-import { getFighterStyle } from '../data.js?v=2.74';
+import Hitbox from './Hitbox.js?v=2.75';
+import { getFighterStyle } from '../data.js?v=2.75';
 
 export default class Fighter {
     constructor(game, data, x, y, facing) {
@@ -185,18 +185,24 @@ export default class Fighter {
             this.hurtbox.height = this.baseHurtboxHeight;
         }
 
-        // Authentic Street Fighter II Guard System:
+        // Authentic Street Fighter II / Tekken Instant Guard System:
         // Standing Block = Holding Back (←) or Guard button (B / Shift).
         // Crouching Block = Holding Down-Back (↙) or Down + Guard button (↓+B).
-        // Simply crouching (↓ alone without Back or Guard) ducks under high projectiles/jabs, but does NOT auto-block!
         const holdingGuardBtn = Boolean(inputQueue.guard);
         const holdingBack = (this.facing === 1 && inputQueue.left) || (this.facing === -1 && inputQueue.right);
         const holdingFwd = (this.facing === 1 && inputQueue.right) || (this.facing === -1 && inputQueue.left);
         const holdingCrouchGuard = Boolean(inputQueue.down && (holdingBack || holdingGuardBtn));
-        const oppAttackingNear = Boolean(this.opponent && this.opponent.state === 'ATTACK' && Math.abs(this.opponent.x - this.x) < 420);
-        const inRecoveryGuardWindow = this.state === 'ATTACK' && this.currentAttack && this.stateTimer >= (this.currentAttack.startup + this.currentAttack.active + (this.currentAttack.recovery || 0.2) * 0.45);
-        this.isBlocking = (holdingGuardBtn || holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && !this.isKnockedDown && this.midFightDizzyTimer <= 0 && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && this.state !== 'DASH' && this.state !== 'HIT' && this.state !== 'KO';
-        this.isActivelyGuarding = Boolean(this.isBlocking && (holdingGuardBtn || this.blockStun > 0 || ((holdingBack || holdingCrouchGuard) && (inputQueue.opponentThreat || oppAttackingNear))));
+        const oppDist = this.opponent ? Math.abs(this.opponent.x - this.x) : 999;
+        const oppAttackingNear = Boolean(inputQueue.opponentThreat || (this.opponent && this.opponent.state === 'ATTACK' && oppDist < 480));
+        const inRecoveryGuardWindow = this.state === 'ATTACK' && this.currentAttack && this.stateTimer >= (this.currentAttack.startup + this.currentAttack.active * 0.85);
+        this.isBlocking = (holdingGuardBtn || holdingBack || holdingCrouchGuard || this.blockStun > 0) && this.isGrounded && !this.isKnockedDown && this.midFightDizzyTimer <= 0 && (this.state !== 'ATTACK' || inRecoveryGuardWindow) && (this.state !== 'DASH' || holdingGuardBtn || oppAttackingNear) && this.state !== 'HIT' && this.state !== 'KO';
+        this.isActivelyGuarding = Boolean(this.isBlocking && (holdingGuardBtn || this.blockStun > 0 || ((holdingBack || holdingCrouchGuard) && (oppAttackingNear || oppDist < 340))));
+        if (this.isActivelyGuarding && inRecoveryGuardWindow && this.state === 'ATTACK') {
+            this.activeHitbox = null;
+            this.currentAttack = null;
+            this.state = inputQueue.down ? 'CROUCH' : 'IDLE';
+            this.vx = 0;
+        }
 
         // Decay Stun Meter when not being hit
         if (this.stunDecayTimer > 0) {
@@ -231,11 +237,13 @@ export default class Fighter {
         // Check for Dash trigger (double-tap Forward or Dash button; never back-dash when holding guard or blocking an enemy attack!)
         const tryTriggerDash = () => {
             if (this.dashCooldown > 0 || !this.isGrounded || holdingGuardBtn) return false;
-            if (inputQueue.dashLeftJust && !(this.facing === 1 && oppAttackingNear)) {
+            const blockBackLeft = (this.facing === 1 && (oppAttackingNear || oppDist < 360));
+            const blockBackRight = (this.facing === -1 && (oppAttackingNear || oppDist < 360));
+            if (inputQueue.dashLeftJust && !blockBackLeft) {
                 this.executeDash(-1);
                 return true;
             }
-            if (inputQueue.dashRightJust && !(this.facing === -1 && oppAttackingNear)) {
+            if (inputQueue.dashRightJust && !blockBackRight) {
                 this.executeDash(1);
                 return true;
             }
@@ -251,22 +259,42 @@ export default class Fighter {
             this.consecutiveHitsTaken = 0;
         }
 
-        // Trigger next step in the 3-step visual combo (Punch -> Kick -> Special Finisher)
-        // Requires the previous attack to have actually connected (hit-confirm) so mashing in empty air doesn't spam finishers!
+        // Trigger next step in the 3-step Tekken / Street Fighter Dial-A-Combo (Punch -> Drehkick -> Finisher)
         const triggerLightCombo = () => {
             consumeBuffer();
-            if (this.comboChainTimer > 0 && this.comboChainStep === 1 && this.lastHitConnected) {
+            if (this.comboChainTimer > 0 && this.comboChainStep === 1) {
                 this.comboChainStep = 2;
-                this.comboChainTimer = 0.75;
+                this.comboChainTimer = 0.85;
                 this.executeAttack('COMBO_KICK');
-            } else if (this.comboChainTimer > 0 && this.comboChainStep === 2 && this.lastHitConnected) {
+            } else if (this.comboChainTimer > 0 && this.comboChainStep === 2) {
                 this.comboChainStep = 0;
                 this.comboChainTimer = 0;
                 this.executeAttack('COMBO_FINISHER');
             } else {
                 this.comboChainStep = 1;
-                this.comboChainTimer = 0.75;
+                this.comboChainTimer = 0.85;
                 this.executeAttack('LIGHT');
+            }
+        };
+
+        // Trigger next step in the 3-step Kick / Drehkick Dial-A-Combo (Kick -> 360° Drehkick -> Hurricane Drehkick)
+        const triggerHeavyCombo = () => {
+            consumeBuffer();
+            if (this.comboChainTimer > 0 && this.comboChainStep === 1) {
+                this.comboChainStep = 2;
+                this.comboChainTimer = 0.85;
+                this.pendingStyleCallout = '🌀 360° DREHKICK!';
+                this.executeAttack('COMBO_KICK');
+            } else if (this.comboChainTimer > 0 && this.comboChainStep === 2) {
+                this.comboChainStep = 0;
+                this.comboChainTimer = 0;
+                this.specialMoveCooldown = 0;
+                this.pendingStyleCallout = '🌪️ HURRICANE DREHKICK!';
+                this.executeAttack(holdingFwd ? 'AXE_KICK' : 'HURRICANE_KICK');
+            } else {
+                this.comboChainStep = 1;
+                this.comboChainTimer = 0.85;
+                this.executeAttack('HEAVY');
             }
         };
 
@@ -309,8 +337,7 @@ export default class Fighter {
                 } else if (hasL) {
                     triggerLightCombo();
                 } else if (hasH) {
-                    consumeBuffer();
-                    this.executeAttack('HEAVY');
+                    triggerHeavyCombo();
                 } else if (hasS) {
                     consumeBuffer();
                     this.executeAttack('SPECIAL');
@@ -358,8 +385,7 @@ export default class Fighter {
                 } else if (hasL) {
                     triggerLightCombo();
                 } else if (hasH) {
-                    consumeBuffer();
-                    this.executeAttack('HEAVY');
+                    triggerHeavyCombo();
                 } else if (hasS) {
                     consumeBuffer();
                     this.executeAttack('SPECIAL');
@@ -453,14 +479,16 @@ export default class Fighter {
                     break;
                 }
 
-                // ─── INDIVIDUAL FIGHT-STYLE & STREET FIGHTER HIT-CONFIRM COMBO CANCELS ───
+                // ─── INDIVIDUAL FIGHT-STYLE & STREET FIGHTER / TEKKEN DIAL-A-COMBO CANCELS ───
                 const atkType = this.currentAttack.type;
                 const styleId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';
-                const canChainNow = (this.attackHasHit || this.attackHitCount > 0) && !this.attackWasBlocked;
+                const pastActiveMid = this.stateTimer >= (this.currentAttack.startup || 0.05) + (this.currentAttack.active || 0.14) * 0.45;
+                const canChainNow = Boolean(this.attackHasHit || this.attackHitCount > 0 || pastActiveMid);
 
                 if (canChainNow && this.isGrounded) {
                     // 1. Universal Command Move / Physical Special Cancel (Dragon Uppercut, Hurricane Kick, Throw)
                     if (bufferedCmd && atkType !== bufferedCmd) {
+                        this.specialMoveCooldown = 0;
                         if (this.executeAttack(bufferedCmd)) {
                             consumeBuffer();
                             break;
@@ -475,33 +503,32 @@ export default class Fighter {
                         break;
                     }
 
-                    // 3. CAPOEIRA_TRICKSTER Signature: K -> K -> K (Triple Capoeira Helicopter: Low Sweep -> Spin Kick -> Overhead Axe Kick!)
-                    if (styleId === 'CAPOEIRA_TRICKSTER' && hasH) {
-                        if (atkType === 'HEAVY' || atkType === 'SWEEP') {
-                            consumeBuffer();
-                            this.comboChainStep = 2;
-                            this.comboChainTimer = 0.70;
-                            this.pendingStyleCallout = '🌀 CAPOEIRA SPIN!';
-                            this.executeAttack('COMBO_KICK');
-                            break;
-                        } else if (atkType === 'COMBO_KICK') {
-                            consumeBuffer();
-                            this.comboChainStep = 0;
-                            this.comboChainTimer = 0;
-                            this.pendingStyleCallout = '🌀 TRIPLE CAPOEIRA KICK!';
-                            this.executeAttack('AXE_KICK');
-                            break;
-                        }
+                    // 3. Universal & Capoeira K -> K -> K Triple Drehkick Combo (Kick -> 360° Drehkick -> Hurricane Drehkick / Axe Kick!)
+                    if (hasH && (atkType === 'HEAVY' || atkType === 'SWEEP')) {
+                        consumeBuffer();
+                        this.comboChainStep = 2;
+                        this.comboChainTimer = 0.85;
+                        this.pendingStyleCallout = styleId === 'CAPOEIRA_TRICKSTER' ? '🌀 CAPOEIRA SPIN!' : '🌀 360° DREHKICK!';
+                        this.executeAttack('COMBO_KICK');
+                        break;
+                    }
+                    if (hasH && atkType === 'COMBO_KICK') {
+                        consumeBuffer();
+                        this.comboChainStep = 0;
+                        this.comboChainTimer = 0;
+                        this.specialMoveCooldown = 0;
+                        this.pendingStyleCallout = styleId === 'CAPOEIRA_TRICKSTER' ? '🌀 TRIPLE CAPOEIRA KICK!' : '🌪️ HURRICANE DREHKICK!';
+                        this.executeAttack((styleId === 'CAPOEIRA_TRICKSTER' || holdingFwd) ? 'AXE_KICK' : 'HURRICANE_KICK');
+                        break;
                     }
 
                     // 4. SHADOW_ASSASSIN Signature: K -> P -> K (Phantom Shadow Blitz: Heavy Kick -> Teleport Dash Punch -> Overhead Axe Kick!)
                     if (styleId === 'SHADOW_ASSASSIN' && (atkType === 'HEAVY' || atkType === 'SWEEP') && hasL) {
                         consumeBuffer();
                         this.comboChainStep = 2;
-                        this.comboChainTimer = 0.75;
+                        this.comboChainTimer = 0.85;
                         this.pendingStyleCallout = '🌑 PHANTOM SHADOW BLITZ!';
                         this.executeAttack('COMMAND_PUNCH');
-                        // Phantom Shadow Teleport surge forward!
                         this.vx = this.facing * 620;
                         this.hitImmunity = Math.max(this.hitImmunity, 0.18);
                         break;
@@ -511,27 +538,17 @@ export default class Fighter {
                     if (styleId === 'VALHALLA_BERSERKER' && atkType === 'COMMAND_PUNCH' && hasL) {
                         consumeBuffer();
                         this.comboChainStep = 2;
-                        this.comboChainTimer = 0.75;
+                        this.comboChainTimer = 0.85;
                         this.pendingStyleCallout = '⚡ THUNDER HAMMER SMASH!';
                         this.executeAttack('COMBO_KICK');
                         break;
                     }
 
-                    // 6. MASTER_STRIKER Signature: 4-Hit Blade Rush (P -> P -> K -> K)
-                    if (styleId === 'MASTER_STRIKER' && atkType === 'HEAVY' && hasH && this.comboChainStep >= 1) {
-                        consumeBuffer();
-                        this.comboChainStep = 0;
-                        this.comboChainTimer = 0;
-                        this.pendingStyleCallout = '⚔️ 4-HIT BLADE RUSH!';
-                        this.executeAttack('AXE_KICK');
-                        break;
-                    }
-
-                    // 7. Standard & Style-Enhanced P -> P -> P / P -> K -> S Chains
+                    // 6. Standard & Style-Enhanced P -> P -> P / P -> K -> S Chains
                     if (atkType === 'LIGHT' && hasL) {
                         consumeBuffer();
                         this.comboChainStep = 2;
-                        this.comboChainTimer = 0.65;
+                        this.comboChainTimer = 0.85;
                         this.executeAttack(holdingFwd ? 'COMMAND_PUNCH' : 'COMBO_KICK');
                         break;
                     }
@@ -539,8 +556,8 @@ export default class Fighter {
                         consumeBuffer();
                         this.comboChainStep = 0;
                         this.comboChainTimer = 0;
-                        // LIGHT_DRAGON launches with a rising Dragon Uppercut on 3rd P if holding Up (respecting cooldown)!
-                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up && this.specialMoveCooldown <= 0) {
+                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up) {
+                            this.specialMoveCooldown = 0;
                             this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
                             this.executeAttack('DRAGON_UPPERCUT');
                         } else {
@@ -548,20 +565,24 @@ export default class Fighter {
                         }
                         break;
                     }
-                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH') && hasH) {
+                    if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMMAND_PUNCH') && hasH) {
                         consumeBuffer();
-                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up && this.specialMoveCooldown <= 0) {
+                        this.comboChainStep = 2;
+                        this.comboChainTimer = 0.85;
+                        if (styleId === 'LIGHT_DRAGON' && inputQueue.up) {
+                            this.specialMoveCooldown = 0;
                             this.pendingStyleCallout = '☀️ SOLAR DRAGON RUSH!';
                             this.executeAttack('DRAGON_UPPERCUT');
-                        } else if (styleId === 'SHADOW_ASSASSIN' && (atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH')) {
+                        } else if (styleId === 'SHADOW_ASSASSIN' && atkType === 'COMMAND_PUNCH') {
                             this.pendingStyleCallout = '🌑 SHADOW EXECUTION!';
                             this.executeAttack('AXE_KICK');
                         } else {
-                            this.executeAttack(inputQueue.down ? 'SWEEP' : (holdingFwd ? 'AXE_KICK' : 'HEAVY'));
+                            this.executeAttack(inputQueue.down ? 'SWEEP' : (holdingFwd ? 'AXE_KICK' : 'COMBO_KICK'));
                         }
                         break;
                     }
                     if ((atkType === 'LIGHT' || atkType === 'CROUCH_LIGHT' || atkType === 'COMBO_KICK' || atkType === 'COMMAND_PUNCH' || atkType === 'AXE_KICK' || atkType === 'HEAVY' || atkType === 'SWEEP') && hasS) {
+                        this.specialMoveCooldown = 0;
                         if (inputQueue.up) {
                             if (this.executeAttack('DRAGON_UPPERCUT')) {
                                 consumeBuffer();
@@ -920,10 +941,10 @@ export default class Fighter {
         if (type === 'SPECIAL' || type === 'SPECIAL_DASH') {
             if (this.specialEnergy < 100) return false;
             this.specialEnergy = 0;
-            this.specialMoveCooldown = 0.75;
+            this.specialMoveCooldown = 0.45;
         } else if (type === 'DRAGON_UPPERCUT' || type === 'HURRICANE_KICK' || type === 'FLYING_TORPEDO' || type === 'DRAGON_RUSH_COMBO') {
             if (this.specialMoveCooldown > 0) return false;
-            this.specialMoveCooldown = 0.85; // Balanced 850ms Street Fighter special move cooldown (prevents infinite torpedo/rush spam!)
+            this.specialMoveCooldown = 0.35; // Crisp 350ms Street Fighter special move cooldown so Drehkicks & Uppercuts always fire responsively!
         }
 
         this.state = 'ATTACK';
@@ -1327,25 +1348,25 @@ export default class Fighter {
             this.vx = attackerFacing * attackDef.pushback * 2.5;
         } else {
             this.state = 'HIT';
-            // Determine Tiered Hitstun & Hard Knockdown (Sweep, Throw, Dragon Uppercut, Combo Finisher, or 3rd combo hit)
+            // Determine Tiered Hitstun & Hard Knockdown (Sweep, Throw, Dragon Uppercut, Combo Finisher, or 5th combo hit)
             const causesKnockdown = Boolean(
                 attackDef.type === 'SWEEP' ||
                 attackDef.type === 'THROW' ||
                 attackDef.type === 'DRAGON_UPPERCUT' ||
                 attackDef.type === 'SPECIAL_DASH' ||
                 attackDef.type === 'COMBO_FINISHER' ||
-                this.consecutiveHitsTaken >= 3
+                this.consecutiveHitsTaken >= 5
             );
             this.isKnockedDown = causesKnockdown;
             this.hitStunDuration = causesKnockdown ? 0.52 : (isSpecialOrProj ? 0.34 : (isHeavyOrCommand ? 0.30 : 0.22));
 
-            // Authentic Street Fighter II 3-Hit Combo Limit & Knockdown Immunity:
-            // After 3 hits (or any knockdown finisher), knock back cleanly with 0.72s wake-up immunity so the defender can ALWAYS block or counter on wake-up!
-            if (causesKnockdown || this.consecutiveHitsTaken >= 3) {
+            // Authentic Street Fighter II 5-Hit Combo Limit & Knockdown Immunity:
+            // Allows full 3-to-4-button combos (including multi-hit Drehkicks/Uppercuts) to connect completely, then knocks back cleanly with wake-up immunity!
+            if (causesKnockdown || this.consecutiveHitsTaken >= 5) {
                 this.vx = attackerFacing * Math.max(440, (attackDef.pushback || 220) * 1.55);
                 this.vy = -340;
                 this.isGrounded = false;
-                this.hitImmunity = 0.72;
+                this.hitImmunity = 0.65;
                 this.consecutiveHitsTaken = 0;
             } else {
                 this.vx = attackerFacing * attackDef.pushback;
@@ -1607,37 +1628,17 @@ export default class Fighter {
                         const slapIdx = Math.floor(phase * 24) % 2;
                         suffix = slapIdx === 0 ? '_special.png' : '_punch.png';
                     } else if (stId === 'CAPOEIRA_TRICKSTER') {
-                        // Capoeira 2nd Hit: Low Cartwheel Sweep -> Axe Kick!
+                        // Capoeira 2nd Hit: Low Cartwheel Sweep -> 360° Drehkick!
                         if (phase < startup) suffix = '_crouch.png';
                         else if (phase < midPoint) suffix = '_low_kick.png';
-                        else if (phase < retractStart) suffix = '_axe_kick.png';
-                        else suffix = '_spin_kick.png';
-                    } else if (stId === 'KNEIPEN_TERRORIST') {
-                        // Kneipenterrorist 2nd Hit: Two-Handed Bratpfannen Overhead -> Backhand Clang!
-                        if (phase < startup) suffix = '_windup_punch.png';
-                        else if (phase < midPoint) suffix = '_hook_punch.png';
-                        else if (phase < retractStart) suffix = '_backfist.png';
-                        else suffix = '_uppercut.png';
-                    } else if (stId === 'SHADOW_ASSASSIN') {
-                        // Assassin 2nd Hit: Rising Shadow Uppercut!
-                        if (phase < startup) suffix = '_mid_punch.png';
-                        else if (phase < retractStart) suffix = '_uppercut.png';
-                        else suffix = '_backfist.png';
-                    } else if (stId === 'MASTER_STRIKER') {
-                        // Master Striker 2nd Hit: High Precision Snap Kick!
-                        if (phase < startup) suffix = '_windup_kick.png';
-                        else if (phase < retractStart) suffix = '_kick.png';
-                        else suffix = '_mid_kick.png';
-                    } else if (stId === 'VALHALLA_BERSERKER' || stId === 'TITAN_GRAPPLER') {
-                        // Berserker / Grappler 2nd Hit: Chin Uppercut!
-                        if (phase < startup) suffix = '_windup_punch.png';
-                        else if (phase < retractStart) suffix = '_uppercut.png';
-                        else suffix = '_hook_punch.png';
+                        else if (phase < retractStart) suffix = '_spin_kick.png';
+                        else suffix = '_hurricane_kick.png';
                     } else {
-                        if (phase < startup) suffix = '_windup_punch.png';
-                        else if (phase < midPoint) suffix = '_mid_punch.png';
-                        else if (phase < retractStart) suffix = '_hook_punch.png';
-                        else suffix = '_mid_punch.png';
+                        // Authentic 360° Street Fighter / Tekken Roundhouse Drehkick (_spin_kick -> _hurricane_kick) for all fighters!
+                        if (phase < startup) suffix = '_windup_kick.png';
+                        else if (phase < midPoint) suffix = '_spin_kick.png';
+                        else if (phase < retractStart) suffix = '_hurricane_kick.png';
+                        else suffix = '_mid_kick.png';
                     }
                 } else if (atkType === 'COMBO_FINISHER') {
                     const stId = (this.data && this.data.styleId) || 'LIGHT_DRAGON';

@@ -1,20 +1,20 @@
-import Fighter from '../entities/Fighter.js?v=2.74';
-import Projectile from '../entities/Projectile.js?v=2.74';
-import Hitbox from '../entities/Hitbox.js?v=2.74';
-import StageObjectManager from '../entities/StageObjects.js?v=2.74';
-import AIController from '../ai/AIController.js?v=2.74';
-import CombatHUD from '../ui/CombatHUD.js?v=2.74';
+import Fighter from '../entities/Fighter.js?v=2.75';
+import Projectile from '../entities/Projectile.js?v=2.75';
+import Hitbox from '../entities/Hitbox.js?v=2.75';
+import StageObjectManager from '../entities/StageObjects.js?v=2.75';
+import AIController from '../ai/AIController.js?v=2.75';
+import CombatHUD from '../ui/CombatHUD.js?v=2.75';
 import {
     preloadFighterSprites,
     preloadStageAssets,
     playAnnouncer,
     playFighterSound,
     playCombatSound
-} from '../core/AssetPreloader.js?v=2.74';
-import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.74';
-import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.74';
-import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.74';
-import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.74';
+} from '../core/AssetPreloader.js?v=2.75';
+import { STAGES, ROSTER, unlockFighter } from '../data.js?v=2.75';
+import { STORY_REFLEXION, STORY_EPILOGUE, STORY_OUTRO, STORY_BIRTHDAY } from '../story_data.js?v=2.75';
+import { STORY_DIALOGUES } from '../story_dialogues.js?v=2.75';
+import CinematicFinisher, { getFinisherMove } from '../fx/CinematicFinisher.js?v=2.75';
 
 export default class CombatState {
     constructor(game) {
@@ -85,6 +85,11 @@ export default class CombatState {
             this.p1 = new Fighter(this.game, p1Data, this.game.width * 0.25, this.game.height * 0.9, 1);
             this.p2 = new Fighter(this.game, p2Data, this.game.width * 0.75, this.game.height * 0.9, -1);
         }
+
+        // Link opponent references so instant proximity guard and block priority work accurately
+        this.p1.opponent = this.p2;
+        this.p2.opponent = this.p1;
+        if (this.ally) this.ally.opponent = this.p2;
 
         // Balanced Street Fighter II Turbo Difficulty & 14-Arena Progression Curve for CPU
         if (!this.onlineMode && !this.trainingMode && !this.coopMode) {
@@ -1001,11 +1006,15 @@ export default class CombatState {
                     im.clearMotionHistory();
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
+                } else if (this.p1.state === 'ATTACK' && this.p1.specialEnergy >= 100) {
+                    // Keep sJust active so Fighter's 320ms Dial-A-Combo input buffer triggers the Super/Special cancel!
+                    p1InputCopy.sJust = true;
                 } else if (this.p1.specialMoveCooldown <= 0) {
                     // When Super Energy < 100%, pressing S or ↓↘→+P immediately executes the fighter's Signature Move instead of doing nothing!
                     p1InputCopy.commandMove = hasQCF ? 'DRAGON_UPPERCUT' : 'FLYING_TORPEDO';
                     p1InputCopy.lJust = false;
                     p1InputCopy.hJust = false;
+                    if (p1.sJust) p1InputCopy.sJust = true; // Also buffer in case we're mid-combo!
                     im.clearMotionHistory();
                     playCombatSound(this.game.audioManager, 'special', this.p1.data.id);
                 }
@@ -1032,19 +1041,12 @@ export default class CombatState {
             }
         }
 
-        // --- CO-OP ALLY (Player 2 in Co-Op Story) Input & Special Move Processing ---
+        // --- CO-OP ALLY (Player 2 in Co-Op Story) Input & Full Street Fighter Moveset Processing ---
         let allyInputCopy = null;
         if (this.coopMode && this.ally) {
             if (this.ally.state !== 'KO') {
                 const rawAlly = guestInput || AIController.computeAllyInput(this, dt);
-                allyInputCopy = { ...rawAlly, sJust: false, s: false };
-                const hasAllyQCF = this.ally.facing === 1 ? Boolean(rawAlly.qcfRight) : Boolean(rawAlly.qcfLeft);
-                const isAllySpecial = rawAlly.sJust || ((rawAlly.lJust || rawAlly.hJust) && hasAllyQCF);
-
-                if (isAllySpecial && this.tryExecuteSpecial(this.ally, 'p1')) {
-                    allyInputCopy.lJust = false;
-                    allyInputCopy.hJust = false;
-                }
+                allyInputCopy = this._processPlayerCombatInput(this.ally, this.p2, rawAlly, 'p1');
             } else {
                 allyInputCopy = { up: false, down: false, left: false, right: false, l: false, h: false, s: false };
             }
@@ -1053,13 +1055,7 @@ export default class CombatState {
         // --- P2 Input (Online 1v1 Guest, Training Dummy, OR AI Opponent) ---
         let p2Input = null;
         if (this.onlineMode === 'duel' && guestInput) {
-            p2Input = { ...guestInput, sJust: false, s: false };
-            const hasP2QCF = this.p2.facing === 1 ? Boolean(guestInput.qcfRight) : Boolean(guestInput.qcfLeft);
-            const isP2Special = guestInput.sJust || ((guestInput.lJust || guestInput.hJust) && hasP2QCF);
-            if (isP2Special && this.tryExecuteSpecial(this.p2, 'p2')) {
-                p2Input.lJust = false;
-                p2Input.hJust = false;
-            }
+            p2Input = this._processPlayerCombatInput(this.p2, this.p1, guestInput, 'p2');
         } else if (this.trainingMode && this.trainingDummyMode !== 'CPU') {
             const isCrouchDummy = this.trainingDummyMode === 'CROUCH';
             const isGuardDummy = this.trainingDummyMode === 'GUARD';
@@ -1456,8 +1452,84 @@ export default class CombatState {
             facing: f.facing,
             grounded: f.isGrounded,
             blocking: f.isBlocking,
-            atkType: f.currentAttack ? f.currentAttack.type : null
+            atkType: f.currentAttack ? f.currentAttack.type : null,
+            atkSt: f.currentAttack ? Number((f.currentAttack.startup || 0.05).toFixed(3)) : 0.05,
+            atkAct: f.currentAttack ? Number((f.currentAttack.active || 0.15).toFixed(3)) : 0.15,
+            atkRec: f.currentAttack ? Number((f.currentAttack.recovery || 0.18).toFixed(3)) : 0.18
         };
+    }
+
+    _processPlayerCombatInput(fighter, opponent, rawInput, ownerTag) {
+        const inputCopy = { ...rawInput, sJust: false, s: false };
+        if (!fighter || fighter.state === 'KO') return inputCopy;
+
+        const hasQCF = fighter.facing === 1 ? Boolean(rawInput.qcfRight) : Boolean(rawInput.qcfLeft);
+        const hasQCB = fighter.facing === 1 ? Boolean(rawInput.qcfLeft) : Boolean(rawInput.qcfRight);
+        const fwdDir = fighter.facing === 1 ? 'right' : 'left';
+        const backDir = fighter.facing === 1 ? 'left' : 'right';
+        const holdingFwd = Boolean(rawInput[fwdDir]);
+        const holdingBack = Boolean(rawInput[backDir]);
+        const holdingUp = Boolean(rawInput.up);
+        const holdingDown = Boolean(rawInput.down);
+        const canGroundedOrEarlyJump = fighter.isGrounded || fighter.state === 'DASH' || (fighter.state === 'JUMP' && fighter.stateTimer < 0.28);
+        const dist = opponent ? Math.abs(fighter.x - opponent.x) : 300;
+        const grabRange = (fighter.data && fighter.data.styleId === 'TITAN_GRAPPLER') ? 178 : 148;
+
+        if ((rawInput.throwJust || (rawInput.lJust && (holdingBack || rawInput.dash))) && dist <= grabRange && fighter.isGrounded && (!opponent || opponent.isGrounded)) {
+            inputCopy.commandMove = 'THROW';
+            inputCopy.lJust = false;
+            inputCopy.hJust = false;
+        } else if ((rawInput.sJust && holdingBack && !holdingUp && !holdingDown) && fighter.specialMoveCooldown <= 0) {
+            inputCopy.commandMove = 'DRAGON_RUSH_COMBO';
+            inputCopy.lJust = false;
+            inputCopy.hJust = false;
+            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        } else if ((rawInput.sJust && holdingFwd && !holdingUp && !holdingDown) && fighter.specialMoveCooldown <= 0) {
+            inputCopy.commandMove = 'FLYING_TORPEDO';
+            inputCopy.lJust = false;
+            inputCopy.hJust = false;
+            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        } else if (((rawInput.lJust && holdingUp && canGroundedOrEarlyJump) || (rawInput.sJust && holdingUp && canGroundedOrEarlyJump) || (rawInput.hJust && holdingUp && canGroundedOrEarlyJump && fighter.data?.styleId === 'SONIC_STRIKER')) && fighter.specialMoveCooldown <= 0) {
+            inputCopy.commandMove = 'DRAGON_UPPERCUT';
+            inputCopy.lJust = false;
+            inputCopy.hJust = false;
+            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        } else if (((rawInput.hJust && (holdingBack || hasQCB) && canGroundedOrEarlyJump) || (rawInput.sJust && holdingDown)) && fighter.specialMoveCooldown <= 0) {
+            inputCopy.commandMove = 'HURRICANE_KICK';
+            inputCopy.hJust = false;
+            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        } else if ((rawInput.specialRushJust || (rawInput.hJust && hasQCF)) && fighter.specialMoveCooldown <= 0) {
+            inputCopy.commandMove = 'DRAGON_RUSH_COMBO';
+            inputCopy.lJust = false;
+            inputCopy.hJust = false;
+            playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+        } else if (rawInput.sJust || (rawInput.lJust && hasQCF)) {
+            if (this.tryExecuteSpecial(fighter, ownerTag)) {
+                inputCopy.lJust = false;
+                inputCopy.hJust = false;
+            } else if (fighter.state === 'ATTACK' && fighter.specialEnergy >= 100) {
+                inputCopy.sJust = true;
+            } else if (fighter.specialMoveCooldown <= 0) {
+                inputCopy.commandMove = hasQCF ? 'DRAGON_UPPERCUT' : 'FLYING_TORPEDO';
+                inputCopy.lJust = false;
+                inputCopy.hJust = false;
+                if (rawInput.sJust) inputCopy.sJust = true;
+                playCombatSound(this.game.audioManager, 'special', fighter.data.id);
+            }
+        } else if (rawInput.hJust && holdingFwd && fighter.isGrounded) {
+            inputCopy.commandMove = 'AXE_KICK';
+            inputCopy.hJust = false;
+        } else if (rawInput.lJust && holdingFwd && fighter.isGrounded && fighter.comboChainStep === 0) {
+            inputCopy.commandMove = 'COMMAND_PUNCH';
+            inputCopy.lJust = false;
+        } else if (rawInput.hJust && holdingDown && !holdingFwd && fighter.isGrounded) {
+            inputCopy.commandMove = 'SWEEP';
+            inputCopy.hJust = false;
+        } else if (rawInput.lJust && holdingDown && !holdingFwd && fighter.isGrounded) {
+            inputCopy.commandMove = 'CROUCH_LIGHT';
+            inputCopy.lJust = false;
+        }
+        return inputCopy;
     }
 
     _applyFighterSnapshot(f, snap) {
@@ -1476,7 +1548,12 @@ export default class CombatState {
         f.isGrounded = snap.grounded;
         f.isBlocking = snap.blocking;
         if (snap.atkType) {
-            f.currentAttack = { type: snap.atkType, startup: 0.05, active: 0.15, recovery: 0.18 };
+            f.currentAttack = {
+                type: snap.atkType,
+                startup: snap.atkSt || 0.05,
+                active: snap.atkAct || 0.15,
+                recovery: snap.atkRec || 0.18
+            };
         } else {
             f.currentAttack = null;
         }

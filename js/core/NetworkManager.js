@@ -5,8 +5,8 @@
  *  - CO-OP STORY MODE (Host = P1, Guest = Ally fighting side-by-side through Story Mode!)
  *  - 1v1 DUEL MODE (Host = P1, Guest = P2 fighting head-to-head!)
  */
-import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.74';
-import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.74';
+import { ROSTER, ALL_FIGHTERS, unlockFighter } from '../data.js?v=2.75';
+import { preloadFighterSprites, preloadStageAssets } from './AssetPreloader.js?v=2.75';
 
 const PEER_PREFIX = 'lotl-arcade-v234-room-';
 const MQTT_TOPIC_PREFIX = 'lotl-arcade-v234/room/';
@@ -69,6 +69,8 @@ export default class NetworkManager {
             lJust: false,
             hJust: false,
             sJust: false,
+            throwJust: false,
+            specialRushJust: false,
             dashLeftJust: false,
             dashRightJust: false,
             dashJust: false,
@@ -82,6 +84,8 @@ export default class NetworkManager {
             lJust: false,
             hJust: false,
             sJust: false,
+            throwJust: false,
+            specialRushJust: false,
             dashLeftJust: false,
             dashRightJust: false,
             dashJust: false,
@@ -103,8 +107,9 @@ export default class NetworkManager {
     _emptyInput() {
         return {
             up: false, down: false, left: false, right: false,
-            l: false, h: false, s: false, dash: false,
+            l: false, h: false, s: false, dash: false, guard: false,
             lJust: false, hJust: false, sJust: false,
+            throwJust: false, specialRushJust: false,
             dashLeftJust: false, dashRightJust: false, dashJust: false,
             skipJust: false, qcfRight: false, qcfLeft: false
         };
@@ -462,10 +467,13 @@ export default class NetworkManager {
                     this.remoteInput.h = Boolean(inp.h);
                     this.remoteInput.s = Boolean(inp.s);
                     this.remoteInput.dash = Boolean(inp.dash);
+                    this.remoteInput.guard = Boolean(inp.guard);
 
                     if (inp.lJust) this._remoteLatches.lJust = true;
                     if (inp.hJust) this._remoteLatches.hJust = true;
                     if (inp.sJust) this._remoteLatches.sJust = true;
+                    if (inp.throwJust) this._remoteLatches.throwJust = true;
+                    if (inp.specialRushJust) this._remoteLatches.specialRushJust = true;
                     if (inp.dashLeftJust) this._remoteLatches.dashLeftJust = true;
                     if (inp.dashRightJust) this._remoteLatches.dashRightJust = true;
                     if (inp.dashJust) this._remoteLatches.dashJust = true;
@@ -577,6 +585,8 @@ export default class NetworkManager {
             if (p1.lJust) L.lJust = true;
             if (p1.hJust) L.hJust = true;
             if (p1.sJust) L.sJust = true;
+            if (p1.throwJust) L.throwJust = true;
+            if (p1.specialRushJust) L.specialRushJust = true;
             if (p1.dashLeftJust) L.dashLeftJust = true;
             if (p1.dashRightJust) L.dashRightJust = true;
             if (p1.dashJust) L.dashJust = true;
@@ -584,7 +594,7 @@ export default class NetworkManager {
             if (this.game.inputManager.hasQCF(1)) L.qcfRight = true;
             if (this.game.inputManager.hasQCF(-1)) L.qcfLeft = true;
 
-            const hasUrgentLatch = L.lJust || L.hJust || L.sJust || L.dashLeftJust || L.dashRightJust || L.dashJust || L.skipJust || L.qcfRight || L.qcfLeft;
+            const hasUrgentLatch = L.lJust || L.hJust || L.sJust || L.throwJust || L.specialRushJust || L.dashLeftJust || L.dashRightJust || L.dashJust || L.skipJust || L.qcfRight || L.qcfLeft;
             this._inputSendAccum += dt;
             // Send immediately on button press, or at 30Hz steady rate for smooth movement
             if (hasUrgentLatch || this._inputSendAccum >= 0.033) {
@@ -600,9 +610,12 @@ export default class NetworkManager {
                         h: p1.h,
                         s: p1.s,
                         dash: p1.dash,
+                        guard: p1.guard,
                         lJust: L.lJust,
                         hJust: L.hJust,
                         sJust: L.sJust,
+                        throwJust: L.throwJust,
+                        specialRushJust: L.specialRushJust,
                         dashLeftJust: L.dashLeftJust,
                         dashRightJust: L.dashRightJust,
                         dashJust: L.dashJust,
@@ -615,6 +628,8 @@ export default class NetworkManager {
                 L.lJust = false;
                 L.hJust = false;
                 L.sJust = false;
+                L.throwJust = false;
+                L.specialRushJust = false;
                 L.dashLeftJust = false;
                 L.dashRightJust = false;
                 L.dashJust = false;
@@ -635,6 +650,8 @@ export default class NetworkManager {
             lJust: this._remoteLatches.lJust,
             hJust: this._remoteLatches.hJust,
             sJust: this._remoteLatches.sJust,
+            throwJust: this._remoteLatches.throwJust,
+            specialRushJust: this._remoteLatches.specialRushJust,
             dashLeftJust: this._remoteLatches.dashLeftJust,
             dashRightJust: this._remoteLatches.dashRightJust,
             dashJust: this._remoteLatches.dashJust,
@@ -645,6 +662,8 @@ export default class NetworkManager {
         this._remoteLatches.lJust = false;
         this._remoteLatches.hJust = false;
         this._remoteLatches.sJust = false;
+        this._remoteLatches.throwJust = false;
+        this._remoteLatches.specialRushJust = false;
         this._remoteLatches.dashLeftJust = false;
         this._remoteLatches.dashRightJust = false;
         this._remoteLatches.dashJust = false;

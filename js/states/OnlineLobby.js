@@ -4,9 +4,9 @@
  *  1) 1 VS 1 DUELL (Head-to-head PvP!)
  *  2) 2P KOOP STORY (Fight side-by-side through the Story & unlock secret fighters!)
  */
-import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.74';
-import { STORY_PROLOGUE } from '../story_data.js?v=2.74';
-import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.74';
+import { ROSTER, SPECIALS, ALL_FIGHTERS, STAGES, isFighterUnlocked } from '../data.js?v=2.75';
+import { STORY_PROLOGUE } from '../story_data.js?v=2.75';
+import { preloadFighterSprites, preloadStageAssets } from '../core/AssetPreloader.js?v=2.75';
 
 export default class OnlineLobbyState {
     constructor(game) {
@@ -33,7 +33,7 @@ export default class OnlineLobbyState {
         for (const f of ALL_FIGHTERS) {
             const key = `${f.id}_front.png`;
             if (!this.game.assetManager.images[key]) {
-                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.74`);
+                this.game.assetManager.queueImage(key, `assets/CHARACTERS/${f.folder}/_front.png?v=2.75`);
             }
         }
         this.game.assetManager.loadAll();
@@ -295,7 +295,7 @@ export default class OnlineLobbyState {
 
         const key = `${nextChar.id}_front.png`;
         if (!this.game.assetManager.images[key]) {
-            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.74`);
+            this.game.assetManager.queueImage(key, `assets/CHARACTERS/${nextChar.folder}/_front.png?v=2.75`);
             this.game.assetManager.loadAll();
         }
 
